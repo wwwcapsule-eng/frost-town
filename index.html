@@ -22,6 +22,8 @@
   #title small{display:block;font-size:12px;font-weight:700;opacity:.7}
   #reset{position:fixed;left:12px;bottom:calc(12px + env(safe-area-inset-bottom));font-size:12px;border:0;border-radius:10px;
     padding:6px 10px;background:rgba(30,40,60,.45);color:#fff}
+  #mute{position:fixed;left:96px;bottom:calc(12px + env(safe-area-inset-bottom));font-size:12px;border:0;border-radius:10px;
+    padding:6px 10px;background:rgba(30,40,60,.45);color:#fff}
   #toast{position:fixed;left:50%;top:22%;transform:translateX(-50%);background:rgba(30,40,60,.8);color:#fff;font-weight:700;
     padding:8px 16px;border-radius:14px;font-size:16px;opacity:0;transition:opacity .25s;pointer-events:none;white-space:nowrap}
   #hint{position:fixed;left:50%;bottom:9%;transform:translateX(-50%);color:#25415e;font-weight:900;font-size:18px;
@@ -36,17 +38,19 @@
 <div id="title">寒霜小鎮<small id="ver"></small></div>
 <div id="hud">
   <div class="pill" id="pCash">💵 <b id="cash">0</b></div>
+  <div class="pill" id="pMeat">🍖 <b id="meat">0</b></div>
   <div class="pill" id="pWood">🪵 <b id="wood">0</b><span id="cap" style="font-size:13px;opacity:.75"></span></div>
 </div>
 <div id="toast"></div>
 <div id="hint"></div>
 <div id="joy"><div id="knob"></div></div>
 <button id="reset">重新開始</button>
+<button id="mute"></button>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 'use strict';
-const VERSION = '0.02';
+const VERSION = '0.06';
 document.getElementById('ver').textContent = 'v' + VERSION + '　灰盒原型';
 
 // ===== 數值（之後平衡都改這裡） =====
@@ -60,6 +64,8 @@ const CFG = {
   capacity: [10, 20, 30, 45], // 背包各等級容量
   millTime: 0.6,            // 鋸木機每根木頭加工秒數
   logValue: 1,              // 一根木頭換幾元
+  meatValue: 3,             // 一塊肉換幾元
+  bearHp: 5, bearCount: 5, bearRespawn: 20, meatPerBear: 2,
   payRate: 1.1,             // 付款格：幾秒內付完整筆
 };
 
@@ -94,7 +100,7 @@ scene.add(sun, sun.target);
 const M = c => new THREE.MeshLambertMaterial({ color: c });
 const mats = {
   snow: M(0xf4f8fc), dirt: M(0xc98c5a), trunk: M(0x7a4a2a), leaf: M(0x3f7f9a), leafSnow: M(0xe8f2fa),
-  log: M(0xb06a35), cash: M(0x3fbf5a), wood: M(0x8a5a35), roof: M(0xb53a2e), player: M(0x2f8fd8),
+  log: M(0xb06a35), meat: M(0xd9414a), fur: M(0xf2f0ea), cash: M(0x3fbf5a), wood: M(0x8a5a35), roof: M(0xb53a2e), player: M(0x2f8fd8),
   skin: M(0xffd6b0), ice: new THREE.MeshLambertMaterial({ color: 0xd6ecff, transparent: true, opacity: 0.85 }),
   axe: M(0xdfe6ee),
 };
@@ -188,21 +194,61 @@ for (let a = 0; a < Math.PI * 2; a += 0.12) {
   const p = box(0.22, 0.9, 0.22, mats.wood); p.position.set(Math.cos(a) * 8.7, 0.45, Math.sin(a) * 8.7); scene.add(p);
 }
 
+// ===== 北極熊：在北邊森林閒晃，打倒掉肉，過一陣子重生 =====
+const bears = [];
+function bearSpot() { return [rand(-12, 8), rand(-23, -11)]; }
+for (let i = 0; i < CFG.bearCount; i++) {
+  const g = new THREE.Group();
+  const bd = box(1.5, 0.9, 0.95, mats.fur); bd.position.y = 0.75; g.add(bd);
+  const hd = box(0.6, 0.55, 0.6, mats.fur); hd.position.set(0, 0.95, 0.95); g.add(hd);
+  const nose = box(0.25, 0.2, 0.2, M(0x333333)); nose.position.set(0, 0.9, 1.3); g.add(nose);
+  [-0.2, 0.2].forEach(ex => { const e = box(0.14, 0.14, 0.1, mats.fur); e.position.set(ex, 1.28, 0.85); g.add(e); });
+  [[-0.5, -0.3], [0.5, -0.3], [-0.5, 0.3], [0.5, 0.3]].forEach(([lx, lz]) => { const l = box(0.3, 0.45, 0.3, mats.fur); l.position.set(lx * 0.8, 0.22, lz * 1.2); g.add(l); });
+  bd.rotation.y = Math.PI / 2; // 身體朝 +z
+  const [x, z] = bearSpot();
+  g.position.set(x, 0, z); scene.add(g);
+  bears.push({ g, x, z, isBear: true, hp: CFG.bearHp, alive: true, respawn: 0, dir: rand(0, 6.28), turn: 0, shake: 0, pop: 0 });
+}
+function updateBears(dt) {
+  for (const b of bears) {
+    if (!b.alive) {
+      b.g.scale.setScalar(Math.max(0.001, b.g.scale.x - dt * 4));
+      b.respawn -= dt;
+      if (b.respawn <= 0) { [b.x, b.z] = bearSpot(); b.alive = true; b.hp = CFG.bearHp; }
+      b.g.position.set(b.x, 0, b.z);
+      continue;
+    }
+    if (b.g.scale.x < 1) b.g.scale.setScalar(Math.min(1, b.g.scale.x + dt * 2));
+    b.turn -= dt;
+    if (b.turn <= 0) { b.turn = rand(1.5, 4); b.dir = rand(0, 6.28); b.idle = Math.random() < 0.35; }
+    if (!b.idle && b.shake <= 0) {
+      b.x += Math.sin(b.dir) * 1.2 * dt; b.z += Math.cos(b.dir) * 1.2 * dt;
+      if (b.x < -13 || b.x > 9 || b.z < -24 || b.z > -10) { b.dir += Math.PI; b.x = Math.max(-13, Math.min(9, b.x)); b.z = Math.max(-24, Math.min(-10, b.z)); }
+    }
+    b.g.position.set(b.x, 0, b.z);
+    b.g.rotation.y = b.dir;
+    if (b.shake > 0) { b.shake -= dt; b.g.rotation.z = Math.sin(b.shake * 60) * 0.12; } else b.g.rotation.z = 0;
+    if (b.pop > 0) { b.pop -= dt; b.g.scale.setScalar(1 + Math.max(0, b.pop)); }
+  }
+}
+
 // ===== 鋸木廠 =====
-function makeMill(x, z) {
+function makeMill(x, z, opt = {}) {
+  const o = Object.assign({ name: '鋸木廠', accept: 'log', value: CFG.logValue, time: CFG.millTime, roof: mats.roof }, opt);
   const g = new THREE.Group();
   const base = box(3, 1.6, 2.4, mats.wood); base.position.y = 0.8; g.add(base);
-  const roof = box(3.4, 0.3, 2.8, mats.roof); roof.position.y = 1.75; g.add(roof);
+  const roof = box(3.4, 0.3, 2.8, o.roof); roof.position.y = 1.75; g.add(roof);
   const saw = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.6, 0.08, 16), mats.axe);
   saw.rotation.x = Math.PI / 2; saw.position.set(0, 1.0, 1.25); g.add(saw);
   g.position.set(x, 0, z); scene.add(g);
   const inPad = makePad(x - 2.6, z + 2.2, 1.8, 0xffffff);
   const outPad = makePad(x + 2.6, z + 2.2, 1.8, 0x3fbf5a);
-  const label = makeLabel(); label.scale.set(3, 1.5, 1); label.position.set(x, 3, z); label.set(['鋸木廠']); scene.add(label);
-  return { g, saw, inPad, outPad, queue: 0, timer: 0, out: [], label };
+  const label = makeLabel(); label.scale.set(3, 1.5, 1); label.position.set(x, 3, z); label.set([o.name]); scene.add(label);
+  return Object.assign(o, { g, saw, inPad, outPad, queue: 0, timer: 0, out: [], label });
 }
 const mills = [makeMill(3.5, -1)];
 function addMill2() { mills.push(makeMill(-4.5, -1)); }
+mills.push(makeMill(-3, -5.2, { name: '烤肉攤', accept: 'meat', value: CFG.meatValue, time: 0.8, roof: M(0xe07b22) }));
 
 // ===== 付款格（解鎖） =====
 const unlocks = [];
@@ -260,9 +306,9 @@ let axeSpin = 0, axeShow = 0;
 // 砍中時噴出的木屑
 const chips = [];
 const chipGeo = new THREE.BoxGeometry(0.16, 0.16, 0.16);
-function burstChips(x, z) {
+function burstChips(x, z, bear) {
   for (let i = 0; i < 7; i++) {
-    const c = new THREE.Mesh(chipGeo, i % 3 ? mats.log : mats.leafSnow);
+    const c = new THREE.Mesh(chipGeo, bear ? (i % 2 ? mats.meat : mats.fur) : (i % 3 ? mats.log : mats.leafSnow));
     c.position.set(x + rand(-0.3, 0.3), rand(0.6, 1.4), z + rand(-0.3, 0.3)); scene.add(c);
     chips.push({ m: c, vx: rand(-3, 3), vy: rand(3, 6), vz: rand(-3, 3), life: 0.6 });
   }
@@ -285,12 +331,35 @@ const $ = id => document.getElementById(id);
 let shownCash = -1, shownWood = -1;
 function hud() {
   if (shownCash !== save.cash) { $('cash').textContent = save.cash; bump('pCash'); shownCash = save.cash; }
-  if (shownWood !== carried.length) { $('wood').textContent = carried.length; shownWood = carried.length; }
+  const nMeat = carried.filter(m => m.userData.type === 'meat').length, nLog = carried.length - nMeat;
+  if (shownWood !== carried.length * 1000 + nMeat) { $('wood').textContent = nLog; $('meat').textContent = nMeat; shownWood = carried.length * 1000 + nMeat; }
   $('cap').textContent = '/' + capacity();
 }
 function bump(id) { const e = $(id); e.classList.remove('bump'); void e.offsetWidth; e.classList.add('bump'); }
 let toastT = 0;
 function toast(msg) { $('toast').textContent = msg; $('toast').style.opacity = 1; toastT = 1.6; }
+
+// ===== 音效（用程式合成，不需要音檔；手機要先碰一下畫面才能出聲） =====
+let actx = null;
+function initAudio() { if (!actx) try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} }
+addEventListener('pointerdown', initAudio); addEventListener('keydown', initAudio);
+function beep(freq, dur, type, vol, slide) {
+  if (!actx || save.mute) return;
+  const t = actx.currentTime, o = actx.createOscillator(), g = actx.createGain();
+  o.type = type; o.frequency.setValueAtTime(freq, t);
+  if (slide) o.frequency.exponentialRampToValueAtTime(freq * slide, t + dur);
+  g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+  o.connect(g); g.connect(actx.destination); o.start(t); o.stop(t + dur);
+}
+function muteLabel() { $('mute').textContent = save.mute ? '🔇 音效關' : '🔊 音效開'; }
+$('mute').onclick = () => { save.mute = !save.mute; muteLabel(); writeSave(); };
+muteLabel();
+let coinCd = 0;
+const sfx = {
+  chop: () => beep(170, 0.09, 'square', 0.05, 0.5),
+  coin: () => { if (coinCd > 0) return; coinCd = 0.05; beep(1100, 0.07, 'triangle', 0.05, 1.6); },
+  unlock: () => { beep(523, 0.12, 'triangle', 0.1); setTimeout(() => beep(784, 0.2, 'triangle', 0.1), 110); try { navigator.vibrate && navigator.vibrate(60); } catch (e) {} },
+};
 const isTouch = matchMedia('(pointer: coarse)').matches;
 let hintOn = save.cash === 0 && !save.bag && !save.axe;
 $('hint').textContent = isTouch ? '按住畫面拖曳來移動\n走到樹旁邊會自動砍' : '用 WASD／方向鍵移動（也可以用滑鼠拖曳）';
@@ -301,7 +370,7 @@ if (!hintOn) $('hint').style.display = 'none';
 const joy = { active: false, id: null, ox: 0, oy: 0, x: 0, y: 0 };
 const joyEl = $('joy'), knob = $('knob');
 addEventListener('pointerdown', e => {
-  if (e.target.id === 'reset' || joy.active) return;
+  if (e.target.id === 'reset' || e.target.id === 'mute' || joy.active) return;
   joy.active = true; joy.id = e.pointerId; joy.ox = e.clientX; joy.oy = e.clientY; joy.x = joy.y = 0;
   joyEl.style.left = e.clientX + 'px'; joyEl.style.top = e.clientY + 'px'; joyEl.style.display = 'block';
   knob.style.transform = '';
@@ -342,6 +411,33 @@ const snowGeo = new THREE.BufferGeometry(); snowGeo.setAttribute('position', new
 const snow = new THREE.Points(snowGeo, new THREE.PointsMaterial({ color: 0xffffff, size: 0.15 }));
 scene.add(snow);
 
+// ===== 新手指引箭頭：前期告訴玩家下一步去哪 =====
+const guide = new THREE.Mesh(new THREE.ConeGeometry(0.5, 1, 4), new THREE.MeshBasicMaterial({ color: 0xffc400, depthTest: false }));
+guide.rotation.x = Math.PI; guide.renderOrder = 22; scene.add(guide);
+let guideT = 0;
+function updateGuide(dt) {
+  guideT += dt;
+  guide.visible = save.bag + save.axe < 2; // 買過兩次升級就不再指引
+  if (!guide.visible) return;
+  let x, z, h = 2.2;
+  const out = mills.find(m => m.out.length);
+  const aff = unlocks.find(u => !u.done && u.price() - u.paid <= save.cash);
+  if (out) { x = out.outPad.position.x; z = out.outPad.position.z; }
+  else if (carried.length >= Math.min(capacity(), 9)) { const s = mills.find(m => m.accept === carried[carried.length - 1].userData.type); x = s.inPad.position.x; z = s.inPad.position.z; }
+  else if (aff && !carried.length) { x = aff.x; z = aff.z; h = 3.2; }
+  else {
+    let best = 1e9;
+    for (const t of trees) {
+      if (!t.alive || t.locked) continue;
+      const d = (t.x - player.position.x) ** 2 + (t.z - player.position.z) ** 2;
+      if (d < best) { best = d; x = t.x; z = t.z; }
+    }
+    h = 4;
+  }
+  guide.position.set(x, h + Math.abs(Math.sin(guideT * 4)) * 0.6, z);
+  guide.rotation.y += dt * 3;
+}
+
 // ===== 主迴圈 =====
 const tmp = new THREE.Vector3();
 let chopTimer = 0, dropTimer = 0, fullWarn = 0, saveTimer = 0, walk = 0;
@@ -381,21 +477,28 @@ function step(dt) {
     const d = Math.hypot(t.x - player.position.x, t.z - player.position.z);
     if (d < best) { best = d; target = t; }
   }
+  for (const b of bears) { // 熊優先：範圍內有熊就先打熊
+    if (!b.alive) continue;
+    if (Math.hypot(b.x - player.position.x, b.z - player.position.z) < CFG.chopRange + 0.4) { target = b; break; }
+  }
   if (target) {
     if (carried.length >= capacity()) {
-      fullWarn -= dt; if (fullWarn <= 0) { toast('背包滿了！拿去鋸木廠'); fullWarn = 3; }
+      fullWarn -= dt; if (fullWarn <= 0) { toast('背包滿了！先去卸貨'); fullWarn = 3; }
     } else {
       axeShow = 0.3;
       if (chopTimer <= 0) {
         chopTimer = CFG.chopInterval[save.axe];
         target.hp--; target.shake = 0.25; target.pop = 0.15;
-        burstChips(target.x, target.z);
+        burstChips(target.x, target.z, target.isBear); sfx.chop();
         if (target.hp <= 0) {
-          target.alive = false; target.regrow = CFG.treeRegrow;
-          for (let i = 0; i < CFG.logsPerTree; i++) {
+          target.alive = false;
+          if (target.isBear) target.respawn = CFG.bearRespawn; else target.regrow = CFG.treeRegrow;
+          const n = target.isBear ? CFG.meatPerBear : CFG.logsPerTree;
+          for (let i = 0; i < n; i++) {
             const idx = carried.length + flies.filter(f => f.toBack).length;
             if (idx >= capacity()) break;
-            const m = new THREE.Mesh(logGeo, mats.log); m.castShadow = true;
+            const m = new THREE.Mesh(logGeo, target.isBear ? mats.meat : mats.log); m.castShadow = true;
+            m.userData.type = target.isBear ? 'meat' : 'log';
             const f = { toBack: true };
             fly(m, tmp.set(target.x, 1 + i * 0.3, target.z), () => stackRoot.localToWorld(new THREE.Vector3(0, idx * 0.24, 0)), 0.35 + i * 0.08, () => {
               stackRoot.add(m); carried.push(m); restack();
@@ -438,16 +541,17 @@ function step(dt) {
   dropTimer -= dt;
   for (const mill of mills) {
     const ip = mill.inPad.position, op = mill.outPad.position;
-    if (carried.length && dropTimer <= 0 && Math.hypot(player.position.x - ip.x, player.position.z - ip.z) < 1.3) {
+    const k = carried.map(m => m.userData.type).lastIndexOf(mill.accept); // 只收這個站要的東西
+    if (k >= 0 && dropTimer <= 0 && Math.hypot(player.position.x - ip.x, player.position.z - ip.z) < 1.3) {
       dropTimer = 0.07;
-      const m = carried.pop(); const wp = m.getWorldPosition(new THREE.Vector3());
-      stackRoot.remove(m);
+      const m = carried.splice(k, 1)[0]; const wp = m.getWorldPosition(new THREE.Vector3());
+      stackRoot.remove(m); restack();
       fly(m, wp, () => mill.g.position.clone().add(tmp.set(0, 1.6, 0)), 0.3, () => { scene.remove(m); mill.queue++; });
     }
     mill.saw.rotation.y += dt * (mill.queue ? 20 : 2);
     if (mill.queue > 0) {
       mill.timer += dt;
-      if (mill.timer >= CFG.millTime) {
+      if (mill.timer >= mill.time) {
         mill.timer = 0; mill.queue--;
         const bill = box(0.7, 0.14, 0.45, mats.cash);
         const n = mill.out.length;
@@ -456,13 +560,13 @@ function step(dt) {
         fly(bill, mill.g.position.clone().add(tmp.set(1.2, 1, 1)), () => to, 0.3, null, 1);
       }
     } else mill.timer = 0;
-    mill.label.set(mill.queue ? ['鋸木廠', '加工中 ' + mill.queue] : ['鋸木廠']);
+    mill.label.set(mill.queue ? [mill.name, '加工中 ' + mill.queue] : [mill.name]);
     if (mill.out.length && Math.hypot(player.position.x - op.x, player.position.z - op.z) < 1.4) {
       const bills = mill.out.splice(0);
       bills.forEach((b, i) => {
         const wp = b.position.clone();
         fly(b, wp, () => player.position.clone().add(tmp.set(0, 2.2, 0)), 0.25 + i * 0.02, () => {
-          scene.remove(b); save.cash += CFG.logValue;
+          scene.remove(b); save.cash += mill.value; sfx.coin();
         }, 1);
       });
     }
@@ -481,11 +585,14 @@ function step(dt) {
         const b = box(0.5, 0.1, 0.3, mats.cash);
         fly(b, player.position.clone().add(tmp.set(0, 2, 0)), () => new THREE.Vector3(u.x, 0.1, u.z), 0.25, () => scene.remove(b), 1);
       }
-      if (u.paid >= p) { u.paid = 0; u.payAcc = 0; u.buy(); writeSave(); }
+      if (u.paid >= p) { u.paid = 0; u.payAcc = 0; u.buy(); sfx.unlock(); writeSave(); }
       u.refresh();
     } else u.payAcc = 0;
   }
 
+  coinCd -= dt;
+  updateGuide(dt);
+  updateBears(dt);
   // 飛行動畫
   for (let i = flies.length - 1; i >= 0; i--) {
     const f = flies[i]; f.t += dt;
@@ -525,7 +632,7 @@ function loop() {
 }
 loop();
 addEventListener('visibilitychange', () => { if (document.hidden) writeSave(); });
-window.__game = { save, player, carried, mills, unlocks, trees, step, render: () => renderer.render(scene, camera) }; // 測試用
+window.__game = { save, player, carried, mills, unlocks, trees, bears, step, render: () => renderer.render(scene, camera) }; // 測試用
 </script>
 </body>
 </html>
