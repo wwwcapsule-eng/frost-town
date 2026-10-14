@@ -50,7 +50,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 'use strict';
-const VERSION = '0.07';
+const VERSION = '0.08';
 document.getElementById('ver').textContent = 'v' + VERSION + '　灰盒原型';
 
 // ===== 數值（之後平衡都改這裡） =====
@@ -67,12 +67,13 @@ const CFG = {
   meatValue: 3,             // 一塊肉換幾元
   bearHp: 5, bearCount: 5, bearRespawn: 20, meatPerBear: 2,
   villagers: 6,             // 排隊的村民人數
+  towerRange: 11, towerInterval: 1.1, // 弩砲塔射程與射速
   payRate: 1.1,             // 付款格：幾秒內付完整筆
 };
 
 // ===== 存檔 =====
 const SAVE_KEY = 'frost-town-save-v1';
-let save = { cash: 0, bag: 0, axe: 0, east: false, mill2: false };
+let save = { cash: 0, bag: 0, axe: 0, east: false, mill2: false, tower: false };
 try { Object.assign(save, JSON.parse(localStorage.getItem(SAVE_KEY) || '{}')); } catch (e) {}
 function writeSave() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) {} }
 document.getElementById('reset').onclick = () => {
@@ -336,6 +337,66 @@ makeUnlock({ x: -5.5, z: 3, name: () => '第二台鋸木機',
 function openEast() { scene.remove(iceWall); trees.forEach(t => t.locked = false); }
 if (save.east) openEast();
 if (save.mill2) addMill2();
+
+// ===== 弩砲塔：自動射北邊的熊，熊倒下的肉掉在地上，走過去撿 =====
+makeUnlock({ x: 4, z: -5.5, name: () => '弩砲塔',
+  price: () => save.tower ? null : 40, buy: () => { save.tower = true; buildTower(); toast('弩砲塔會自動射熊！'); } });
+let tower = null;
+function buildTower() {
+  const g = new THREE.Group();
+  const base = box(1.6, 2.2, 1.6, mats.wood); base.position.y = 1.1; g.add(base);
+  const deck = box(2, 0.25, 2, mats.trunk); deck.position.y = 2.3; g.add(deck);
+  const bow = new THREE.Group(); bow.position.y = 2.8; g.add(bow);
+  const stock = box(0.25, 0.25, 1.4, M(0x5a3a22)); bow.add(stock);
+  const arms = box(1.6, 0.14, 0.18, M(0x3c4a5a)); arms.position.z = 0.5; bow.add(arms);
+  g.position.set(3, 0, -9.6); scene.add(g);
+  tower = { g, bow, cd: 0 };
+}
+if (save.tower) buildTower();
+const pickups = [];
+function dropMeat(x, z) {
+  for (let i = 0; i < CFG.meatPerBear; i++) {
+    const m = new THREE.Mesh(logGeo, mats.meat); m.castShadow = true;
+    const px = x + rand(-0.6, 0.6), pz = z + rand(-0.6, 0.6);
+    fly(m, new THREE.Vector3(x, 1, z), () => new THREE.Vector3(px, 0.12, pz), 0.4, () => pickups.push({ m, x: px, z: pz }), 1.2);
+  }
+}
+function updateTower(dt) {
+  if (tower) {
+    tower.cd -= dt;
+    let tgt = null, best = CFG.towerRange;
+    for (const b of bears) {
+      if (!b.alive) continue;
+      const d = Math.hypot(b.x - tower.g.position.x, b.z - tower.g.position.z);
+      if (d < best) { best = d; tgt = b; }
+    }
+    if (tgt) {
+      tower.bow.rotation.y = Math.atan2(tgt.x - tower.g.position.x, tgt.z - tower.g.position.z);
+      if (tower.cd <= 0) {
+        tower.cd = CFG.towerInterval;
+        const arrow = box(0.08, 0.08, 0.9, M(0x333333)); arrow.lookAt(tgt.x - tower.g.position.x, 0, tgt.z - tower.g.position.z);
+        fly(arrow, tower.g.position.clone().add(tmp.set(0, 2.8, 0)), () => new THREE.Vector3(tgt.x, 0.9, tgt.z), 0.3, () => {
+          scene.remove(arrow);
+          if (!tgt.alive) return;
+          tgt.hp--; tgt.shake = 0.25; tgt.pop = 0.15; burstChips(tgt.x, tgt.z, true);
+          if (tgt.hp <= 0) { tgt.alive = false; tgt.respawn = CFG.bearRespawn; dropMeat(tgt.x, tgt.z); }
+        }, 0.8);
+        flies[flies.length - 1].spin = false;
+      }
+    }
+  }
+  // 撿地上的肉
+  for (let i = pickups.length - 1; i >= 0; i--) {
+    const p = pickups[i];
+    if (Math.hypot(p.x - player.position.x, p.z - player.position.z) > 1.6) continue;
+    const idx = carried.length + flies.filter(f => f.toBack).length;
+    if (idx >= capacity()) break;
+    pickups.splice(i, 1);
+    const m = p.m; m.userData.type = 'meat';
+    fly(m, m.position.clone(), () => stackRoot.localToWorld(new THREE.Vector3(0, idx * 0.24, 0)), 0.3, () => { stackRoot.add(m); carried.push(m); restack(); });
+    flies[flies.length - 1].toBack = true;
+  }
+}
 
 // ===== 主角 =====
 const player = new THREE.Group();
@@ -649,13 +710,14 @@ function step(dt) {
   updateGuide(dt);
   updateBears(dt);
   updateVillagers(dt);
+  updateTower(dt);
   // 飛行動畫
   for (let i = flies.length - 1; i >= 0; i--) {
     const f = flies[i]; f.t += dt;
     const k = Math.min(1, f.t / f.dur), to = f.toFn();
     f.mesh.position.lerpVectors(f.from, to, k);
     f.mesh.position.y += Math.sin(k * Math.PI) * f.arc;
-    f.mesh.rotation.y += dt * 8;
+    if (f.spin !== false) f.mesh.rotation.y += dt * 8;
     if (k >= 1) { flies.splice(i, 1); f.onDone && f.onDone(); }
   }
 
