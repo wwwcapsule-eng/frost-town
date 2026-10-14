@@ -46,7 +46,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 'use strict';
-const VERSION = '0.03';
+const VERSION = '0.04';
 document.getElementById('ver').textContent = 'v' + VERSION + '　灰盒原型';
 
 // ===== 數值（之後平衡都改這裡） =====
@@ -361,6 +361,33 @@ const snowGeo = new THREE.BufferGeometry(); snowGeo.setAttribute('position', new
 const snow = new THREE.Points(snowGeo, new THREE.PointsMaterial({ color: 0xffffff, size: 0.15 }));
 scene.add(snow);
 
+// ===== 新手指引箭頭：前期告訴玩家下一步去哪 =====
+const guide = new THREE.Mesh(new THREE.ConeGeometry(0.5, 1, 4), new THREE.MeshBasicMaterial({ color: 0xffc400, depthTest: false }));
+guide.rotation.x = Math.PI; guide.renderOrder = 22; scene.add(guide);
+let guideT = 0;
+function updateGuide(dt) {
+  guideT += dt;
+  guide.visible = save.bag + save.axe < 2; // 買過兩次升級就不再指引
+  if (!guide.visible) return;
+  let x, z, h = 2.2;
+  const out = mills.find(m => m.out.length);
+  const aff = unlocks.find(u => !u.done && u.price() - u.paid <= save.cash);
+  if (out) { x = out.outPad.position.x; z = out.outPad.position.z; }
+  else if (carried.length >= Math.min(capacity(), 9)) { x = mills[0].inPad.position.x; z = mills[0].inPad.position.z; }
+  else if (aff && !carried.length) { x = aff.x; z = aff.z; h = 3.2; }
+  else {
+    let best = 1e9;
+    for (const t of trees) {
+      if (!t.alive || t.locked) continue;
+      const d = (t.x - player.position.x) ** 2 + (t.z - player.position.z) ** 2;
+      if (d < best) { best = d; x = t.x; z = t.z; }
+    }
+    h = 4;
+  }
+  guide.position.set(x, h + Math.abs(Math.sin(guideT * 4)) * 0.6, z);
+  guide.rotation.y += dt * 3;
+}
+
 // ===== 主迴圈 =====
 const tmp = new THREE.Vector3();
 let chopTimer = 0, dropTimer = 0, fullWarn = 0, saveTimer = 0, walk = 0;
@@ -506,6 +533,7 @@ function step(dt) {
   }
 
   coinCd -= dt;
+  updateGuide(dt);
   // 飛行動畫
   for (let i = flies.length - 1; i >= 0; i--) {
     const f = flies[i]; f.t += dt;
