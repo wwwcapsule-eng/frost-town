@@ -50,7 +50,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 'use strict';
-const VERSION = '0.10';
+const VERSION = '0.11';
 document.getElementById('ver').textContent = 'v' + VERSION + '　灰盒原型';
 
 // ===== 數值（之後平衡都改這裡） =====
@@ -193,6 +193,7 @@ scene.add(iceWall);
 // 營地周圍的木樁圍欄（裝飾）
 for (let a = 0; a < Math.PI * 2; a += 0.12) {
   if (a > -0.5 + Math.PI * 1.5 && a < 0.5 + Math.PI * 1.5) continue; // 北邊留出口
+  if (a > Math.PI / 2 - 0.3 && a < Math.PI / 2 + 0.3) continue;    // 南邊留出口（村民從這裡來）
   if (a < 0.45 || a > Math.PI * 2 - 0.45) continue;                   // 東邊留出口
   const p = box(0.22, 0.9, 0.22, mats.wood); p.position.set(Math.cos(a) * 8.7, 0.45, Math.sin(a) * 8.7); scene.add(p);
 }
@@ -264,14 +265,17 @@ function spawnBill(mill, from) {
 
 // ===== 村民排隊買烤肉：烤好的肉放櫃台，排第一個的村民拿走並付錢 =====
 const bbq = mills[1];
-const counter = box(1.4, 0.8, 1, mats.wood); counter.position.set(-0.8, 0.4, -5.6); scene.add(counter);
+// 櫃台和村民隊伍放在南邊，遠離北邊森林的熊；烤好的肉從烤肉攤送過來
+const CX = -0.5, CZ = 7.3;
+const counter = box(1.4, 0.8, 1, mats.wood); counter.position.set(CX, 0.4, CZ); scene.add(counter);
+bbq.outPad.position.set(-2.4, 0.03, CZ); // 村民付的錢放在櫃台旁
 bbq.cookedMeshes = [];
 function addCooked(mill) {
   const m = new THREE.Mesh(logGeo, mats.meat); m.castShadow = true;
   const i = mill.cookedMeshes.length; mill.cookedMeshes.push(m);
-  fly(m, mill.g.position.clone().add(tmp.set(0, 1.5, 0)), () => new THREE.Vector3(-0.8, 0.92 + i * 0.24, -5.6), 0.3, null, 1);
+  fly(m, mill.g.position.clone().add(tmp.set(0, 1.5, 0)), () => new THREE.Vector3(CX, 0.92 + i * 0.24, CZ), 0.6, null, 1);
 }
-const QUEUE = i => new THREE.Vector3(-0.8, 0, -6.6 - i * 1.0); // 從櫃台往北邊出口排
+const QUEUE = i => new THREE.Vector3(CX, 0, CZ + 1 + i * 1.0); // 從櫃台往南邊出口排
 const SHIRTS = [0x2f8fd8, 0x3fa66b, 0xd9a03f, 0x9b5fd0, 0xe06a6a];
 const villagers = [], leaving = [];
 function makeVillager(i) {
@@ -305,8 +309,8 @@ function updateVillagers(dt) {
   }
   for (let i = leaving.length - 1; i >= 0; i--) {
     const l = leaving[i]; l.t -= dt;
-    l.g.position.x += Math.sin(l.dir) * 2.5 * dt; l.g.position.z -= Math.cos(l.dir) * 2.5 * dt;
-    l.g.rotation.y = Math.PI + l.dir; l.g.position.y = Math.abs(Math.sin(l.t * 10)) * 0.1;
+    l.g.position.x += Math.sin(l.dir) * 2.5 * dt; l.g.position.z += Math.cos(l.dir) * 2.5 * dt;
+    l.g.rotation.y = l.dir; l.g.position.y = Math.abs(Math.sin(l.t * 10)) * 0.1;
     if (l.t <= 0) { scene.remove(l.g); leaving.splice(i, 1); }
   }
 }
