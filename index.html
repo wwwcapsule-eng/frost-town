@@ -16,6 +16,8 @@
     display:flex;align-items:center;gap:6px;min-width:76px}
   .pill b{font-size:20px}
   .pill.bump{animation:bump .25s}
+  .pill.danger{background:rgba(200,40,40,.85);animation:blink .8s infinite}
+  #vignette{position:fixed;inset:0;pointer-events:none;box-shadow:inset 0 0 80px 20px rgba(220,30,30,.55);opacity:0;transition:opacity .4s}
   @keyframes bump{50%{transform:scale(1.15)}}
   #title{position:fixed;top:calc(10px + env(safe-area-inset-top));left:12px;color:#25415e;font-weight:900;font-size:20px;
     text-shadow:0 2px 0 #fff;pointer-events:none}
@@ -40,7 +42,9 @@
   <div class="pill" id="pCash">💵 <b id="cash">0</b></div>
   <div class="pill" id="pMeat">🍖 <b id="meat">0</b></div>
   <div class="pill" id="pWood">🪵 <b id="wood">0</b><span id="cap" style="font-size:13px;opacity:.75"></span></div>
+  <div class="pill" id="pRaid">🐻 <b id="raid">--</b></div>
 </div>
+<div id="vignette"></div>
 <div id="toast"></div>
 <div id="hint"></div>
 <div id="joy"><div id="knob"></div></div>
@@ -50,7 +54,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 'use strict';
-const VERSION = '0.12';
+const VERSION = '0.13';
 document.getElementById('ver').textContent = 'v' + VERSION + '　灰盒原型';
 
 // ===== 數值（之後平衡都改這裡） =====
@@ -393,6 +397,10 @@ function updateGate(dt) {
   if (gate.hit > 0) { gate.hit -= dt; gate.posts.position.x = Math.sin(gate.hit * 80) * 0.06; } else gate.posts.position.x = 0;
   const pct = Math.round(gate.hp / CFG.gateHp * 100);
   gateLabel.set(['北門 ' + pct + '%'], pct > 60 ? '#9fe870' : pct > 25 ? '#ffd34d' : '#ff6a5a');
+  const raiding = bears.some(b => b.alive && b.aggro);
+  $("raid").textContent = raiding ? "來襲中！" : Math.ceil(gate.raidT) + " 秒";
+  $("pRaid").classList.toggle("danger", raiding);
+  $("vignette").style.opacity = raiding ? 1 : 0;
   // 站在修門格上，背上的木頭一根根拿去修
   repairCd -= dt;
   const k = carried.map(m => m.userData.type).lastIndexOf('log');
