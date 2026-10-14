@@ -46,7 +46,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 'use strict';
-const VERSION = '0.01';
+const VERSION = '0.02';
 document.getElementById('ver').textContent = 'v' + VERSION + '　灰盒原型';
 
 // ===== 數值（之後平衡都改這裡） =====
@@ -240,8 +240,33 @@ const hat = box(0.7, 0.25, 0.65, mats.player); hat.position.y = 1.9; player.add(
 const legs = box(0.7, 0.3, 0.5, M(0x24486b)); legs.position.y = 0.15; player.add(legs);
 const stackRoot = new THREE.Group(); stackRoot.position.set(0, 1.3, -0.55); player.add(stackRoot);
 scene.add(player);
-const axe = box(0.15, 0.15, 1.2, mats.axe); axe.position.y = 0.9; axe.visible = false; scene.add(axe);
+// 旋轉斧頭：木柄＋大斧刃，外圍一圈藍色刀光；斧刃顏色隨等級變化
+const axe = new THREE.Group(); axe.visible = false; axe.scale.setScalar(1.6); scene.add(axe);
+const axeArm = new THREE.Group(); axe.add(axeArm);
+// 斧頭和刀光永遠畫在最上層，進到樹林裡也不會被樹冠擋住
+const onTop = c => new THREE.MeshLambertMaterial({ color: c, depthTest: false });
+function topBox(w, h, d, mat) { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.renderOrder = 21; return m; }
+const handle = topBox(0.16, 0.16, 1.5, onTop(0x7a4a2a)); handle.position.z = 0.75; axeArm.add(handle);
+const axeHeadMat = onTop(0x5d6b7c);
+const axeHead = topBox(0.9, 0.16, 0.6, axeHeadMat); axeHead.position.set(0.25, 0, 1.45); axeArm.add(axeHead);
+const axeEdge = topBox(0.14, 0.18, 0.75, onTop(0xc9d4e0)); axeEdge.position.set(0.72, 0, 1.45); axeArm.add(axeEdge);
+const AXE_COLORS = [0x5d6b7c, 0x1f86d6, 0xe8a800, 0xff4f1f]; // 鐵灰→藍→金→橘（深一點，在雪地上才看得清楚）
+const swooshMat = new THREE.MeshBasicMaterial({ color: 0x5fc0ff, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false, depthTest: false });
+const swoosh = new THREE.Mesh(new THREE.RingGeometry(0.7, 1.9, 32, 1, 0, 2.4), swooshMat);
+swoosh.rotation.x = -Math.PI / 2; swoosh.renderOrder = 20;
+const swooshG = new THREE.Group(); swooshG.add(swoosh); axe.add(swooshG);
 let axeSpin = 0, axeShow = 0;
+
+// 砍中時噴出的木屑
+const chips = [];
+const chipGeo = new THREE.BoxGeometry(0.16, 0.16, 0.16);
+function burstChips(x, z) {
+  for (let i = 0; i < 7; i++) {
+    const c = new THREE.Mesh(chipGeo, i % 3 ? mats.log : mats.leafSnow);
+    c.position.set(x + rand(-0.3, 0.3), rand(0.6, 1.4), z + rand(-0.3, 0.3)); scene.add(c);
+    chips.push({ m: c, vx: rand(-3, 3), vy: rand(3, 6), vz: rand(-3, 3), life: 0.6 });
+  }
+}
 
 const carried = []; // 背上的木頭 mesh
 const logGeo = new THREE.BoxGeometry(0.9, 0.22, 0.32);
@@ -363,7 +388,8 @@ function step(dt) {
       axeShow = 0.3;
       if (chopTimer <= 0) {
         chopTimer = CFG.chopInterval[save.axe];
-        target.hp--; target.shake = 0.2;
+        target.hp--; target.shake = 0.25; target.pop = 0.15;
+        burstChips(target.x, target.z);
         if (target.hp <= 0) {
           target.alive = false; target.regrow = CFG.treeRegrow;
           for (let i = 0; i < CFG.logsPerTree; i++) {
@@ -384,13 +410,23 @@ function step(dt) {
   axeShow -= dt;
   axe.visible = axeShow > 0;
   if (axe.visible) {
-    axeSpin += dt * 14;
-    axe.position.set(player.position.x + Math.cos(axeSpin) * 1.1, 0.9, player.position.z + Math.sin(axeSpin) * 1.1);
-    axe.rotation.y = -axeSpin;
+    axeSpin += dt * (12 + save.axe * 3);
+    axe.position.set(player.position.x, 1.2, player.position.z);
+    axeArm.rotation.y = axeSpin;
+    swooshG.rotation.y = axeSpin - Math.PI / 2 - 2.4; // 刀光拖在斧頭後面
+    swooshMat.opacity = Math.min(0.55, axeShow * 3);
+    axeHeadMat.color.setHex(AXE_COLORS[save.axe]);
+  }
+  for (let i = chips.length - 1; i >= 0; i--) {
+    const c = chips[i]; c.life -= dt; c.vy -= 18 * dt;
+    c.m.position.x += c.vx * dt; c.m.position.y = Math.max(0.08, c.m.position.y + c.vy * dt); c.m.position.z += c.vz * dt;
+    c.m.rotation.x += dt * 10; c.m.scale.setScalar(Math.max(0.01, c.life / 0.6));
+    if (c.life <= 0) { scene.remove(c.m); chips.splice(i, 1); }
   }
   // 樹的搖晃與重生
   for (const t of trees) {
-    if (t.shake > 0) { t.shake -= dt; t.g.rotation.z = Math.sin(t.shake * 60) * 0.08; } else t.g.rotation.z = 0;
+    if (t.shake > 0) { t.shake -= dt; t.g.rotation.z = Math.sin(t.shake * 60) * 0.15; } else t.g.rotation.z = 0;
+    if (t.pop > 0) { t.pop -= dt; if (t.alive) t.g.scale.setScalar(t.sc * (1 + Math.max(0, t.pop))); }
     if (!t.alive) {
       t.g.scale.setScalar(Math.max(0.001, t.g.scale.x - dt * 4));
       t.regrow -= dt;
@@ -489,7 +525,7 @@ function loop() {
 }
 loop();
 addEventListener('visibilitychange', () => { if (document.hidden) writeSave(); });
-window.__game = { save, player, carried, mills, unlocks, trees, step };
+window.__game = { save, player, carried, mills, unlocks, trees, step, render: () => renderer.render(scene, camera) }; // 測試用
 </script>
 </body>
 </html>
