@@ -54,7 +54,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 'use strict';
-const VERSION = '0.15';
+const VERSION = '0.16';
 document.getElementById('ver').textContent = 'v' + VERSION + '　灰盒原型';
 
 // ===== 數值（之後平衡都改這裡） =====
@@ -195,12 +195,53 @@ for (let z = -14; z <= 12; z += 1.6) {
   const b = box(1.4, rand(1.6, 2.6), 1.6, mats.ice); b.position.set(13 + rand(-0.2, 0.2), b.geometry.parameters.height / 2, z); iceWall.add(b);
 }
 scene.add(iceWall);
-// 營地周圍的木樁圍欄（裝飾）
+// ===== 營地圍欄：走不過去，只能從三個門進出；門有人靠近會自己打開 =====
+const FENCE_R = 8.7;
+const GATES = [
+  { a: Math.PI * 1.5, half: 0.5 },  // 北門（熊會來撞）
+  { a: Math.PI / 2, half: 0.3 },    // 南門（村民進出）
+  { a: 0, half: 0.45 },             // 東門
+];
+function angDiff(a, b) { let d = (a - b) % (Math.PI * 2); if (d > Math.PI) d -= Math.PI * 2; if (d < -Math.PI) d += Math.PI * 2; return Math.abs(d); }
+function inGate(x, z) { const a = Math.atan2(z, x); return GATES.some(g => angDiff(a, g.a) < g.half - 0.05); }
+function gatePoint(g, r) { return [Math.cos(g.a) * r, Math.sin(g.a) * r]; }
 for (let a = 0; a < Math.PI * 2; a += 0.12) {
-  if (a > -0.5 + Math.PI * 1.5 && a < 0.5 + Math.PI * 1.5) continue; // 北邊留出口
-  if (a > Math.PI / 2 - 0.3 && a < Math.PI / 2 + 0.3) continue;    // 南邊留出口（村民從這裡來）
-  if (a < 0.45 || a > Math.PI * 2 - 0.45) continue;                   // 東邊留出口
-  const p = box(0.22, 0.9, 0.22, mats.wood); p.position.set(Math.cos(a) * 8.7, 0.45, Math.sin(a) * 8.7); scene.add(p);
+  if (GATES.some(g => angDiff(a, g.a) < g.half)) continue;
+  const p = box(0.22, 0.9, 0.22, mats.wood); p.position.set(Math.cos(a) * FENCE_R, 0.45, Math.sin(a) * FENCE_R); scene.add(p);
+}
+// 雙開木門：兩片門板各自繞門柱轉，往外打開
+const doors = [];
+function makeDoors(g, tall) {
+  const group = new THREE.Group();
+  const [mx, mz] = gatePoint(g, FENCE_R * Math.cos(g.half));
+  const leaves = [];
+  [-1, 1].forEach(side => {
+    const ex = Math.cos(g.a + side * g.half) * FENCE_R, ez = Math.sin(g.a + side * g.half) * FENCE_R;
+    const len = Math.hypot(mx - ex, mz - ez), base = Math.atan2(-(mz - ez), mx - ex);
+    const pivot = new THREE.Group(); pivot.position.set(ex, 0, ez); pivot.rotation.y = base;
+    for (let x = 0.3; x < len; x += 0.55) {
+      const h = tall ? 1.5 + Math.abs(Math.sin(x * 3)) * 0.4 : 1.0;
+      const p = box(tall ? 0.4 : 0.3, h, tall ? 0.4 : 0.3, mats.wood); p.position.set(x, h / 2, 0); pivot.add(p);
+    }
+    const bar = box(len, 0.18, 0.14, mats.trunk); bar.position.set(len / 2, tall ? 1.1 : 0.7, 0.2); pivot.add(bar);
+    const t = base + 1.2; // 往外開：轉完門板尖端要離營地中心更遠
+    const sign = Math.cos(t) * Math.cos(g.a) + -Math.sin(t) * Math.sin(g.a) > Math.cos(base) * Math.cos(g.a) + -Math.sin(base) * Math.sin(g.a) ? 1 : -1;
+    leaves.push({ pivot, base, sign });
+    group.add(pivot);
+  });
+  scene.add(group);
+  const d = { group, leaves, open: 0, x: mx, z: mz };
+  doors.push(d);
+  return d;
+}
+const southDoors = makeDoors(GATES[1], false), eastDoors = makeDoors(GATES[2], false);
+function updateDoors(dt) {
+  const movers = [player.position, ...workers.map(w => w.g.position), ...villagers.map(v => v.g.position), ...leaving.map(l => l.g.position)];
+  for (const d of doors) {
+    const near = movers.some(p => Math.hypot(p.x - d.x, p.z - d.z) < 3.8);
+    d.open += ((near ? 1 : 0) - d.open) * Math.min(1, dt * 8);
+    d.leaves.forEach(l => l.pivot.rotation.y = l.base + l.sign * d.open * 1.45);
+  }
 }
 
 // ===== 北極熊：在北邊森林閒晃，打倒掉肉，過一陣子重生 =====
@@ -379,11 +420,7 @@ if (save.tower2) buildTower(-5.4, -10);
 
 // ===== 北門防守：熊群定時來撞北門，用木頭修門 =====
 const gate = { hp: save.gateHp ?? CFG.gateHp, hit: 0, raidT: save.raidT ?? CFG.raidFirst, posts: new THREE.Group(), broken: false };
-for (let x = -3.6; x <= 3.6; x += 0.6) {
-  const p = box(0.4, 1.5 + Math.abs(Math.sin(x * 3)) * 0.4, 0.4, mats.wood); p.position.set(x, 0.8, -8.9); gate.posts.add(p);
-}
-const bar1 = box(7.6, 0.2, 0.15, mats.trunk); bar1.position.set(0, 1.1, -8.7); gate.posts.add(bar1);
-scene.add(gate.posts);
+gate.posts = makeDoors(GATES[0], true).group; // 北門也是雙開門，被撞破時整個消失
 const gateLabel = makeLabel(); gateLabel.scale.set(3, 1.5, 1); gateLabel.position.set(0, 2.9, -8.9); scene.add(gateLabel);
 const repairPad = makePad(0, -6.6, 1.8, 0xb06a35);
 const repairLabel = makeLabel(); repairLabel.scale.set(2.4, 1.2, 1); repairLabel.position.set(0, 1.2, -6.6); repairLabel.set(['修門', '🪵 1 根 +10']); scene.add(repairLabel);
@@ -435,6 +472,19 @@ function addWorker() {
   workers.push({ g, back, load: 0, tree: null, cd: 0, walk: 0 });
 }
 for (let i = 0; i < save.workers; i++) addWorker();
+// 圍欄裡外要走門：先走到最近的門口，穿過門再走向目標
+function routeTo(w, x, z, dt) {
+  const px = w.g.position.x, pz = w.g.position.z, rIn = Math.hypot(px, pz) < FENCE_R, tIn = Math.hypot(x, z) < FENCE_R;
+  if (rIn === tIn) return walkTo(w, x, z, dt);
+  const ref = rIn ? Math.atan2(z, x) : Math.atan2(pz, px);
+  const g = GATES.filter(g => g !== GATES[2] || save.east).reduce((a, b) => angDiff(ref, a.a) < angDiff(ref, b.a) ? a : b);
+  const inBand = angDiff(Math.atan2(pz, px), g.a) < g.half - 0.1 && Math.abs(Math.hypot(px, pz) - FENCE_R) < 1.2;
+  // 還沒到門口 → 先走到門的這一側；已經在門口 → 穿過去到另一側
+  const goInside = rIn ? !inBand : inBand;
+  const [gx, gz] = gatePoint(g, goInside ? FENCE_R - 0.9 : FENCE_R + 1.0);
+  walkTo(w, gx, gz, dt);
+  return false;
+}
 function walkTo(w, x, z, dt) {
   const dx = x - w.g.position.x, dz = z - w.g.position.z, d = Math.hypot(dx, dz);
   if (d < 0.1) return true;
@@ -447,7 +497,7 @@ function updateWorkers(dt) {
   for (const w of workers) {
     if (w.load >= CFG.workerLoad) {                 // 揹滿了：送去鋸木廠
       const ip = mills[0].inPad.position;
-      if (walkTo(w, ip.x, ip.z, dt)) {
+      if (routeTo(w, ip.x, ip.z, dt)) {
         mills[0].queue += w.load; w.load = 0;
         while (w.back.children.length) w.back.remove(w.back.children[0]);
       }
@@ -464,7 +514,7 @@ function updateWorkers(dt) {
     }
     const t = w.tree;
     const ang = Math.atan2(w.g.position.x - t.x, w.g.position.z - t.z);
-    if (walkTo(w, t.x + Math.sin(ang) * 1.1, t.z + Math.cos(ang) * 1.1, dt)) {
+    if (routeTo(w, t.x + Math.sin(ang) * 1.1, t.z + Math.cos(ang) * 1.1, dt)) {
       w.g.rotation.y = ang + Math.PI; w.g.position.y = 0;
       w.cd -= dt;
       if (w.cd <= 0) {
@@ -712,6 +762,11 @@ function step(dt) {
       const dx = nx - t.x, dz = nz - t.z, d = Math.hypot(dx, dz);
       if (d < 0.7 && d > 0) { nx = t.x + dx / d * 0.7; nz = t.z + dz / d * 0.7; }
     }
+    const r1 = Math.hypot(nx, nz);                     // 圍欄擋住，只有門口過得去
+    if (Math.abs(r1 - FENCE_R) < 0.4 && !inGate(nx, nz)) {
+      const k = (Math.hypot(player.position.x, player.position.z) < FENCE_R ? FENCE_R - 0.4 : FENCE_R + 0.4) / r1;
+      nx *= k; nz *= k;
+    }
     player.position.x = nx; player.position.z = nz;
     player.rotation.y = Math.atan2(mx, mz);
     walk += dt * 12;
@@ -844,6 +899,7 @@ function step(dt) {
   updateTower(dt);
   updateWorkers(dt);
   updateGate(dt);
+  updateDoors(dt);
   // 飛行動畫
   for (let i = flies.length - 1; i >= 0; i--) {
     const f = flies[i]; f.t += dt;
