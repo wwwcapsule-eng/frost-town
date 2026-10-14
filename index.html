@@ -22,6 +22,8 @@
   #title small{display:block;font-size:12px;font-weight:700;opacity:.7}
   #reset{position:fixed;left:12px;bottom:calc(12px + env(safe-area-inset-bottom));font-size:12px;border:0;border-radius:10px;
     padding:6px 10px;background:rgba(30,40,60,.45);color:#fff}
+  #mute{position:fixed;left:96px;bottom:calc(12px + env(safe-area-inset-bottom));font-size:12px;border:0;border-radius:10px;
+    padding:6px 10px;background:rgba(30,40,60,.45);color:#fff}
   #toast{position:fixed;left:50%;top:22%;transform:translateX(-50%);background:rgba(30,40,60,.8);color:#fff;font-weight:700;
     padding:8px 16px;border-radius:14px;font-size:16px;opacity:0;transition:opacity .25s;pointer-events:none;white-space:nowrap}
   #hint{position:fixed;left:50%;bottom:9%;transform:translateX(-50%);color:#25415e;font-weight:900;font-size:18px;
@@ -42,11 +44,12 @@
 <div id="hint"></div>
 <div id="joy"><div id="knob"></div></div>
 <button id="reset">重新開始</button>
+<button id="mute"></button>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 'use strict';
-const VERSION = '0.04';
+const VERSION = '0.05';
 document.getElementById('ver').textContent = 'v' + VERSION + '　灰盒原型';
 
 // ===== 數值（之後平衡都改這裡） =====
@@ -304,6 +307,9 @@ function beep(freq, dur, type, vol, slide) {
   g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + dur);
   o.connect(g); g.connect(actx.destination); o.start(t); o.stop(t + dur);
 }
+function muteLabel() { $('mute').textContent = save.mute ? '🔇 音效關' : '🔊 音效開'; }
+$('mute').onclick = () => { save.mute = !save.mute; muteLabel(); writeSave(); };
+muteLabel();
 let coinCd = 0;
 const sfx = {
   chop: () => beep(170, 0.09, 'square', 0.05, 0.5),
@@ -320,7 +326,7 @@ if (!hintOn) $('hint').style.display = 'none';
 const joy = { active: false, id: null, ox: 0, oy: 0, x: 0, y: 0 };
 const joyEl = $('joy'), knob = $('knob');
 addEventListener('pointerdown', e => {
-  if (e.target.id === 'reset' || joy.active) return;
+  if (e.target.id === 'reset' || e.target.id === 'mute' || joy.active) return;
   joy.active = true; joy.id = e.pointerId; joy.ox = e.clientX; joy.oy = e.clientY; joy.x = joy.y = 0;
   joyEl.style.left = e.clientX + 'px'; joyEl.style.top = e.clientY + 'px'; joyEl.style.display = 'block';
   knob.style.transform = '';
