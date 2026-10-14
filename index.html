@@ -50,7 +50,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 'use strict';
-const VERSION = '0.09';
+const VERSION = '0.10';
 document.getElementById('ver').textContent = 'v' + VERSION + '　灰盒原型';
 
 // ===== 數值（之後平衡都改這裡） =====
@@ -543,7 +543,7 @@ const sfx = {
 };
 const isTouch = matchMedia('(pointer: coarse)').matches;
 let hintOn = save.cash === 0 && !save.bag && !save.axe;
-$('hint').textContent = isTouch ? '按住畫面拖曳來移動\n走到樹旁邊會自動砍' : '用 WASD／方向鍵移動（也可以用滑鼠拖曳）';
+$('hint').textContent = isTouch ? '按住畫面拖曳來移動\n走到樹旁邊會自動砍' : 'WASD／方向鍵移動\n滑鼠滾輪縮放';
 $('hint').style.whiteSpace = 'pre-line';
 if (!hintOn) $('hint').style.display = 'none';
 
@@ -578,10 +578,14 @@ function resize() {
   const w = innerWidth, h = innerHeight;
   renderer.setSize(w, h); camera.aspect = w / h;
   camera.fov = 40;
-  camOffset.copy(camBase).multiplyScalar(w < h ? Math.min(1.9, 1 + (h / w - 1) * 0.75) : 1); // 直式（手機）鏡頭拉遠
+  camOffset.copy(camBase).multiplyScalar((w < h ? Math.min(1.9, 1 + (h / w - 1) * 0.75) : 1) * zoom); // 直式（手機）鏡頭拉遠
   camera.updateProjectionMatrix();
 }
-addEventListener('resize', resize); resize();
+addEventListener('resize', resize);
+// 電腦：滑鼠滾輪縮放鏡頭
+let zoom = 1;
+addEventListener('wheel', e => { zoom = Math.max(0.6, Math.min(1.8, zoom * (e.deltaY > 0 ? 1.1 : 0.9))); resize(); }, { passive: true });
+resize();
 const fwd = new THREE.Vector2(-camOffset.x, -camOffset.z).normalize();
 const right = new THREE.Vector2(-fwd.y, fwd.x);
 
