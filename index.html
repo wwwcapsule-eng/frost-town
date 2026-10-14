@@ -46,7 +46,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 'use strict';
-const VERSION = '0.02';
+const VERSION = '0.03';
 document.getElementById('ver').textContent = 'v' + VERSION + '　灰盒原型';
 
 // ===== 數值（之後平衡都改這裡） =====
@@ -291,6 +291,25 @@ function hud() {
 function bump(id) { const e = $(id); e.classList.remove('bump'); void e.offsetWidth; e.classList.add('bump'); }
 let toastT = 0;
 function toast(msg) { $('toast').textContent = msg; $('toast').style.opacity = 1; toastT = 1.6; }
+
+// ===== 音效（用程式合成，不需要音檔；手機要先碰一下畫面才能出聲） =====
+let actx = null;
+function initAudio() { if (!actx) try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} }
+addEventListener('pointerdown', initAudio); addEventListener('keydown', initAudio);
+function beep(freq, dur, type, vol, slide) {
+  if (!actx || save.mute) return;
+  const t = actx.currentTime, o = actx.createOscillator(), g = actx.createGain();
+  o.type = type; o.frequency.setValueAtTime(freq, t);
+  if (slide) o.frequency.exponentialRampToValueAtTime(freq * slide, t + dur);
+  g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+  o.connect(g); g.connect(actx.destination); o.start(t); o.stop(t + dur);
+}
+let coinCd = 0;
+const sfx = {
+  chop: () => beep(170, 0.09, 'square', 0.05, 0.5),
+  coin: () => { if (coinCd > 0) return; coinCd = 0.05; beep(1100, 0.07, 'triangle', 0.05, 1.6); },
+  unlock: () => { beep(523, 0.12, 'triangle', 0.1); setTimeout(() => beep(784, 0.2, 'triangle', 0.1), 110); try { navigator.vibrate && navigator.vibrate(60); } catch (e) {} },
+};
 const isTouch = matchMedia('(pointer: coarse)').matches;
 let hintOn = save.cash === 0 && !save.bag && !save.axe;
 $('hint').textContent = isTouch ? '按住畫面拖曳來移動\n走到樹旁邊會自動砍' : '用 WASD／方向鍵移動（也可以用滑鼠拖曳）';
@@ -389,7 +408,7 @@ function step(dt) {
       if (chopTimer <= 0) {
         chopTimer = CFG.chopInterval[save.axe];
         target.hp--; target.shake = 0.25; target.pop = 0.15;
-        burstChips(target.x, target.z);
+        burstChips(target.x, target.z); sfx.chop();
         if (target.hp <= 0) {
           target.alive = false; target.regrow = CFG.treeRegrow;
           for (let i = 0; i < CFG.logsPerTree; i++) {
@@ -462,7 +481,7 @@ function step(dt) {
       bills.forEach((b, i) => {
         const wp = b.position.clone();
         fly(b, wp, () => player.position.clone().add(tmp.set(0, 2.2, 0)), 0.25 + i * 0.02, () => {
-          scene.remove(b); save.cash += CFG.logValue;
+          scene.remove(b); save.cash += CFG.logValue; sfx.coin();
         }, 1);
       });
     }
@@ -481,11 +500,12 @@ function step(dt) {
         const b = box(0.5, 0.1, 0.3, mats.cash);
         fly(b, player.position.clone().add(tmp.set(0, 2, 0)), () => new THREE.Vector3(u.x, 0.1, u.z), 0.25, () => scene.remove(b), 1);
       }
-      if (u.paid >= p) { u.paid = 0; u.payAcc = 0; u.buy(); writeSave(); }
+      if (u.paid >= p) { u.paid = 0; u.payAcc = 0; u.buy(); sfx.unlock(); writeSave(); }
       u.refresh();
     } else u.payAcc = 0;
   }
 
+  coinCd -= dt;
   // 飛行動畫
   for (let i = flies.length - 1; i >= 0; i--) {
     const f = flies[i]; f.t += dt;
