@@ -14,6 +14,6 @@
 
 ## 版本規則
 - 版本號寫在 `index.html` 的 `const VERSION = '0.01'`，每次更新 +0.01，並在 `docs/更新紀錄.md` 加一行
-- **每 5 版**（0.05、0.10、0.15…）合併進 main 後，GitHub Actions 會自動發布到 GitHub Pages：https://wwwcapsule-eng.github.io/frost-town/
+- **每 5 版**：合併進 main 時版本號跨過 0.05、0.10、0.15…（一次合併好幾版也算），GitHub Actions 會自動發布到 GitHub Pages：https://wwwcapsule-eng.github.io/frost-town/
 - **每 10 版**（0.10、0.20…）要做一次電腦版檢查：在電腦瀏覽器用鍵盤、滑鼠實測，有問題就修，結果寫進更新紀錄
 - 每次改動都開新分支 → PR（繁體中文說明）→ 由作者合併，不直接改 main

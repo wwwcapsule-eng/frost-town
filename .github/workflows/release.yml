@@ -1,4 +1,5 @@
-# 每 5 版自動發布：main 上的版本號是 0.05、0.10、0.15… 時，發布到 GitHub Pages
+# 每 5 版自動發布：main 的版本號跨過 0.05、0.10、0.15… 時，發布到 GitHub Pages
+# （一次合併好幾版也沒關係，例如 0.02 → 0.06 跨過 0.05，也會發布）
 name: 每5版自動發布
 
 on:
@@ -23,15 +24,21 @@ jobs:
       version: ${{ steps.v.outputs.version }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - id: v
         run: |
           V=$(grep -oP "const VERSION = '\K[0-9.]+" index.html)
           N=$((10#$(echo "$V" | tr -d .)))
+          # 合併前 main 上的版本
+          PV=$(git show ${{ github.event.before }}:index.html 2>/dev/null | grep -oP "const VERSION = '\K[0-9.]+" || echo 0.00)
+          P=$((10#$(echo "$PV" | tr -d .)))
+          echo "上一版 v$PV → 這一版 v$V"
           echo "version=$V" >> "$GITHUB_OUTPUT"
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ] || [ $((N % 5)) -eq 0 ]; then
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] || [ $((N / 5)) -gt $((P / 5)) ]; then
             echo "deploy=true" >> "$GITHUB_OUTPUT"; echo "v$V：發布"
           else
-            echo "deploy=false" >> "$GITHUB_OUTPUT"; echo "v$V：不是 5 的倍數，這次不發布"
+            echo "deploy=false" >> "$GITHUB_OUTPUT"; echo "v$V：沒有跨過 5 的倍數，這次不發布"
           fi
 
   deploy:
