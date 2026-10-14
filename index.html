@@ -54,7 +54,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 'use strict';
-const VERSION = '0.13';
+const VERSION = '0.15';
 document.getElementById('ver').textContent = 'v' + VERSION + '　灰盒原型';
 
 // ===== 數值（之後平衡都改這裡） =====
@@ -356,22 +356,29 @@ if (save.mill2) addMill2();
 
 // ===== 弩砲塔：自動射北邊的熊，熊倒下的肉掉在地上，走過去撿 =====
 makeUnlock({ x: 4, z: -5.5, name: () => '弩砲塔',
-  price: () => save.tower ? null : 40, buy: () => { save.tower = true; buildTower(); toast('弩砲塔會自動射熊！'); } });
-let tower = null;
-function buildTower() {
+  price: () => save.tower ? null : 40, buy: () => { save.tower = true; buildTower(); addTower2Unlock(); toast('弩砲塔會自動射熊！'); } });
+const towers = [];
+function buildTower(x = 5.2, z = -10) {
   const g = new THREE.Group();
   const base = box(1.6, 2.2, 1.6, mats.wood); base.position.y = 1.1; g.add(base);
   const deck = box(2, 0.25, 2, mats.trunk); deck.position.y = 2.3; g.add(deck);
   const bow = new THREE.Group(); bow.position.y = 2.8; g.add(bow);
   const stock = box(0.25, 0.25, 1.4, M(0x5a3a22)); bow.add(stock);
   const arms = box(1.6, 0.14, 0.18, M(0x3c4a5a)); arms.position.z = 0.5; bow.add(arms);
-  g.position.set(5.2, 0, -10); scene.add(g);
-  tower = { g, bow, cd: 0 };
+  g.position.set(x, 0, z); scene.add(g);
+  towers.push({ g, bow, cd: 0 });
 }
 if (save.tower) buildTower();
+// 第二座弩砲塔：要先有第一座才會出現
+function addTower2Unlock() {
+  makeUnlock({ x: -5.8, z: -6, name: () => '第二座弩砲塔',
+  price: () => save.tower2 ? null : 90, buy: () => { save.tower2 = true; buildTower(-5.4, -10); toast('北門兩側都有弩砲塔了！'); } });
+}
+if (save.tower && !save.tower2) addTower2Unlock();
+if (save.tower2) buildTower(-5.4, -10);
 
 // ===== 北門防守：熊群定時來撞北門，用木頭修門 =====
-const gate = { hp: CFG.gateHp, hit: 0, raidT: CFG.raidFirst, posts: new THREE.Group(), broken: false };
+const gate = { hp: save.gateHp ?? CFG.gateHp, hit: 0, raidT: save.raidT ?? CFG.raidFirst, posts: new THREE.Group(), broken: false };
 for (let x = -3.6; x <= 3.6; x += 0.6) {
   const p = box(0.4, 1.5 + Math.abs(Math.sin(x * 3)) * 0.4, 0.4, mats.wood); p.position.set(x, 0.8, -8.9); gate.posts.add(p);
 }
@@ -392,6 +399,7 @@ function updateGate(dt) {
   }
   // 北門狀態
   gate.hp = Math.max(0, gate.hp);
+  save.gateHp = gate.hp; save.raidT = gate.raidT; // 存檔：關掉再開，北門血量和倒數會接著算
   if (gate.hp <= 0 && !gate.broken) { gate.broken = true; gate.posts.visible = false; toast('北門被撞破了！快用木頭修！'); }
   if (gate.hp > 0 && gate.broken) { gate.broken = false; gate.posts.visible = true; }
   if (gate.hit > 0) { gate.hit -= dt; gate.posts.position.x = Math.sin(gate.hit * 80) * 0.06; } else gate.posts.position.x = 0;
@@ -481,7 +489,7 @@ function dropMeat(x, z) {
   }
 }
 function updateTower(dt) {
-  if (tower) {
+  for (const tower of towers) {
     tower.cd -= dt;
     let tgt = null, best = CFG.towerRange;
     for (const b of bears) {
