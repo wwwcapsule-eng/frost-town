@@ -1,0 +1,54 @@
+# 每 5 版自動發布：main 上的版本號是 0.05、0.10、0.15… 時，發布到 GitHub Pages
+name: 每5版自動發布
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: # 也可以在 Actions 頁面手動按「Run workflow」強制發布
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      deploy: ${{ steps.v.outputs.deploy }}
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: v
+        run: |
+          V=$(grep -oP "const VERSION = '\K[0-9.]+" index.html)
+          N=$((10#$(echo "$V" | tr -d .)))
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] || [ $((N % 5)) -eq 0 ]; then
+            echo "deploy=true" >> "$GITHUB_OUTPUT"; echo "v$V：發布"
+          else
+            echo "deploy=false" >> "$GITHUB_OUTPUT"; echo "v$V：不是 5 的倍數，這次不發布"
+          fi
+
+  deploy:
+    needs: check
+    if: needs.check.outputs.deploy == 'true'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.pages.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          mkdir _site
+          cp index.html _site/
+          [ -d assets ] && cp -r assets _site/ || true
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: pages
+        uses: actions/deploy-pages@v4

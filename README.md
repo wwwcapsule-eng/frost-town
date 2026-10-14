@@ -4,4 +4,5 @@
 
 - 企劃：[docs/企劃評估.md](docs/企劃評估.md)
 - 更新紀錄：[docs/更新紀錄.md](docs/更新紀錄.md)
+- 手機試玩網址（每 5 版自動更新）：https://wwwcapsule-eng.github.io/frost-town/
 - 本機試玩：`node tools/serve.js`，再用瀏覽器開 http://localhost:8080
