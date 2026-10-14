@@ -50,7 +50,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 'use strict';
-const VERSION = '0.08';
+const VERSION = '0.09';
 document.getElementById('ver').textContent = 'v' + VERSION + '　灰盒原型';
 
 // ===== 數值（之後平衡都改這裡） =====
@@ -68,12 +68,13 @@ const CFG = {
   bearHp: 5, bearCount: 5, bearRespawn: 20, meatPerBear: 2,
   villagers: 6,             // 排隊的村民人數
   towerRange: 11, towerInterval: 1.1, // 弩砲塔射程與射速
+  workerSpeed: 3.6, workerChop: 0.6, workerLoad: 6, // 伐木工：速度約主角 60%、出手間隔、一次揹幾根
   payRate: 1.1,             // 付款格：幾秒內付完整筆
 };
 
 // ===== 存檔 =====
 const SAVE_KEY = 'frost-town-save-v1';
-let save = { cash: 0, bag: 0, axe: 0, east: false, mill2: false, tower: false };
+let save = { cash: 0, bag: 0, axe: 0, east: false, mill2: false, tower: false, workers: 0 };
 try { Object.assign(save, JSON.parse(localStorage.getItem(SAVE_KEY) || '{}')); } catch (e) {}
 function writeSave() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) {} }
 document.getElementById('reset').onclick = () => {
@@ -353,6 +354,66 @@ function buildTower() {
   tower = { g, bow, cd: 0 };
 }
 if (save.tower) buildTower();
+
+// ===== 伐木工：自己找樹砍、揹滿就送鋸木廠，一直循環 =====
+makeUnlock({ x: 5.5, z: 4.5, name: () => '雇用伐木工',
+  price: () => [60, 120, 200][save.workers], buy: () => { save.workers++; addWorker(); toast('伐木工上工了！'); } });
+const workers = [];
+function addWorker() {
+  const g = new THREE.Group();
+  const b = box(0.6, 0.75, 0.45, M(0xf08a24)); b.position.y = 0.6; g.add(b);
+  const h = box(0.45, 0.42, 0.42, mats.skin); h.position.y = 1.2; g.add(h);
+  const c = box(0.5, 0.18, 0.48, M(0xc0392b)); c.position.y = 1.48; g.add(c);
+  const back = new THREE.Group(); back.position.set(0, 1.0, -0.4); g.add(back);
+  g.position.set(3.5, 0, 3); scene.add(g);
+  workers.push({ g, back, load: 0, tree: null, cd: 0, walk: 0 });
+}
+for (let i = 0; i < save.workers; i++) addWorker();
+function walkTo(w, x, z, dt) {
+  const dx = x - w.g.position.x, dz = z - w.g.position.z, d = Math.hypot(dx, dz);
+  if (d < 0.1) return true;
+  const s = Math.min(d, CFG.workerSpeed * dt);
+  w.g.position.x += dx / d * s; w.g.position.z += dz / d * s;
+  w.g.rotation.y = Math.atan2(dx, dz); w.walk += dt * 12; w.g.position.y = Math.abs(Math.sin(w.walk)) * 0.1;
+  return false;
+}
+function updateWorkers(dt) {
+  for (const w of workers) {
+    if (w.load >= CFG.workerLoad) {                 // 揹滿了：送去鋸木廠
+      const ip = mills[0].inPad.position;
+      if (walkTo(w, ip.x, ip.z, dt)) {
+        mills[0].queue += w.load; w.load = 0;
+        while (w.back.children.length) w.back.remove(w.back.children[0]);
+      }
+      continue;
+    }
+    if (!w.tree || !w.tree.alive) {                  // 找最近、沒人在砍的樹
+      let best = 1e9; w.tree = null;
+      for (const t of trees) {
+        if (!t.alive || t.locked || workers.some(o => o !== w && o.tree === t)) continue;
+        const d = (t.x - w.g.position.x) ** 2 + (t.z - w.g.position.z) ** 2;
+        if (d < best) { best = d; w.tree = t; }
+      }
+      if (!w.tree) continue;
+    }
+    const t = w.tree;
+    const ang = Math.atan2(w.g.position.x - t.x, w.g.position.z - t.z);
+    if (walkTo(w, t.x + Math.sin(ang) * 1.1, t.z + Math.cos(ang) * 1.1, dt)) {
+      w.g.rotation.y = ang + Math.PI; w.g.position.y = 0;
+      w.cd -= dt;
+      if (w.cd <= 0) {
+        w.cd = CFG.workerChop;
+        t.hp--; t.shake = 0.25; t.pop = 0.15; burstChips(t.x, t.z);
+        if (t.hp <= 0) {
+          t.alive = false; t.regrow = CFG.treeRegrow; w.tree = null;
+          const n = Math.min(CFG.logsPerTree, CFG.workerLoad - w.load);
+          for (let i = 0; i < n; i++) { const m = new THREE.Mesh(logGeo, mats.log); m.scale.setScalar(0.7); m.position.y = (w.load + i) * 0.17; w.back.add(m); }
+          w.load += n;
+        }
+      }
+    }
+  }
+}
 const pickups = [];
 function dropMeat(x, z) {
   for (let i = 0; i < CFG.meatPerBear; i++) {
@@ -711,6 +772,7 @@ function step(dt) {
   updateBears(dt);
   updateVillagers(dt);
   updateTower(dt);
+  updateWorkers(dt);
   // 飛行動畫
   for (let i = flies.length - 1; i >= 0; i--) {
     const f = flies[i]; f.t += dt;
