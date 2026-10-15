@@ -16,6 +16,8 @@
     display:flex;align-items:center;gap:6px;min-width:76px}
   .pill b{font-size:20px}
   .pill.bump{animation:bump .25s}
+  .cap{font-size:13px;opacity:.75}
+  .pill.full{background:rgba(200,120,20,.85)}
   .pill.danger{background:rgba(200,40,40,.85);animation:blink .8s infinite}
   #vignette{position:fixed;inset:0;pointer-events:none;box-shadow:inset 0 0 80px 20px rgba(220,30,30,.55);opacity:0;transition:opacity .4s}
   @keyframes bump{50%{transform:scale(1.15)}}
@@ -40,8 +42,8 @@
 <div id="title">寒霜小鎮<small id="ver"></small></div>
 <div id="hud">
   <div class="pill" id="pCash">💵 <b id="cash">0</b></div>
-  <div class="pill" id="pMeat">🍖 <b id="meat">0</b></div>
-  <div class="pill" id="pWood">🪵 <b id="wood">0</b><span id="cap" style="font-size:13px;opacity:.75"></span></div>
+  <div class="pill" id="pMeat">🍖 <b id="meat">0</b><span class="cap" id="capM"></span></div>
+  <div class="pill" id="pWood">🪵 <b id="wood">0</b><span class="cap" id="capW"></span></div>
   <div class="pill" id="pRaid">🐻 <b id="raid">--</b></div>
 </div>
 <div id="vignette"></div>
@@ -54,7 +56,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 'use strict';
-const VERSION = '0.16';
+const VERSION = '0.18';
 document.getElementById('ver').textContent = 'v' + VERSION + '　灰盒原型';
 
 // ===== 數值（之後平衡都改這裡） =====
@@ -72,6 +74,7 @@ const CFG = {
   bearHp: 5, bearCount: 5, bearRespawn: 20, meatPerBear: 2,
   villagers: 6,             // 排隊的村民人數
   towerRange: 11, towerInterval: 1.1, // 弩砲塔射程與射速
+  buildCool: 2,             // 升級完要等幾秒才能再升級
   gateHp: 100, raidEvery: 60, raidFirst: 90, raidBears: 2, bearDps: 1.5, // 北門血量、熊群幾秒來一次、一次幾隻、每隻每秒傷害
   workerSpeed: 3.6, workerChop: 0.6, workerLoad: 6, // 伐木工：速度約主角 60%、出手間隔、一次揹幾根
   payRate: 1.1,             // 付款格：幾秒內付完整筆
@@ -81,9 +84,10 @@ const CFG = {
 const SAVE_KEY = 'frost-town-save-v1';
 let save = { cash: 0, bag: 0, axe: 0, east: false, mill2: false, tower: false, workers: 0 };
 try { Object.assign(save, JSON.parse(localStorage.getItem(SAVE_KEY) || '{}')); } catch (e) {}
-function writeSave() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) {} }
+let resetting = false; // 重新開始時不要再把舊進度寫回去
+function writeSave() { if (resetting) return; try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) {} }
 document.getElementById('reset').onclick = () => {
-  if (confirm('確定要清除進度、重新開始嗎？')) { try { localStorage.removeItem(SAVE_KEY); } catch (e) {} location.reload(); }
+  if (confirm('確定要清除進度、重新開始嗎？')) { resetting = true; try { localStorage.removeItem(SAVE_KEY); } catch (e) {} location.reload(); }
 };
 
 // ===== 場景 =====
@@ -296,14 +300,14 @@ function makeMill(x, z, opt = {}) {
   const saw = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.6, 0.08, 16), mats.axe);
   saw.rotation.x = Math.PI / 2; saw.position.set(0, 1.0, 1.25); g.add(saw);
   g.position.set(x, 0, z); scene.add(g);
-  const inPad = makePad(x - 2.6, z + 2.2, 1.8, 0xffffff);
+  const inPad = makePad(o.inX ?? x - 2.6, o.inZ ?? z + 2.2, 1.8, 0xffffff);
   const outPad = makePad(x + 2.6, z + 2.2, 1.8, 0x3fbf5a);
   const label = makeLabel(); label.scale.set(3, 1.5, 1); label.position.set(x, 3, z); label.set([o.name]); scene.add(label);
   return Object.assign(o, { g, saw, inPad, outPad, queue: 0, timer: 0, out: [], label });
 }
 const mills = [makeMill(3.5, -1)];
 function addMill2() { mills.push(makeMill(-4.5, -1)); }
-mills.push(makeMill(-3, -5.2, { name: '烤肉攤', accept: 'meat', value: CFG.meatValue, time: 0.8, roof: M(0xe07b22), customers: true }));
+mills.push(makeMill(-3.3, 4.3, { inX: -5.4, inZ: 5.7, name: '烤肉攤', accept: 'meat', value: CFG.meatValue, time: 0.8, roof: M(0xe07b22), customers: true }));
 
 // 鈔票落到站的綠色框
 function spawnBill(mill, from) {
@@ -319,7 +323,7 @@ const bbq = mills[1];
 // 櫃台和村民隊伍放在南邊，遠離北邊森林的熊；烤好的肉從烤肉攤送過來
 const CX = -0.5, CZ = 7.3;
 const counter = box(1.4, 0.8, 1, mats.wood); counter.position.set(CX, 0.4, CZ); scene.add(counter);
-bbq.outPad.position.set(-2.4, 0.03, CZ); // 村民付的錢放在櫃台旁
+bbq.outPad.position.set(-2.2, 0.03, 6.9); // 村民付的錢放在櫃台旁
 bbq.cookedMeshes = [];
 function addCooked(mill) {
   const m = new THREE.Mesh(logGeo, mats.meat); m.castShadow = true;
@@ -382,13 +386,13 @@ function makeUnlock(def) {
   u.refresh(); unlocks.push(u);
   return u;
 }
-makeUnlock({ x: -2.5, z: 4.5, name: () => '背包擴充',
+makeUnlock({ x: -2.6, z: -4.6, name: () => '背包擴充',
   price: () => [12, 35, 90][save.bag], buy: () => { save.bag++; toast('背包容量 ' + CFG.capacity[save.bag] + '！'); } });
 makeUnlock({ x: 1.5, z: 5.5, name: () => '斧頭升級',
   price: () => [20, 60, 140][save.axe], buy: () => { save.axe++; toast('砍得更快了！'); } });
 makeUnlock({ x: 10.5, z: 0, name: () => '開拓東邊',
   price: () => save.east ? null : 50, buy: () => { save.east = true; openEast(); toast('東邊森林開放了！'); } });
-makeUnlock({ x: -5.5, z: 3, name: () => '第二台鋸木機',
+makeUnlock({ x: -6.3, z: 1.2, name: () => '第二台鋸木機',
   price: () => save.mill2 ? null : 80, buy: () => { save.mill2 = true; addMill2(); toast('加工速度翻倍！'); } });
 
 function openEast() { scene.remove(iceWall); trees.forEach(t => t.locked = false); }
@@ -566,12 +570,12 @@ function updateTower(dt) {
   for (let i = pickups.length - 1; i >= 0; i--) {
     const p = pickups[i];
     if (Math.hypot(p.x - player.position.x, p.z - player.position.z) > 1.6) continue;
-    const idx = carried.length + flies.filter(f => f.toBack).length;
-    if (idx >= capacity()) break;
+    if (countOf('meat') >= capacity()) break;
+    const idx = stackHeight();
     pickups.splice(i, 1);
     const m = p.m; m.userData.type = 'meat';
     fly(m, m.position.clone(), () => stackRoot.localToWorld(new THREE.Vector3(0, idx * 0.24, 0)), 0.3, () => { stackRoot.add(m); carried.push(m); restack(); });
-    flies[flies.length - 1].toBack = true;
+    flies[flies.length - 1].toBack = 'meat';
   }
 }
 
@@ -603,6 +607,16 @@ let axeSpin = 0, axeShow = 0;
 // 砍中時噴出的木屑
 const chips = [];
 const chipGeo = new THREE.BoxGeometry(0.16, 0.16, 0.16);
+// 升級完成的閃亮特效：金色、白色小方塊往上噴
+const gold = new THREE.MeshBasicMaterial({ color: 0xffd34d }), white = new THREE.MeshBasicMaterial({ color: 0xffffff });
+function sparkle(x, z) {
+  for (let i = 0; i < 28; i++) {
+    const c = new THREE.Mesh(chipGeo, i % 3 ? gold : white);
+    const a = rand(0, 6.28), sp = rand(1.5, 4);
+    c.position.set(x, rand(0.3, 1.2), z); scene.add(c);
+    chips.push({ m: c, vx: Math.cos(a) * sp, vy: rand(6, 11), vz: Math.sin(a) * sp, life: 0.9 });
+  }
+}
 function burstChips(x, z, bear) {
   for (let i = 0; i < 7; i++) {
     const c = new THREE.Mesh(chipGeo, bear ? (i % 2 ? mats.meat : mats.fur) : (i % 3 ? mats.log : mats.leafSnow));
@@ -613,7 +627,9 @@ function burstChips(x, z, bear) {
 
 const carried = []; // 背上的木頭 mesh
 const logGeo = new THREE.BoxGeometry(0.9, 0.22, 0.32);
-function capacity() { return CFG.capacity[save.bag]; }
+function capacity() { return CFG.capacity[save.bag]; } // 木頭、肉各自的上限
+function countOf(type) { return carried.filter(m => m.userData.type === type).length + flies.filter(f => f.toBack === type).length; }
+function stackHeight() { return carried.length + flies.filter(f => f.toBack).length; }
 function restack() { carried.forEach((m, i) => { m.position.set(0, i * 0.24, 0); m.rotation.set(0, 0, 0); }); }
 
 // ===== 飛行動畫 =====
@@ -630,7 +646,8 @@ function hud() {
   if (shownCash !== save.cash) { $('cash').textContent = save.cash; bump('pCash'); shownCash = save.cash; }
   const nMeat = carried.filter(m => m.userData.type === 'meat').length, nLog = carried.length - nMeat;
   if (shownWood !== carried.length * 1000 + nMeat) { $('wood').textContent = nLog; $('meat').textContent = nMeat; shownWood = carried.length * 1000 + nMeat; }
-  $('cap').textContent = '/' + capacity();
+  $('capW').textContent = '/' + capacity(); $('capM').textContent = '/' + capacity();
+  $('pWood').classList.toggle('full', countOf('log') >= capacity()); $('pMeat').classList.toggle('full', countOf('meat') >= capacity());
 }
 function bump(id) { const e = $(id); e.classList.remove('bump'); void e.offsetWidth; e.classList.add('bump'); }
 let toastT = 0;
@@ -788,8 +805,9 @@ function step(dt) {
     if (Math.hypot(b.x - player.position.x, b.z - player.position.z) < CFG.chopRange + 0.4) { target = b; break; }
   }
   if (target) {
-    if (carried.length >= capacity()) {
-      fullWarn -= dt; if (fullWarn <= 0) { toast('背包滿了！先去卸貨'); fullWarn = 3; }
+    const kind = target.isBear ? 'meat' : 'log';
+    if (countOf(kind) >= capacity()) {
+      fullWarn -= dt; if (fullWarn <= 0) { toast(kind === 'meat' ? '肉滿了！拿去烤肉攤' : '木頭滿了！拿去鋸木廠'); fullWarn = 3; }
     } else {
       axeShow = 0.3;
       if (chopTimer <= 0) {
@@ -801,11 +819,11 @@ function step(dt) {
           if (target.isBear) target.respawn = CFG.bearRespawn; else target.regrow = CFG.treeRegrow;
           const n = target.isBear ? CFG.meatPerBear : CFG.logsPerTree;
           for (let i = 0; i < n; i++) {
-            const idx = carried.length + flies.filter(f => f.toBack).length;
-            if (idx >= capacity()) break;
+            if (countOf(kind) >= capacity()) break;
+            const idx = stackHeight();
             const m = new THREE.Mesh(logGeo, target.isBear ? mats.meat : mats.log); m.castShadow = true;
             m.userData.type = target.isBear ? 'meat' : 'log';
-            const f = { toBack: true };
+            const f = { toBack: kind };
             fly(m, tmp.set(target.x, 1 + i * 0.3, target.z), () => stackRoot.localToWorld(new THREE.Vector3(0, idx * 0.24, 0)), 0.35 + i * 0.08, () => {
               stackRoot.add(m); carried.push(m); restack();
             });
@@ -877,6 +895,7 @@ function step(dt) {
   // 付款格
   for (const u of unlocks) {
     if (u.done) continue;
+    if (u.cool > 0) { u.cool -= dt; u.pad.visible = u.label.visible = u.cool <= 0; continue; } // 剛升級完：閃亮後要等一下才能再升級
     const p = u.price();
     const on = Math.hypot(player.position.x - u.x, player.position.z - u.z) < 1.2;
     if (on && save.cash > 0 && u.paid < p) {
@@ -887,7 +906,7 @@ function step(dt) {
         const b = box(0.5, 0.1, 0.3, mats.cash);
         fly(b, player.position.clone().add(tmp.set(0, 2, 0)), () => new THREE.Vector3(u.x, 0.1, u.z), 0.25, () => scene.remove(b), 1);
       }
-      if (u.paid >= p) { u.paid = 0; u.payAcc = 0; u.buy(); sfx.unlock(); writeSave(); }
+      if (u.paid >= p) { u.paid = 0; u.payAcc = 0; u.buy(); sfx.unlock(); sparkle(u.x, u.z); u.cool = CFG.buildCool; writeSave(); }
       u.refresh();
     } else u.payAcc = 0;
   }
