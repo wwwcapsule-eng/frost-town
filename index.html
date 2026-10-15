@@ -56,7 +56,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 'use strict';
-const VERSION = '0.17';
+const VERSION = '0.18';
 document.getElementById('ver').textContent = 'v' + VERSION + '　灰盒原型';
 
 // ===== 數值（之後平衡都改這裡） =====
@@ -74,6 +74,7 @@ const CFG = {
   bearHp: 5, bearCount: 5, bearRespawn: 20, meatPerBear: 2,
   villagers: 6,             // 排隊的村民人數
   towerRange: 11, towerInterval: 1.1, // 弩砲塔射程與射速
+  buildCool: 2,             // 升級完要等幾秒才能再升級
   gateHp: 100, raidEvery: 60, raidFirst: 90, raidBears: 2, bearDps: 1.5, // 北門血量、熊群幾秒來一次、一次幾隻、每隻每秒傷害
   workerSpeed: 3.6, workerChop: 0.6, workerLoad: 6, // 伐木工：速度約主角 60%、出手間隔、一次揹幾根
   payRate: 1.1,             // 付款格：幾秒內付完整筆
@@ -606,6 +607,16 @@ let axeSpin = 0, axeShow = 0;
 // 砍中時噴出的木屑
 const chips = [];
 const chipGeo = new THREE.BoxGeometry(0.16, 0.16, 0.16);
+// 升級完成的閃亮特效：金色、白色小方塊往上噴
+const gold = new THREE.MeshBasicMaterial({ color: 0xffd34d }), white = new THREE.MeshBasicMaterial({ color: 0xffffff });
+function sparkle(x, z) {
+  for (let i = 0; i < 28; i++) {
+    const c = new THREE.Mesh(chipGeo, i % 3 ? gold : white);
+    const a = rand(0, 6.28), sp = rand(1.5, 4);
+    c.position.set(x, rand(0.3, 1.2), z); scene.add(c);
+    chips.push({ m: c, vx: Math.cos(a) * sp, vy: rand(6, 11), vz: Math.sin(a) * sp, life: 0.9 });
+  }
+}
 function burstChips(x, z, bear) {
   for (let i = 0; i < 7; i++) {
     const c = new THREE.Mesh(chipGeo, bear ? (i % 2 ? mats.meat : mats.fur) : (i % 3 ? mats.log : mats.leafSnow));
@@ -884,6 +895,7 @@ function step(dt) {
   // 付款格
   for (const u of unlocks) {
     if (u.done) continue;
+    if (u.cool > 0) { u.cool -= dt; u.pad.visible = u.label.visible = u.cool <= 0; continue; } // 剛升級完：閃亮後要等一下才能再升級
     const p = u.price();
     const on = Math.hypot(player.position.x - u.x, player.position.z - u.z) < 1.2;
     if (on && save.cash > 0 && u.paid < p) {
@@ -894,7 +906,7 @@ function step(dt) {
         const b = box(0.5, 0.1, 0.3, mats.cash);
         fly(b, player.position.clone().add(tmp.set(0, 2, 0)), () => new THREE.Vector3(u.x, 0.1, u.z), 0.25, () => scene.remove(b), 1);
       }
-      if (u.paid >= p) { u.paid = 0; u.payAcc = 0; u.buy(); sfx.unlock(); writeSave(); }
+      if (u.paid >= p) { u.paid = 0; u.payAcc = 0; u.buy(); sfx.unlock(); sparkle(u.x, u.z); u.cool = CFG.buildCool; writeSave(); }
       u.refresh();
     } else u.payAcc = 0;
   }
