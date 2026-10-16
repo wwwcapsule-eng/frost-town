@@ -56,7 +56,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 'use strict';
-const VERSION = '0.18';
+const VERSION = '0.19';
 document.getElementById('ver').textContent = 'v' + VERSION + '　灰盒原型';
 
 // ===== 數值（之後平衡都改這裡） =====
@@ -183,10 +183,13 @@ function addTree(x, z, locked) {
   trees.push({ g, x, z, hp: CFG.treeHp, alive: true, regrow: 0, sc, shake: 0, locked });
 }
 function rand(a, b) { return a + Math.random() * (b - a); }
-// 北邊森林（一開始就能砍）
+// 北門門板往外開的範圍：兩根門柱為圓心、門板長為半徑（門柱位置跟下面 GATES 的北門一樣）
+const NG_HALF = 0.5, NG_PX = 8.7 * Math.sin(NG_HALF), NG_PZ = -8.7 * Math.cos(NG_HALF), NG_LEN = NG_PX;
+function nearNorthDoors(x, z, pad) { return z < NG_PZ + 0.5 && (Math.hypot(x - NG_PX, z - NG_PZ) < NG_LEN + pad || Math.hypot(x + NG_PX, z - NG_PZ) < NG_LEN + pad); }
+// 北邊森林（一開始就能砍）；門板擺動範圍內不長樹
 for (let i = 0; i < 70; i++) {
   const x = rand(-13, 9), z = rand(-22, -9);
-  if (trees.every(t => (t.x - x) ** 2 + (t.z - z) ** 2 > 2.6)) addTree(x, z, false);
+  if (!nearNorthDoors(x, z, 1.2) && trees.every(t => (t.x - x) ** 2 + (t.z - z) ** 2 > 2.6)) addTree(x, z, false);
 }
 // 東邊森林（被冰牆擋住，要開拓）
 for (let i = 0; i < 60; i++) {
@@ -250,7 +253,7 @@ function updateDoors(dt) {
 
 // ===== 北極熊：在北邊森林閒晃，打倒掉肉，過一陣子重生 =====
 const bears = [];
-function bearSpot() { return [rand(-12, 8), rand(-23, -11)]; }
+function bearSpot() { let x, z; do { x = rand(-12, 8); z = rand(-23, -11); } while (nearNorthDoors(x, z, 2)); return [x, z]; }
 for (let i = 0; i < CFG.bearCount; i++) {
   const g = new THREE.Group();
   const bd = box(1.5, 0.9, 0.95, mats.fur); bd.position.y = 0.75; g.add(bd);
@@ -283,6 +286,9 @@ function updateBears(dt) {
     } else if (!b.idle && b.shake <= 0) {
       b.x += Math.sin(b.dir) * 1.2 * dt; b.z += Math.cos(b.dir) * 1.2 * dt;
       if (b.x < -13 || b.x > 9 || b.z < -24 || b.z > -10) { b.dir += Math.PI; b.x = Math.max(-13, Math.min(9, b.x)); b.z = Math.max(-24, Math.min(-10, b.z)); }
+    }
+    if (!b.aggro && nearNorthDoors(b.x, b.z, 1.6)) {  // 平常閒晃的熊不靠近北門，碰到就往北走開
+      b.z -= 2.5 * dt; b.dir = Math.PI + rand(-0.6, 0.6); b.idle = false;
     }
     b.g.position.set(b.x, 0, b.z);
     b.g.rotation.y = b.dir;
