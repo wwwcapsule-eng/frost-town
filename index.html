@@ -48,6 +48,7 @@
   <div class="pill" id="pCash">💵 <b id="cash">0</b></div>
   <div class="pill" id="pMeat">🍖 <b id="meat">0</b><span class="cap" id="capM"></span></div>
   <div class="pill" id="pWood">🪵 <b id="wood">0</b><span class="cap" id="capW"></span></div>
+  <div class="pill" id="pHp">❤️ <b id="hp">100</b></div>
   <div class="pill" id="pRaid">🐻 <b id="raid">--</b></div>
 </div>
 <div id="vignette"></div>
@@ -61,7 +62,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 'use strict';
-const VERSION = '0.21';
+const VERSION = '0.22';
 document.getElementById('ver').textContent = 'v' + VERSION + '　灰盒原型';
 
 // ===== 數值（之後平衡都改這裡） =====
@@ -80,6 +81,7 @@ const CFG = {
   villagers: 6,             // 排隊的村民人數
   towerRange: 11, towerInterval: 1.1, // 弩砲塔射程與射速
   buildCool: 2,             // 升級完要等幾秒才能再升級
+  playerHp: 100, bearHitDps: 14, bearChase: 6, heal: 20, // 主角血量、熊每秒打人多少、熊幾格內會追人、在營地裡每秒回血
   buildHp: 100, bearBuildDps: 2.5, // 建築血量、熊每秒對建築的傷害
   gateHp: 100, raidEvery: 60, raidFirst: 90, raidBears: 2, bearDps: 1.5, // 北門血量、熊群幾秒來一次、一次幾隻、每隻每秒傷害
   workerSpeed: 3.6, workerChop: 0.6, workerLoad: 6, // 伐木工：速度約主角 60%、出手間隔、一次揹幾根
@@ -314,11 +316,17 @@ function updateBears(dt) {
       if (d > reach) { b.dir = Math.atan2(dx, dz); b.x += dx / d * 2.2 * dt; b.z += dz / d * 2.2 * dt; }
       else if (gate.hp > 0) { gate.hp -= CFG.bearDps * dt; gate.hit = 0.2; }
       else if (prey) { b.dir = Math.atan2(dx, dz); prey.hp -= CFG.bearBuildDps * dt; prey.hit = 0.2; }
+    } else if (b.shake <= 0 && huntable(b)) {     // 野外的熊：主角在營地外又靠太近，就追過去打
+      const dx = player.position.x - b.x, dz = player.position.z - b.z, d = Math.hypot(dx, dz);
+      b.dir = Math.atan2(dx, dz); b.hunting = true;
+      if (d > 1.3) { b.x += dx / d * 2.4 * dt; b.z += dz / d * 2.4 * dt; }
+      else if (hurtCd <= 0) { hero.hp -= CFG.bearHitDps * dt; hero.hit = 0.15; }
     } else if (!b.idle && b.shake <= 0) {
+      b.hunting = false;
       b.x += Math.sin(b.dir) * 1.2 * dt; b.z += Math.cos(b.dir) * 1.2 * dt;
-      if (b.x < -13 || b.x > 9 || b.z < -24 || b.z > -10) { b.dir += Math.PI; b.x = Math.max(-13, Math.min(9, b.x)); b.z = Math.max(-24, Math.min(-10, b.z)); }
+      if (b.x < -13 || b.x > 9 || b.z < -24 || b.z > -10) { b.dir = Math.atan2(-2 - b.x, -17 - b.z); b.x += Math.sin(b.dir) * 1.5 * dt; b.z += Math.cos(b.dir) * 1.5 * dt; } // 追完人慢慢走回森林
     }
-    if (!b.aggro && nearNorthDoors(b.x, b.z, 1.6)) {  // 平常閒晃的熊不靠近北門，碰到就往北走開
+    if (!b.aggro && !b.hunting && nearNorthDoors(b.x, b.z, 1.6)) {  // 平常閒晃的熊不靠近北門，碰到就往北走開
       b.z -= 2.5 * dt; b.dir = Math.PI + rand(-0.6, 0.6); b.idle = false;
     }
     b.g.position.set(b.x, 0, b.z);
@@ -820,6 +828,30 @@ const tmp = new THREE.Vector3();
 let chopTimer = 0, dropTimer = 0, fullWarn = 0, saveTimer = 0, walk = 0;
 const clock = new THREE.Clock();
 
+// 主角血量：被熊打會扣，在營地裡會慢慢回血；被打倒就掉一半背包、回營地
+const hero = { hp: CFG.playerHp, hit: 0 };
+let hurtCd = 0;
+function huntable(b) {
+  return !b.aggro && hurtCd <= 0 && Math.hypot(player.position.x, player.position.z) > FENCE_R + 0.3 &&
+    Math.hypot(player.position.x - b.x, player.position.z - b.z) < (b.hunting ? CFG.bearChase + 2 : CFG.bearChase);
+}
+function updateHero(dt) {
+  hurtCd -= dt;
+  if (Math.hypot(player.position.x, player.position.z) < FENCE_R) hero.hp = Math.min(CFG.playerHp, hero.hp + CFG.heal * dt);
+  if (hero.hit > 0) { hero.hit -= dt; player.children[0].material.emissive?.setHex(0x661111); } else player.children[0].material.emissive?.setHex(0);
+  if (hero.hp <= 0) {
+    const lose = carried.splice(Math.ceil(carried.length / 2));  // 掉一半背包
+    lose.forEach(m => stackRoot.remove(m)); restack();
+    player.position.set(0, 0, 2); camera.position.copy(player.position).add(camOffset);
+    hero.hp = CFG.playerHp; hurtCd = 3;                         // 回營地，3 秒內熊不會再追
+    bears.forEach(b => b.hunting = false);
+    toast(lose.length ? '被熊打倒了！掉了 ' + lose.length + ' 個東西' : '被熊打倒了！');
+    beep(140, 0.5, 'sawtooth', 0.07, 0.5);
+  }
+  const v = Math.ceil(hero.hp); $('hp').textContent = v;
+  $('pHp').classList.toggle('danger', v < 35);
+}
+
 // 建築：被打會晃、血量存檔、揹木頭靠近就修、全部被拆光就失敗
 let fixCd = 0, gameOver = false;
 function updateBuildings(dt) {
@@ -1004,6 +1036,7 @@ function step(dt) {
   updateWorkers(dt);
   updateGate(dt);
   updateBuildings(dt);
+  updateHero(dt);
   updateDoors(dt);
   // 飛行動畫
   for (let i = flies.length - 1; i >= 0; i--) {
@@ -1044,7 +1077,7 @@ function loop() {
 }
 loop();
 addEventListener('visibilitychange', () => { if (document.hidden) writeSave(); });
-window.__game = { save, player, carried, mills, unlocks, trees, bears, gate, buildings, towers, step, render: () => renderer.render(scene, camera) }; // 測試用
+window.__game = { hero, save, player, carried, mills, unlocks, trees, bears, gate, buildings, towers, step, render: () => renderer.render(scene, camera) }; // 測試用
 </script>
 </body>
 </html>
