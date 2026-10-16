@@ -56,7 +56,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 'use strict';
-const VERSION = '0.19';
+const VERSION = '0.20';
 document.getElementById('ver').textContent = 'v' + VERSION + '　灰盒原型';
 
 // ===== 數值（之後平衡都改這裡） =====
@@ -131,23 +131,26 @@ function makeLabel(w = 256, h = 128) {
   const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false }));
   sp.renderOrder = 10;
   let last = '';
-  sp.set = (lines, color = '#fff') => {
-    const key = lines.join('|') + color; if (key === last) return; last = key; // 文字沒變就不重畫
+  sp.set = (lines, color = '#fff', sizes = [44, 30]) => { // sizes：每一行的字級
+    const key = lines.join('|') + color + sizes; if (key === last) return; last = key; // 文字沒變就不重畫
     const g = cv.getContext('2d'); g.clearRect(0, 0, w, h);
     g.textAlign = 'center'; g.textBaseline = 'middle';
+    const fs = lines.map((t, i) => sizes[Math.min(i, sizes.length - 1)]);
+    let y = h / 2 - fs.reduce((a, b) => a + b * 1.05, 0) / 2;
     lines.forEach((t, i) => {
-      g.font = (i === 0 ? '900 44px' : '700 30px') + ' "Noto Sans TC","Microsoft JhengHei",sans-serif';
-      g.lineWidth = 8; g.strokeStyle = 'rgba(30,40,60,.85)';
-      const y = h / 2 + (i - (lines.length - 1) / 2) * 46;
+      g.font = (i === 0 ? '900 ' : '800 ') + fs[i] + 'px "Noto Sans TC","Microsoft JhengHei",sans-serif';
+      g.lineWidth = Math.max(8, fs[i] / 6); g.strokeStyle = 'rgba(30,40,60,.85)';
+      y += fs[i] * 0.525;
       g.strokeText(t, w / 2, y); g.fillStyle = color; g.fillText(t, w / 2, y);
+      y += fs[i] * 0.525;
     });
     tex.needsUpdate = true;
   };
   return sp;
 }
 
-// 地上的虛線方框（投放點、付款格）
-function makePad(x, z, size, color) {
+// 地上的虛線方框（投放點、付款格）；icon 是畫在格子裡的圖示（emoji）
+function makePad(x, z, size, color, icon) {
   const g = new THREE.Group();
   const n = 8, seg = size / (n * 2);
   const mat = new THREE.MeshBasicMaterial({ color });
@@ -164,6 +167,17 @@ function makePad(x, z, size, color) {
   const fill = new THREE.Mesh(new THREE.PlaneGeometry(size, size), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.35 }));
   fill.rotation.x = -Math.PI / 2; fill.position.y = -0.005; fill.scale.y = 0.0001;
   g.add(fill); g.fill = fill;
+  if (icon) {
+    const cv = document.createElement('canvas'); cv.width = cv.height = 256;
+    const c = cv.getContext('2d');
+    c.fillStyle = 'rgba(255,255,255,.55)'; c.beginPath();
+    if (c.roundRect) c.roundRect(14, 14, 228, 228, 36); else c.rect(14, 14, 228, 228);
+    c.fill();
+    c.font = '150px "Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif';
+    c.fillStyle = '#fff'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(icon, 128, 140); // emoji 也會吃 fillStyle 的透明度
+    const ic = new THREE.Mesh(new THREE.PlaneGeometry(size * 0.9, size * 0.9), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(cv), transparent: true, depthWrite: false }));
+    ic.rotation.x = -Math.PI / 2; ic.position.y = 0.004; g.add(ic);
+  }
   g.position.set(x, 0.03, z); scene.add(g);
   return g;
 }
@@ -306,8 +320,8 @@ function makeMill(x, z, opt = {}) {
   const saw = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.6, 0.08, 16), mats.axe);
   saw.rotation.x = Math.PI / 2; saw.position.set(0, 1.0, 1.25); g.add(saw);
   g.position.set(x, 0, z); scene.add(g);
-  const inPad = makePad(o.inX ?? x - 2.6, o.inZ ?? z + 2.2, 1.8, 0xffffff);
-  const outPad = makePad(x + 2.6, z + 2.2, 1.8, 0x3fbf5a);
+  const inPad = makePad(o.inX ?? x - 2.6, o.inZ ?? z + 2.2, 1.8, 0xffffff, o.accept === 'meat' ? '🍖' : '🪵');
+  const outPad = makePad(x + 2.6, z + 2.2, 1.8, 0x3fbf5a, '💵');
   const label = makeLabel(); label.scale.set(3, 1.5, 1); label.position.set(x, 3, z); label.set([o.name]); scene.add(label);
   return Object.assign(o, { g, saw, inPad, outPad, queue: 0, timer: 0, out: [], label });
 }
@@ -380,25 +394,25 @@ function updateVillagers(dt) {
 // ===== 付款格（解鎖） =====
 const unlocks = [];
 function makeUnlock(def) {
-  const pad = makePad(def.x, def.z, 2, 0xffd34d);
-  const label = makeLabel(320, 160); label.scale.set(3.2, 1.6, 1); label.position.set(def.x, 1.8, def.z); scene.add(label);
+  const pad = makePad(def.x, def.z, 2, 0xffd34d, def.icon);
+  const label = makeLabel(320, 180); label.scale.set(3.2, 1.8, 1); label.position.set(def.x, 1.9, def.z); scene.add(label);
   const u = Object.assign({ pad, label, paid: 0, payAcc: 0 }, def);
   u.refresh = () => {
     const p = u.price();
     if (p == null) { scene.remove(pad); scene.remove(label); u.done = true; return; }
-    label.set([u.name(), '💵 ' + (p - u.paid)], '#ffe066');
+    label.set([u.name(), '💵 ' + (p - u.paid)], '#ffe066', [36, 68]); // 錢放大，像參考影片
     pad.fill.scale.y = Math.max(0.0001, u.paid / p);
   };
   u.refresh(); unlocks.push(u);
   return u;
 }
-makeUnlock({ x: -2.6, z: -4.6, name: () => '背包擴充',
+makeUnlock({ x: -2.6, z: -4.6, icon: '🎒', name: () => '背包擴充',
   price: () => [12, 35, 90][save.bag], buy: () => { save.bag++; toast('背包容量 ' + CFG.capacity[save.bag] + '！'); } });
-makeUnlock({ x: 1.5, z: 5.5, name: () => '斧頭升級',
+makeUnlock({ x: 1.5, z: 5.5, icon: '🪓', name: () => '斧頭升級',
   price: () => [20, 60, 140][save.axe], buy: () => { save.axe++; toast('砍得更快了！'); } });
-makeUnlock({ x: 10.5, z: 0, name: () => '開拓東邊',
+makeUnlock({ x: 10.5, z: 0, icon: '🌲', name: () => '開拓東邊',
   price: () => save.east ? null : 50, buy: () => { save.east = true; openEast(); toast('東邊森林開放了！'); } });
-makeUnlock({ x: -6.3, z: 1.2, name: () => '第二台鋸木機',
+makeUnlock({ x: -6.3, z: 1.2, icon: '🪚', name: () => '第二台鋸木機',
   price: () => save.mill2 ? null : 80, buy: () => { save.mill2 = true; addMill2(); toast('加工速度翻倍！'); } });
 
 function openEast() { scene.remove(iceWall); trees.forEach(t => t.locked = false); }
@@ -406,7 +420,7 @@ if (save.east) openEast();
 if (save.mill2) addMill2();
 
 // ===== 弩砲塔：自動射北邊的熊，熊倒下的肉掉在地上，走過去撿 =====
-makeUnlock({ x: 4, z: -5.5, name: () => '弩砲塔',
+makeUnlock({ x: 4, z: -5.5, icon: '🏹', name: () => '弩砲塔',
   price: () => save.tower ? null : 40, buy: () => { save.tower = true; buildTower(); addTower2Unlock(); toast('弩砲塔會自動射熊！'); } });
 const towers = [];
 function buildTower(x = 5.2, z = -10) {
@@ -422,7 +436,7 @@ function buildTower(x = 5.2, z = -10) {
 if (save.tower) buildTower();
 // 第二座弩砲塔：要先有第一座才會出現
 function addTower2Unlock() {
-  makeUnlock({ x: -5.8, z: -6, name: () => '第二座弩砲塔',
+  makeUnlock({ x: -5.8, z: -6, icon: '🏹', name: () => '第二座弩砲塔',
   price: () => save.tower2 ? null : 90, buy: () => { save.tower2 = true; buildTower(-5.4, -10); toast('北門兩側都有弩砲塔了！'); } });
 }
 if (save.tower && !save.tower2) addTower2Unlock();
@@ -432,7 +446,7 @@ if (save.tower2) buildTower(-5.4, -10);
 const gate = { hp: save.gateHp ?? CFG.gateHp, hit: 0, raidT: save.raidT ?? CFG.raidFirst, posts: new THREE.Group(), broken: false };
 gate.posts = makeDoors(GATES[0], true).group; // 北門也是雙開門，被撞破時整個消失
 const gateLabel = makeLabel(); gateLabel.scale.set(3, 1.5, 1); gateLabel.position.set(0, 2.9, -8.9); scene.add(gateLabel);
-const repairPad = makePad(0, -6.6, 1.8, 0xb06a35);
+const repairPad = makePad(0, -6.6, 1.8, 0xb06a35, '🔨');
 const repairLabel = makeLabel(); repairLabel.scale.set(2.4, 1.2, 1); repairLabel.position.set(0, 1.2, -6.6); repairLabel.set(['修門', '🪵 1 根 +10']); scene.add(repairLabel);
 let repairCd = 0;
 function updateGate(dt) {
@@ -469,7 +483,7 @@ function updateGate(dt) {
 }
 
 // ===== 伐木工：自己找樹砍、揹滿就送鋸木廠，一直循環 =====
-makeUnlock({ x: 5.5, z: 4.5, name: () => '雇用伐木工',
+makeUnlock({ x: 5.5, z: 4.5, icon: '👷', name: () => '雇用伐木工',
   price: () => [60, 120, 200][save.workers], buy: () => { save.workers++; addWorker(); toast('伐木工上工了！'); } });
 const workers = [];
 function addWorker() {
