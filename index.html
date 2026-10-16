@@ -80,7 +80,7 @@ const CFG = {
   villagers: 6,             // 排隊的村民人數
   towerRange: 11, towerInterval: 1.1, // 弩砲塔射程與射速
   buildCool: 2,             // 升級完要等幾秒才能再升級
-  buildHp: 100, bearBuildDps: 4, // 建築血量、熊每秒對建築的傷害
+  buildHp: 100, bearBuildDps: 2.5, // 建築血量、熊每秒對建築的傷害
   gateHp: 100, raidEvery: 60, raidFirst: 90, raidBears: 2, bearDps: 1.5, // 北門血量、熊群幾秒來一次、一次幾隻、每隻每秒傷害
   workerSpeed: 3.6, workerChop: 0.6, workerLoad: 6, // 伐木工：速度約主角 60%、出手間隔、一次揹幾根
   payRate: 1.1,             // 付款格：幾秒內付完整筆
@@ -333,7 +333,7 @@ const buildings = [];
 save.bhp = save.bhp || {};
 function addBuilding(key, g, r) {
   const b = { key, g, r, x: g.position.x, z: g.position.z, hp: save.bhp[key] ?? CFG.buildHp, hit: 0, dead: false };
-  b.label = makeLabel(); b.label.scale.set(2.6, 1.3, 1); b.label.position.set(b.x, 3.9, b.z); scene.add(b.label);
+  b.label = makeLabel(); b.label.scale.set(2.6, 1.3, 1); b.label.position.set(b.x, 4.6, b.z); scene.add(b.label);
   b.rubble = new THREE.Group();                       // 被拆掉後剩下的瓦礫
   for (let i = 0; i < 6; i++) { const c = box(rand(0.4, 0.9), rand(0.2, 0.5), rand(0.4, 0.9), i % 2 ? mats.wood : mats.trunk); c.position.set(rand(-r, r) * 0.6, 0.15, rand(-r, r) * 0.6); c.rotation.y = rand(0, 3); b.rubble.add(c); }
   b.rubble.position.set(b.x, 0, b.z); scene.add(b.rubble);
@@ -828,11 +828,11 @@ function updateBuildings(dt) {
     b.hp = Math.max(0, b.hp);
     if (b.hit > 0) { b.hit -= dt; b.g.position.x = b.x + Math.sin(b.hit * 80) * 0.08; } else b.g.position.x = b.x;
     const k = carried.map(m => m.userData.type).lastIndexOf('log');
-    if (b.hp < CFG.buildHp && k >= 0 && fixCd <= 0 && Math.hypot(player.position.x - b.x, player.position.z - b.z) < b.r + 1.1) {
-      fixCd = 0.12;
+    if (b.hp + (b.pend || 0) * 10 < CFG.buildHp && k >= 0 && fixCd <= 0 && Math.hypot(player.position.x - b.x, player.position.z - b.z) < b.r + 1.1) {
+      fixCd = 0.12; b.pend = (b.pend || 0) + 1; // 飛在半空中的木頭也算，修滿就不再拿
       const m = carried.splice(k, 1)[0]; const wp = m.getWorldPosition(new THREE.Vector3());
       stackRoot.remove(m); restack();
-      fly(m, wp, () => new THREE.Vector3(b.x, 1.2, b.z), 0.3, () => { scene.remove(m); b.hp = Math.min(CFG.buildHp, b.hp + 10); if (b.hp >= CFG.buildHp) sfx.coin(); });
+      fly(m, wp, () => new THREE.Vector3(b.x, 1.2, b.z), 0.3, () => { scene.remove(m); b.pend--; b.hp = Math.min(CFG.buildHp, b.hp + 10); if (b.hp >= CFG.buildHp) sfx.coin(); });
     }
     const wasDead = b.dead;
     setBuildingState(b);
