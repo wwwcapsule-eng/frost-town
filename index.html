@@ -64,7 +64,10 @@
   #joy{position:fixed;width:120px;height:120px;margin:-60px 0 0 -60px;border-radius:50%;background:rgba(255,255,255,.25);
     border:3px solid rgba(255,255,255,.6);display:none;pointer-events:none}
   #knob{position:absolute;left:50%;top:50%;width:52px;height:52px;margin:-26px 0 0 -26px;border-radius:50%;background:rgba(255,255,255,.85)}
-  #lose,#lvup{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(20,30,50,.7);z-index:20}
+  #menu .box button{display:block;width:100%;margin-top:10px;font-size:17px;padding:10px 16px}
+  #menu .box button small{display:block;font-size:12px;font-weight:700;color:#666}
+  #menu .box button.cur{outline:3px solid #25415e}
+  #lose,#lvup,#menu{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(20,30,50,.7);z-index:20}
   .box{background:#fff;border-radius:18px;padding:24px 28px;text-align:center;font-weight:700;color:#333;max-width:80vw;line-height:1.7}
   .box .big{font-size:28px;font-weight:900;margin-bottom:6px}
   .box button{margin-top:16px;font-size:20px;font-weight:900;border:0;border-radius:12px;padding:12px 28px;background:#ffd34d;color:#333}
@@ -90,7 +93,7 @@
 <div id="toast"></div>
 <div id="hint"></div>
 <div id="joy"><div id="knob"></div></div>
-<button id="reset">重新開始</button>
+<button id="reset">☰ 選單</button>
 <button id="saveCode">💾 存檔</button>
 <button id="planBtn">🏗️ 規劃</button>
 <div id="planBar"><div id="planTip"></div><div class="row">
@@ -99,6 +102,13 @@
   <button id="planGo" disabled>✅ 蓋這裡</button>
   <button id="planExit">✖ 離開</button>
 </div></div>
+<div id="menu"><div class="box"><div class="big">選擇關卡</div>
+  <button data-mode="tutorial">📘 教學關<small>建築位置固定，跟著上方目標一步步蓋</small></button>
+  <button data-mode="build">🏗️ 正式關・自己蓋<small>用規劃模式自己選位置，民房只能蓋在南邊民房區</small></button>
+  <button data-mode="auto">🤖 正式關・電腦託管<small>你只決定蓋什麼，電腦幫你挑位置</small></button>
+  <button id="menuReset" style="background:#eee">🔄 這一關重新開始</button>
+  <button id="menuClose" style="background:#eee">✖ 關閉</button>
+</div></div>
 <div id="lose"><div class="box"><div class="big">🐻 營地失守了</div><div>所有建築都被熊拆掉了</div><button id="retry">重新開始</button></div></div>
 <div id="lvup"><div class="box"><div class="big" id="lvTitle"></div><div id="lvList"></div><button id="lvOk">太好了！</button></div></div>
 <button id="mute"></button>
@@ -106,7 +116,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 'use strict';
-const VERSION = '0.40';
+const VERSION = '0.43';
 
 // ===== 數值（之後平衡都改這裡） =====
 const CFG = {
@@ -162,7 +172,13 @@ const HOUSE_LOTS = [];                    // 第 1 圈 6 間（Lv1 領地），�
 const ROCK_LOTS = [[-11.2, -0.6], [-10.2, 2.2], [-11.6, -3.4], [-9.9, -6.2], [-12, 1]]; // 煤礦區（西邊，第 1 次擴大領地後圈進來）
 
 // ===== 存檔 =====
-const SAVE_KEY = 'frost-town-save-v1';
+// 關卡（企劃 9.2）：教學關沿用原本的存檔；正式關（自己蓋／電腦託管）各有自己的存檔
+const MODE_KEY = 'frost-town-mode';
+let MODE = null; try { MODE = localStorage.getItem(MODE_KEY); } catch (e) {}
+const firstRun = !MODE;
+if (!['tutorial', 'build', 'auto'].includes(MODE)) MODE = 'tutorial';
+const PRO = MODE !== 'tutorial';
+const SAVE_KEY = 'frost-town-save-v1' + (PRO ? '-' + MODE : '');
 let save = { cash: 0, bag: 0, axe: 0, east: false, mill2: false, tower: false, workers: 0, level: 0, houses: 0, stove: 0 };
 try { Object.assign(save, JSON.parse(localStorage.getItem(SAVE_KEY) || '{}')); } catch (e) {}
 if (save.territory == null) save.territory = save.furnace ? (save.east ? 2 : 1) : 0;          // 舊進度：火爐升級過就當作領地擴大過
@@ -175,7 +191,7 @@ document.getElementById('retry').onclick = wipeAndReload;
 document.getElementById('saveCode').onclick = () => {
   writeSave();
   const code = btoa(unescape(encodeURIComponent(JSON.stringify(save))));
-  try { navigator.clipboard.writeText(code); } catch (e) {}
+  try { navigator.clipboard.writeText(code).catch(() => {}); } catch (e) {} // 不能複製也沒關係，畫面上看得到
   const got = prompt('這是你的存檔碼（已試著複製），請存在記事本。\n要讀取別的進度：把存檔碼貼在下面、按確定。', code);
   if (!got || got.trim() === code) return;
   let data;
@@ -183,8 +199,8 @@ document.getElementById('saveCode').onclick = () => {
   if (!data || typeof data !== 'object' || Array.isArray(data) || typeof data.cash !== 'number') { alert('存檔碼看不懂，請確認有完整貼上。'); return; }
   resetting = true; try { localStorage.setItem(SAVE_KEY, JSON.stringify(data)); } catch (e) {} location.reload();
 };
-document.getElementById('reset').onclick = () => {
-  if (confirm('確定要清除進度、重新開始嗎？')) { resetting = true; try { localStorage.removeItem(SAVE_KEY); } catch (e) {} location.reload(); }
+document.getElementById('menuReset').onclick = () => {
+  if (confirm('確定要清除這一關的進度、重新開始嗎？')) { resetting = true; try { localStorage.removeItem(SAVE_KEY); } catch (e) {} location.reload(); }
 };
 
 // ===== 場景 =====
@@ -703,7 +719,7 @@ function addHouseUnlock() {
     } });
   return u;
 }
-let houseUnlock = save.east ? addHouseUnlock() : { done: true }; // 民房要先開拓東邊（作者 10/17 回饋第 2 項）
+let houseUnlock = save.east && !PRO ? addHouseUnlock() : { done: true }; // 民房要先開拓東邊（作者 10/17 回饋第 2 項）
 
 // ===== 中央火爐＋暖氣圈：圈內的建築才會運作；柴剩不到一半圈子開始縮小，燒光就全部凍住 =====
 const FX = 0, FZ = -3;
@@ -890,12 +906,23 @@ grid.material.transparent = true; grid.material.opacity = 0.3; grid.position.set
 const cursor = new THREE.Mesh(new THREE.PlaneGeometry(CFG.cell * 0.94, CFG.cell * 0.94), new THREE.MeshBasicMaterial({ color: 0x5fd068, transparent: true, opacity: 0.5, depthWrite: false }));
 cursor.rotation.x = -Math.PI / 2; cursor.position.y = 0.07; cursor.visible = false; scene.add(cursor);
 const ghost = box(2.2, 1.4, 2, new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true, opacity: 0.55 })); ghost.visible = false; scene.add(ghost);
+const houseZone = new THREE.Mesh(new THREE.PlaneGeometry(56, 25), new THREE.MeshBasicMaterial({ color: 0x5fd068, transparent: true, opacity: 0.16, depthWrite: false }));
+houseZone.rotation.x = -Math.PI / 2; houseZone.position.set(0, 0.055, 15.5); houseZone.visible = false; scene.add(houseZone);
+// 電腦託管：從火爐往外找第一個能蓋的格子（越近越暖、越好走）
+function autoSpot(k) {
+  const c = CFG.cell, cells = [];
+  for (let i = -9; i < 9; i++) for (let j = -9; j < 9; j++) cells.push([(i + 0.5) * c, (j + 0.5) * c]);
+  cells.sort((a, b) => Math.hypot(a[0] - FX, a[1] - FZ) - Math.hypot(b[0] - FX, b[1] - FZ));
+  return cells.find(([x, z]) => canBuild(x, z, k)) || null;
+}
 function planCost(k) { return k === 'house' ? housePrice() : CFG.heaterPrice; }
 function planLimit(k) {
   const lv = LEVELS[save.level];
   return k === 'house' ? houses.length < lv.houses : heaters.length < lv.heaters + (save.stove ? 1 : 0);
 }
-function canBuild(x, z) {
+const inHouseZone = (x, z) => z > 3;                                // 正式關：民房只能蓋在南邊的民房區（同一區蓋同類建築）
+function canBuild(x, z, k) {
+  if (PRO && k === 'house' && !inHouseZone(x, z)) return false;
   const r = Math.hypot(x, z), d = (a, b) => Math.hypot(a - x, b - z);
   if (r > 27 || Math.abs(r - FENCE_R) < 1.8 || d(FX, FZ) < 2.6) return false;
   if (Math.abs(x - CX) < 1.8 && z > CZ - 1 && z < CZ + 17) return false;          // 村民排隊的路
@@ -904,10 +931,10 @@ function canBuild(x, z) {
   if (unlocks.some(u => !u.done && d(u.x, u.z) < 2.3)) return false;
   if (mills.some(m => d(m.inPad.position.x, m.inPad.position.z) < 2 || d(m.outPad.position.x, m.outPad.position.z) < 2)) return false;
   if (trees.some(t => !t.gone && d(t.x, t.z) < 1.7)) return false;
-  if (HOUSE_LOTS.slice(save.houses).some(l => d(l.x, l.z) < 2.8)) return false;    // 民房區保留給南門外的民房
+  if (!PRO && HOUSE_LOTS.slice(save.houses).some(l => d(l.x, l.z) < 2.8)) return false; // 教學關：民房區保留給固定位置的民房
   if (Object.values(LOT).some(([a, b]) => d(a, b) < 2.4)) return false;            // 付款格、建築的固定地塊
   if (Math.abs(x) < 1.6 || (x > 0 && Math.abs(z) < 1.6)) return false;            // 南北主路、東路
-  if (z > 0 && (Math.abs(r - 9.8) < 1.6 || Math.abs(r - 14.3) < 1.6)) return false; // 民房環狀路
+  if (!PRO && z > 0 && (Math.abs(r - 9.8) < 1.6 || Math.abs(r - 14.3) < 1.6)) return false; // 民房環狀路
   return true;
 }
 function planUi() {
@@ -915,15 +942,15 @@ function planUi() {
   $('pkHouse').textContent = planLimit('house') ? '💵 ' + planCost('house') : '已滿 ' + lv.houses + ' 間';
   $('pkHeater').textContent = planLimit('heater') ? '💵 ' + planCost('heater') : lv.heaters ? '已滿 ' + (lv.heaters + (save.stove ? 1 : 0)) + ' 座' : '村莊解鎖';
   document.querySelectorAll('#planBar [data-k]').forEach(b => b.classList.toggle('sel', b.dataset.k === plan.kind));
-  let tip = '先選一種建築，再點地上的格子（拖曳可以移動畫面）', ok = false;
+  let tip = MODE === 'auto' ? '選一種建築，電腦會幫你挑位置（也可以自己點格子改）' : '先選一種建築，再點地上的格子（拖曳可以移動畫面）', ok = false;
   if (plan.kind && plan.cell) {
     const [x, z] = plan.cell, cost = planCost(plan.kind);
     if (!planLimit(plan.kind)) tip = '數量已達上限，城市升級後可以蓋更多';
-    else if (!canBuild(x, z)) tip = '這格不能蓋（太靠近建築、圍欄、樹或路）';
+    else if (!canBuild(x, z, plan.kind)) tip = PRO && plan.kind === 'house' && !inHouseZone(x, z) ? '民房只能蓋在綠色的民房區' : '這格不能蓋（太靠近建築、圍欄、樹或路）';
     else if (save.cash < cost) tip = '錢不夠：需要 ' + cost + ' 元';
     else { tip = '按「✅ 蓋這裡」花 ' + cost + ' 元'; ok = true; }
     cursor.material.color.setHex(ok ? 0x5fd068 : 0xff5a4a);
-  } else if (plan.kind) tip = '點地上的格子，選要蓋在哪';
+  } else if (plan.kind) tip = MODE === 'auto' ? '附近沒有空位了，擴大領地或自己點格子試試' : '點地上的格子，選要蓋在哪';
   $('planTip').textContent = tip; $('planGo').disabled = !ok;
   ghost.visible = !!(plan.kind && plan.cell);
   if (ghost.visible) { const hs = plan.kind === 'house'; ghost.position.set(plan.cell[0], hs ? 0.7 : 1.1, plan.cell[1]); ghost.scale.set(hs ? 1 : 0.45, hs ? 1 : 1.6, hs ? 1 : 0.45); }
@@ -931,21 +958,25 @@ function planUi() {
 function setPlan(on) {
   plan.on = on; plan.kind = null; plan.cell = null;
   if (on) { plan.cx = player.position.x; plan.cz = player.position.z; joy.active = false; joy.x = joy.y = 0; joyEl.style.display = 'none'; }
-  grid.visible = cursor.visible = on; ghost.visible = false;
+  grid.visible = cursor.visible = on; ghost.visible = false; houseZone.visible = on && PRO; $('hint').style.visibility = on ? 'hidden' : ''; // 開場提示不要擋到規劃列
   $('planBar').style.display = on ? 'block' : 'none';
   if (on) planUi(); else clock.getDelta();
 }
 document.getElementById('planBtn').onclick = () => setPlan(true);
 document.getElementById('planExit').onclick = () => setPlan(false);
-document.querySelectorAll('#planBar [data-k]').forEach(b => b.onclick = () => { plan.kind = b.dataset.k; planUi(); });
+document.querySelectorAll('#planBar [data-k]').forEach(b => b.onclick = () => {
+  plan.kind = b.dataset.k;
+  if (MODE === 'auto') { plan.cell = autoSpot(plan.kind); if (plan.cell) { cursor.position.x = plan.cell[0]; cursor.position.z = plan.cell[1]; plan.cx = plan.cell[0]; plan.cz = plan.cell[1]; } }
+  planUi();
+});
 document.getElementById('planGo').onclick = () => {
   if (!plan.kind || !plan.cell) return;
   const [x, z] = plan.cell, k = plan.kind, cost = planCost(k);
-  if (!planLimit(k) || !canBuild(x, z) || save.cash < cost) return;
+  if (!planLimit(k) || !canBuild(x, z, k) || save.cash < cost) return;
   save.cash -= cost; save.plan.push({ k, x, z });
   if (k === 'house') buildHouseAt(x, z, '規劃民房' + (save.plan.length - 1)); else buildHeater(x, z, save.plan.length - 1);
   sfx.unlock(); sparkle(x, z); writeSave();
-  plan.cell = null; planUi();
+  plan.cell = null; if (MODE === 'auto') plan.kind = null; planUi();
 };
 const ray = new THREE.Raycaster(), groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 function planPointer(type, e) {
@@ -989,7 +1020,7 @@ function levelUnlocks() {
     price: () => save.east ? null : 50, buy: () => { save.east = true; openEast(); buildDoorsAll(); toast('東邊開放了！現在可以蓋民房、第二台鋸木機'); } });
   if (!mill2Unlock && !save.mill2 && save.east) mill2Unlock = makeUnlock({ x: LOT.mill2[0], z: LOT.mill2[1], icon: '🪚', name: () => '第二台鋸木機',
     price: () => save.mill2 ? null : 80, buy: () => { save.mill2 = true; addMill2(); toast('加工速度翻倍！'); } });
-  if (save.east && houseUnlock.done && houses.length < LEVELS[save.level].houses && houseLotOpen()) houseUnlock = addHouseUnlock();
+  if (!PRO && save.east && houseUnlock.done && houses.length < LEVELS[save.level].houses && houseLotOpen()) houseUnlock = addHouseUnlock();
   if (save.level >= 1 && !save.mine && !mineUnlock) mineUnlock = makeUnlock({ x: LOT.minePad[0], z: LOT.minePad[1], icon: '⛏️', name: () => '開採煤礦',
     price: () => save.mine ? null : CFG.minePrice, buy: () => { save.mine = 1; openMine(); toast('煤礦開放了！煤丟進火爐很耐燒'); } });
   if (save.level >= 1 && !save.shovel && !shovelUnlock) shovelUnlock = makeUnlock({ x: LOT.shovel[0], z: LOT.shovel[1], icon: '🧹', name: () => '雇用鏟雪工',
@@ -1661,11 +1692,32 @@ function loop() {
   requestAnimationFrame(loop);
   const dt = Math.min(clock.getDelta(), 0.05);
   if (plan.on) planCamera(dt); else step(dt);
-  document.getElementById('planBtn').style.display = save.level >= 1 && !plan.on && !gameOver ? 'block' : 'none';
+  document.getElementById('planBtn').style.display = (save.level >= 1 || PRO) && !plan.on && !gameOver ? 'block' : 'none';
   renderer.render(scene, camera);
 }
 loop();
 addEventListener('visibilitychange', () => { if (document.hidden) writeSave(); });
+// 選單：換關卡會先存好目前這一關，再切到另一關的存檔
+function showMenu(on) {
+  $('menu').style.display = on ? 'flex' : 'none'; paused = on;
+  $('menuClose').style.display = $('menuReset').style.display = firstRun && !menuSeen ? 'none' : ''; // 第一次玩只能選關卡
+  document.querySelectorAll('#menu [data-mode]').forEach(b => b.classList.toggle('cur', b.dataset.mode === MODE));
+}
+let menuSeen = false;
+document.getElementById('reset').onclick = () => { menuSeen = true; showMenu(true); };
+document.getElementById('menuClose').onclick = () => showMenu(false);
+document.querySelectorAll('#menu [data-mode]').forEach(b => b.onclick = () => {
+  try { localStorage.setItem(MODE_KEY, b.dataset.mode); } catch (e) {}
+  if (b.dataset.mode === MODE && !resetting) { showMenu(false); return; }
+  if (b.dataset.mode === MODE) { resetting = false; menuSeen = true; showMenu(false); writeSave(); return; }
+  writeSave(); resetting = true; location.reload();
+});
+// 第一次玩：先選關卡，選好之前不存檔；之前玩過（有教學關存檔）的人直接記成教學關
+if (firstRun) {
+  let old = null; try { old = localStorage.getItem('frost-town-save-v1'); } catch (e) {}
+  if (old) { try { localStorage.setItem(MODE_KEY, 'tutorial'); } catch (e) {} }
+  else { resetting = true; showMenu(true); }
+}
 window.__game = { coldOver, fireStage: () => fireStage, raidCount, plan, setPlan, planPointer, canBuild, heaters, piles, shovelers, spawnPile, rocks, coldWave, hero, save, furnace, houses, player, carried, mills, unlocks, trees, bears, gate, buildings, towers, step, render: () => renderer.render(scene, camera) }; // 測試用
 </script>
 </body>
