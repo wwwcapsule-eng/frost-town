@@ -49,14 +49,14 @@ const wrongZone = (x, z, k) => PRO && KIND_ZONE[k] && zoneOf(x, z) !== KIND_ZONE
 function canBuild(x, z, k) {
   if (wrongZone(x, z, k)) return false;
   if (k === 'tower') {                                          // 弩砲塔：圍欄外 1～2 格，樹會自動移走所以不擋，熊也不擋
-    const r = Math.hypot(x, z), d = (a, b) => Math.hypot(a - x, b - z);
+    const r = fd(x, z), d = (a, b) => Math.hypot(a - x, b - z);
     return r > FENCE_R + 1.6 && r < FENCE_R + 6.5 && Math.abs(x) > 3 && !(x > 0 && Math.abs(z) < 3) // 不擋北門、南門、東門的路
       && !buildings.some(b => d(b.x, b.z) < b.r + 1.6) && !trees.some(t => t.coal && !t.gone && d(t.x, t.z) < 2);
   }
   const big = !!BIG[k];
   if (big && !canBuild(x, z + 2.7, 'pad')) return false;                         // 門口前的付款格也要有空地
   const r = Math.hypot(x, z), d = (a, b) => Math.hypot(a - x, b - z);
-  if (r > 27 * TS || Math.abs(r - FENCE_R) < 1.8 || d(FX, FZ) < 2.6) return false;
+  if (r > 27 * TS || Math.abs(fd(x, z) - FENCE_R) < 1.8 || d(FX, FZ) < 2.6) return false;
   if (Math.abs(x - CX) < 1.8 && z > CZ - 1 && z < CZ + 17 * TS) return false;          // 村民排隊的路
   if (Math.abs(x) < 4.5 && z < -FENCE_R + 4 && z > -FENCE_R - 3) return false;                        // 北門前
   if (buildings.some(b => d(b.x, b.z) < b.r + (big ? 2.2 : 1.6))) return false;
@@ -297,8 +297,7 @@ function buildDoorsAll() {
 }
 function applyTerritory(init) {
   FENCE_R = TERR[save.territory].r;
-  GATES.forEach(g => g.half = Math.asin(g.w / 2 / FENCE_R));
-  NG_PX = FENCE_R * Math.sin(GATES[0].half); NG_PZ = -FENCE_R * Math.cos(GATES[0].half); NG_LEN = NG_PX;
+  NG_PX = GATES[0].w / 2; NG_PZ = -FENCE_R; NG_LEN = NG_PX;
   buildFence(); buildDoorsAll();
   camp.scale.setScalar((FENCE_R - 0.2) / 8.5);
   fireLight.distance = FENCE_R + 7;                                // 營火光跟著領地變大，蓋住整個營地
@@ -306,24 +305,24 @@ function applyTerritory(init) {
   repairPad.position.z = -FENCE_R + 2.1; repairLabel.position.z = -FENCE_R + 2.1;
   towers.forEach(t => {
     if (!t.fixed && !t.bld.userMoved) return moveBuilding(t.bld, t.g.position.x, towerZ(t.g.position.x));
-    const r = Math.hypot(t.bld.x, t.bld.z);                       // 自己蓋或搬過的塔被新圍欄圈到：往外推到圍欄外
+    const r = fd(t.bld.x, t.bld.z);                       // 自己蓋或搬過的塔被新圍欄圈到：往外推到圍欄外
     if (r < FENCE_R + 1.8) { const k = (FENCE_R + 2.4) / r; moveBuilding(t.bld, t.bld.x * k, t.bld.z * k); remember(t.bld); }
   });
   houses.forEach(h => {                                            // 南門外的民房整排往外搬；自己規劃的碰到圍欄就往外推
     const m = /^民房(\d+)$/.exec(h.key);
     if (m && !h.userMoved) { const [x, z] = houseSpot(+m[1]); moveBuilding(h, x, z); }
-    else { const r = Math.hypot(h.x, h.z); if (Math.abs(r - FENCE_R) < 2) { moveBuilding(h, h.x / r * (FENCE_R + 2.2), h.z / r * (FENCE_R + 2.2)); remember(h); } }
+    else { const r = fd(h.x, h.z); if (Math.abs(r - FENCE_R) < 2) { moveBuilding(h, h.x / r * (FENCE_R + 2.2), h.z / r * (FENCE_R + 2.2)); remember(h); } }
   });
   if (!houseUnlock.done) { [houseUnlock.x, houseUnlock.z] = houseSpot(save.houses); houseUnlock.pad.position.set(houseUnlock.x, 0.03, houseUnlock.z); houseUnlock.label.position.set(houseUnlock.x, 1.9, houseUnlock.z); }
   for (const u of unlocks) {                                       // 卡在圍欄上的付款格往內挪
     if (u.done || u === houseUnlock) continue;
-    const r = Math.hypot(u.x, u.z);
+    const r = fd(u.x, u.z);
     if (Math.abs(r - FENCE_R) < 1.6) { const k = (FENCE_R - 1.8) / r; u.x *= k; u.z *= k; u.pad.position.set(u.x, 0.03, u.z); u.label.position.set(u.x, u.label.position.y, u.z); }
   }
   let moved = 0;
   for (const t of trees) {                                         // 圈進領地的樹移走（煤礦往外推）
     if (t.gone) continue;
-    const r = Math.hypot(t.x, t.z);
+    const r = fd(t.x, t.z);
     if (t.coal) continue;                                          // 煤礦石在固定地塊上，不移動
     if (r < FENCE_R + 2.2 || nearTower(t.x, t.z)) { t.gone = true; t.alive = false; t.regrow = Infinity; scene.remove(t.g); if (!t.locked) moved++; }
   }
@@ -332,7 +331,7 @@ function applyTerritory(init) {
     if (!nearNorthDoors(x, z, 1.2) && !nearTower(x, z) && trees.every(t => t.gone || (t.x - x) ** 2 + (t.z - z) ** 2 > 2.6)) { addTree(x, z, false); i++; }
   }
   for (const b of bears) if (!b.aggro && b.z > -FENCE_R - 2) { [b.x, b.z] = bearSpot(); }
-  for (let i = piles.length - 1; i >= 0; i--) if (Math.abs(Math.hypot(piles[i].x, piles[i].z) - FENCE_R) < 1.3) { scene.remove(piles[i].m); piles.splice(i, 1); }
+  for (let i = piles.length - 1; i >= 0; i--) if (Math.abs(fd(piles[i].x, piles[i].z) - FENCE_R) < 1.3) { scene.remove(piles[i].m); piles.splice(i, 1); }
   roadsDirty = true; if (!init) resize();
 }
 function expandTerritory() {
@@ -355,11 +354,11 @@ function checkLevel() {
 document.getElementById('lvOk').onclick = () => { $('lvup').style.display = 'none'; paused = false; clock.getDelta(); };
 // 圍欄裡外要走門：先走到最近的門口，穿過門再走向目標
 function routeTo(w, x, z, dt) {
-  const px = w.g.position.x, pz = w.g.position.z, rIn = Math.hypot(px, pz) < FENCE_R, tIn = Math.hypot(x, z) < FENCE_R;
+  const px = w.g.position.x, pz = w.g.position.z, rIn = fd(px, pz) < FENCE_R, tIn = fd(x, z) < FENCE_R;
   if (rIn === tIn) return walkTo(w, x, z, dt);
   const ref = rIn ? Math.atan2(z, x) : Math.atan2(pz, px);
   const g = GATES.filter(g => g !== GATES[2] || save.east).reduce((a, b) => angDiff(ref, a.a) < angDiff(ref, b.a) ? a : b);
-  const inBand = angDiff(Math.atan2(pz, px), g.a) < g.half - 0.1 && Math.abs(Math.hypot(px, pz) - FENCE_R) < 1.2;
+  const l = gateLocal(g, px, pz), inBand = l.along < g.w / 2 - 0.5 && Math.abs(l.out - FENCE_R) < 1.2;
   // 還沒到門口 → 先走到門的這一側；已經在門口 → 穿過去到另一側
   const goInside = rIn ? !inBand : inBand;
   const [gx, gz] = gatePoint(g, goInside ? FENCE_R - 0.9 : FENCE_R + 1.0);
