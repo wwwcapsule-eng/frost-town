@@ -101,16 +101,14 @@
   <button data-k="heater">🔥 暖氣塔<br><small id="pkHeater"></small></button>
   <button data-k="mill" class="pro">🪚 鋸木機<br><small id="pkMill"></small></button>
   <button data-k="grill" class="pro">🍖 烤肉攤<br><small id="pkGrill"></small></button>
-  <button data-k="tower" class="pro">🏹 弩砲塔<br><small id="pkTower"></small></button>
-  <button data-k="smith" class="pro">🔨 鐵匠鋪<br><small id="pkSmith"></small></button>
+  <button data-k="tower">🏹 弩砲塔<br><small id="pkTower"></small></button>
+  <button data-k="smith">🔨 鐵匠鋪<br><small id="pkSmith"></small></button>
 </div><div class="row">
   <button id="planGo" disabled>✅ 蓋這裡</button>
   <button id="planExit">✖ 離開</button>
 </div></div>
-<div id="menu"><div class="box"><div class="big">選擇關卡</div>
+<div id="menu"><div class="box"><div class="big">選單</div>
   <button data-mode="tutorial">📘 教學關<small>建築位置固定，跟著上方目標一步步蓋</small></button>
-  <button data-mode="build">🏗️ 正式關・自己蓋<small>用規劃模式自己選位置，民房、加工建築各有自己的區</small></button>
-  <button data-mode="auto">🤖 正式關・電腦託管<small>你只決定蓋什麼，電腦幫你挑位置</small></button>
   <button id="menuReset" style="background:#eee">🔄 這一關重新開始</button>
   <button id="menuClose" style="background:#eee">✖ 關閉</button>
 </div></div>
@@ -121,7 +119,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 'use strict';
-const VERSION = '0.51';
+const VERSION = '0.52';
 
 // ===== 數值（之後平衡都改這裡） =====
 const CFG = {
@@ -179,9 +177,8 @@ const ROCK_LOTS = [[-11.2, -0.6], [-10.2, 2.2], [-11.6, -3.4], [-9.9, -6.2], [-1
 // ===== 存檔 =====
 // 關卡（企劃 9.2）：教學關沿用原本的存檔；正式關（自己蓋／電腦託管）各有自己的存檔
 const MODE_KEY = 'frost-town-mode';
-let MODE = null; try { MODE = localStorage.getItem(MODE_KEY); } catch (e) {}
-const firstRun = !MODE;
-if (!['tutorial', 'build', 'auto'].includes(MODE)) MODE = 'tutorial';
+// 作者 10/17：拿掉正式關，只留一關；自己選位置改成右下「規劃」（上帝視角）
+const MODE = 'tutorial', firstRun = false;
 const PRO = MODE !== 'tutorial';
 const SAVE_KEY = 'frost-town-save-v1' + (PRO ? '-' + MODE : '');
 let save = { cash: 0, bag: 0, axe: 0, east: false, mill2: false, tower: false, workers: 0, level: 0, houses: 0, stove: 0 };
@@ -952,13 +949,18 @@ function planLimit(k) {
   const lv = LEVELS[save.level];
   if (k === 'mill') return PRO && save.east && !planned('mill');      // 跟教學關一樣：開拓東邊後才有
   if (k === 'grill') return PRO && save.level >= 1 && !planned('grill');
-  if (k === 'tower') return PRO && towers.length < 2 + save.level; // 營地 2 座，每升一級多 1 座
-  if (k === 'smith') return PRO && save.mine && !planned('smith');      // 開採煤礦後才有煤可以打
+  if (k === 'tower') return towers.length < 2 + save.level; // 營地 2 座，每升一級多 1 座
+  if (k === 'smith') return save.mine && !planned('smith');      // 開採煤礦後才有煤可以打
   return k === 'house' ? houses.length < lv.houses : heaters.length < lv.heaters + (save.stove ? 1 : 0);
 }
 const wrongZone = (x, z, k) => PRO && KIND_ZONE[k] && zoneOf(x, z) !== KIND_ZONE[k]; // 正式關：同一區蓋同類建築
 function canBuild(x, z, k) {
   if (wrongZone(x, z, k)) return false;
+  if (k === 'tower') {                                          // 弩砲塔：圍欄外 1～2 格，樹會自動移走所以不擋，熊也不擋
+    const r = Math.hypot(x, z), d = (a, b) => Math.hypot(a - x, b - z);
+    return r > FENCE_R + 1.6 && r < FENCE_R + 6.5 && Math.abs(x) > 3 && !(x > 0 && Math.abs(z) < 3) // 不擋北門、南門、東門的路
+      && !buildings.some(b => d(b.x, b.z) < b.r + 1.6) && !trees.some(t => t.coal && !t.gone && d(t.x, t.z) < 2);
+  }
   const big = !!BIG[k];
   if (big && !canBuild(x, z + 2.7, 'pad')) return false;                         // 門口前的付款格也要有空地
   const r = Math.hypot(x, z), d = (a, b) => Math.hypot(a - x, b - z);
@@ -984,15 +986,15 @@ function planUi() {
   $('pkGrill').textContent = planLimit('grill') ? '💵 ' + CFG.grill2Price : planned('grill') ? '已蓋' : '村莊解鎖';
   $('pkHeater').textContent = planLimit('heater') ? '💵 ' + planCost('heater') : lv.heaters ? '已滿 ' + (lv.heaters + (save.stove ? 1 : 0)) + ' 座' : '村莊解鎖';
   document.querySelectorAll('#planBar [data-k]').forEach(b => b.classList.toggle('sel', b.dataset.k === plan.kind));
-  let tip = PRO ? '選一種建築，電腦會先放在推薦位置；長按蓋好的建築可以搬家' : '先選一種建築，再點地上的格子（拖曳可以移動畫面）', ok = false;
+  let tip = '選一種建築，電腦會先放在推薦位置；新民房會自動接上道路；按住自己蓋的建築可以搬家', ok = false;
   if (plan.kind && plan.cell) {
     const [x, z] = plan.cell, cost = planCost(plan.kind);
     if (!planLimit(plan.kind)) tip = '數量已達上限，城市升級後可以蓋更多';
     else if (!canBuild(x, z, plan.kind)) tip = wrongZone(x, z, plan.kind) ? '這種建築只能蓋在' + ZONE_TXT[KIND_ZONE[plan.kind]] : '這格不能蓋（太靠近建築、圍欄、樹或路）';
     else if (save.cash < cost) tip = '錢不夠：需要 ' + cost + ' 元';
-    else { tip = (PRO && plan.cell === plan.rec ? '⭐ 推薦位置：' : '') + '按「✅ 蓋這裡」花 ' + cost + ' 元'; ok = true; }
+    else { tip = (plan.cell === plan.rec ? '⭐ 推薦位置：' : '') + '按「✅ 蓋這裡」花 ' + cost + ' 元'; ok = true; }
     cursor.material.color.setHex(ok ? 0x5fd068 : 0xff5a4a);
-  } else if (plan.kind) tip = PRO ? '附近沒有空位了，擴大領地或自己點格子試試' : '點地上的格子，選要蓋在哪';
+  } else if (plan.kind) tip = true ? '附近沒有空位了，擴大領地或自己點格子試試' : '點地上的格子，選要蓋在哪';
   $('planTip').textContent = tip; $('planGo').disabled = !ok;
   ghost.visible = !!(plan.kind && plan.cell);
   if (ghost.visible) { const [sx, sy, sz] = (plan.kind === 'house' ? [1, 1, 1] : BIG[plan.kind] ? [1.4, 1.15, 1.2] : null) || [0.45, 1.6, 0.45]; ghost.position.set(plan.cell[0], sy * 0.7, plan.cell[1]); ghost.scale.set(sx, sy, sz); }
@@ -1009,7 +1011,7 @@ document.getElementById('planBtn').onclick = () => setPlan(true);
 document.getElementById('planExit').onclick = () => setPlan(false);
 document.querySelectorAll('#planBar [data-k]').forEach(b => b.onclick = () => {
   plan.kind = b.dataset.k;
-  if (PRO) { plan.cell = plan.rec = autoSpot(plan.kind); if (plan.cell) { cursor.position.x = plan.cell[0]; cursor.position.z = plan.cell[1]; plan.cx = plan.cell[0]; plan.cz = plan.cell[1]; } }
+  { plan.cell = plan.rec = autoSpot(plan.kind); if (plan.cell) { cursor.position.x = plan.cell[0]; cursor.position.z = plan.cell[1]; plan.cx = plan.cell[0]; plan.cz = plan.cell[1]; } }
   planUi();
 });
 document.getElementById('planGo').onclick = () => {
@@ -1021,7 +1023,7 @@ document.getElementById('planGo').onclick = () => {
   if (k === 'mill') { save.mill2 = true; toast('加工速度翻倍！'); } else if (k === 'grill') toast('第二座烤肉攤：肉烤得更快！');
   sfx.unlock(); sparkle(x, z); writeSave();
   plan.cell = null; if (MODE === 'auto') plan.kind = null; planUi();
-  if (PRO && save.plan.length === 1) setTimeout(() => toast('💡 長按蓋好的建築，可以搬到別的地方'), 1600);
+  if (save.plan.length === 1) setTimeout(() => toast('💡 在規劃畫面按住自己蓋的建築，可以搬到別的地方'), 1600);
 };
 const ray = new THREE.Raycaster(), groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 function planPointer(type, e) {
@@ -1042,9 +1044,9 @@ function planPointer(type, e) {
     plan.cell = [x, z]; cursor.position.x = x; cursor.position.z = z; planUi();
   }
 }
-// ===== 長按建築搬家（正式關，作者 10/17：像手機模擬建築遊戲）：按住自己蓋的建築 0.5 秒 → 上帝視角（規劃模式）→ 拖到新位置放開 =====
+// ===== 長按建築搬家（規劃模式裡，作者 10/17：像手機模擬建築遊戲）：按住自己蓋的建築 0.5 秒 → 上帝視角（規劃模式）→ 拖到新位置放開 =====
 let lpTimer = 0;
-function longPress(e) { clearTimeout(lpTimer); if (PRO) { const { clientX: x, clientY: y, pointerId: id } = e; lpTimer = setTimeout(() => pickAt(x, y, id), 500); } }
+function longPress(e) { clearTimeout(lpTimer); { const { clientX: x, clientY: y, pointerId: id } = e; lpTimer = setTimeout(() => pickAt(x, y, id), 500); } }
 function groundAt(cx, cy) { ray.setFromCamera(new THREE.Vector2(cx / innerWidth * 2 - 1, -(cy / innerHeight) * 2 + 1), camera); return ray.ray.intersectPlane(groundPlane, new THREE.Vector3()); }
 function moveAll(i, x, z) {                                       // 建築連同付款格、暖氣圈一起搬
   const b = planBld[i], dx = x - b.x, dz = z - b.z;
@@ -1134,7 +1136,11 @@ function applyTerritory(init) {
   camp.scale.setScalar((FENCE_R - 0.2) / 8.5);
   gateLabel.position.z = -FENCE_R - 0.2;
   repairPad.position.z = -FENCE_R + 2.1; repairLabel.position.z = -FENCE_R + 2.1;
-  towers.forEach(t => !t.fixed && moveBuilding(t.bld, t.g.position.x, towerZ(t.g.position.x)));
+  towers.forEach(t => {
+    if (!t.fixed) return moveBuilding(t.bld, t.g.position.x, towerZ(t.g.position.x));
+    const r = Math.hypot(t.bld.x, t.bld.z), i = planBld.indexOf(t.bld);   // 自己蓋的塔被新圍欄圈到：往外推到圍欄外
+    if (r < FENCE_R + 1.8) { const k = (FENCE_R + 2.4) / r; moveBuilding(t.bld, t.bld.x * k, t.bld.z * k); if (i >= 0) { save.plan[i].x = t.bld.x; save.plan[i].z = t.bld.z; } }
+  });
   houses.forEach(h => {                                            // 南門外的民房整排往外搬；自己規劃的碰到圍欄就往外推
     const m = /^民房(\d+)$/.exec(h.key);
     if (m) { const [x, z] = houseSpot(+m[1]); moveBuilding(h, x, z); }
@@ -1395,7 +1401,6 @@ addEventListener('pointerdown', e => {
   if (e.target.id === 'reset' || e.target.id === 'mute' || e.target.closest('#planBar, #planBtn')) return;
   if (plan.on) return planPointer('down', e);
   if (joy.active) return;
-  longPress(e);
   joy.active = true; joy.id = e.pointerId; joy.ox = e.clientX; joy.oy = e.clientY; joy.x = joy.y = 0;
   joyEl.style.left = e.clientX + 'px'; joyEl.style.top = e.clientY + 'px'; joyEl.style.display = 'block';
   knob.style.transform = '';
