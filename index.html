@@ -15,10 +15,21 @@
   .pill{background:rgba(30,40,60,.72);color:#fff;border-radius:16px;padding:4px 12px 4px 8px;font-weight:700;font-size:18px;
     display:flex;align-items:center;gap:6px;min-width:76px}
   .pill b{font-size:20px}
+  @media (max-width:500px){.pill{font-size:15px;padding:3px 9px 3px 6px;min-width:0}.pill b{font-size:17px}.cap{font-size:11px}}
   .pill.bump{animation:bump .25s}
   .cap{font-size:13px;opacity:.75}
   .pill.full{background:rgba(200,120,20,.85)}
   .pill.danger{background:rgba(200,40,40,.85);animation:blink .8s infinite}
+  #bars{position:fixed;top:calc(10px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);width:min(150px, calc(100vw - 250px));display:flex;flex-direction:column;gap:5px;pointer-events:none}
+  .bar{position:relative;height:20px;border-radius:10px;background:rgba(30,40,60,.72);overflow:hidden;color:#fff;font-weight:900;font-size:13px}
+  .bar i{position:absolute;left:0;top:0;bottom:0;border-radius:10px;transition:width .2s}
+  .bar span{position:relative;display:block;text-align:center;line-height:20px;text-shadow:0 1px 2px rgba(0,0,0,.6)}
+  #hpBar i{background:#e8474f}#fuelBar i{background:#ff9a2e}
+  .bar.danger{animation:blink .8s infinite}
+  #alert{position:fixed;bottom:calc(70px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);background:rgba(200,40,40,.88);color:#fff;
+    font-weight:900;font-size:16px;padding:6px 14px;border-radius:14px;white-space:nowrap;pointer-events:none;display:none}
+  #alert.cold{background:rgba(40,120,200,.88)}
+  #alert.warn{background:rgba(220,140,20,.9)}
   #frost{position:fixed;inset:0;pointer-events:none;box-shadow:inset 0 0 110px 40px rgba(150,210,255,.7);background:rgba(170,215,255,.12);opacity:0;transition:opacity 1s}
   #vignette{position:fixed;inset:0;pointer-events:none;box-shadow:inset 0 0 80px 20px rgba(220,30,30,.55);opacity:0;transition:opacity .4s}
   @keyframes bump{50%{transform:scale(1.15)}}
@@ -61,11 +72,12 @@
   <div class="pill" id="pMeat">🍖 <b id="meat">0</b><span class="cap" id="capM"></span></div>
   <div class="pill" id="pCoal" style="display:none">⚫ <b id="coal">0</b><span class="cap" id="capC"></span></div>
   <div class="pill" id="pWood">🪵 <b id="wood">0</b><span class="cap" id="capW"></span></div>
-  <div class="pill" id="pCold" style="display:none">❄️ <b id="cold">--</b></div>
-  <div class="pill" id="pFuel">🔥 <b id="fuel">100</b><span class="cap">%</span></div>
-  <div class="pill" id="pHp">❤️ <b id="hp">100</b></div>
-  <div class="pill" id="pRaid">🐻 <b id="raid">--</b></div>
 </div>
+<div id="bars">
+  <div class="bar" id="hpBar"><i></i><span>❤️ <b id="hp">100</b></span></div>
+  <div class="bar" id="fuelBar"><i></i><span>🔥 營火 <b id="fuel">100</b>%</span></div>
+</div>
+<div id="alert"></div>
 <div id="vignette"></div>
 <div id="frost"></div>
 <div id="toast"></div>
@@ -86,7 +98,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 'use strict';
-const VERSION = '0.30';
+const VERSION = '0.31';
 
 // ===== 數值（之後平衡都改這裡） =====
 const CFG = {
@@ -107,7 +119,7 @@ const CFG = {
   buildHp: 100, bearBuildDps: 2.5, // 建築血量、熊每秒對建築的傷害
   gateHp: 100, raidEvery: 60, raidFirst: 90, raidBears: 2, bearDps: 1.5, // 北門血量、熊群幾秒來一次、一次幾隻、每隻每秒傷害
   workerSpeed: 3.6, workerChop: 0.6, workerLoad: 6, // 伐木工：速度約主角 60%、出手間隔、一次揹幾根
-  payRate: 1.1,             // 付款格：幾秒內付完整筆
+  payRate: 1.1, padDelay: 0.6, // padDelay：站在付款格上幾秒後才開始付錢             // 付款格：幾秒內付完整筆
   popBase: 2,               // 一開始的人口（主角和夥伴），每個伐木工 +1
   housePop: 5, housePrice: [25, 15], // 每間民房住幾人；民房價錢：第一間 25，之後每間多 15
   fuelMax: 100, fuelBurn: 0.4, fuelPerLog: 5, heat: [10, 17], // 火爐：柴滿 100、每秒燒 0.4、一根木頭 +5；暖氣圈半徑（最小、最大）
@@ -554,8 +566,7 @@ function updateGate(dt) {
   const pct = Math.round(gate.hp / CFG.gateHp * 100);
   gateLabel.set(['北門 ' + pct + '%'], pct > 60 ? '#9fe870' : pct > 25 ? '#ffd34d' : '#ff6a5a');
   const raiding = bears.some(b => b.alive && b.aggro);
-  $("raid").textContent = raiding ? "來襲中！" : Math.ceil(gate.raidT) + " 秒";
-  $("pRaid").classList.toggle("danger", raiding);
+  gate.raiding = raiding;
   $("vignette").style.opacity = raiding ? 1 : 0;
   // 站在修門格上，背上的木頭一根根拿去修
   repairCd -= dt;
@@ -649,7 +660,7 @@ function updateFurnace(dt) {
   if (f.fuel <= 0 && !f.out) { toast('🔥 火爐熄了！建築都凍住了，快加柴！'); beep(180, 0.4, 'sawtooth', 0.06, 0.6); }
   f.out = f.fuel <= 0;
   furnaceLabel.set(['火爐 ' + pct + '%', pct < 50 ? (save.mine ? '🪵⚫ 揹木頭或煤來加' : '🪵 揹木頭來加柴') : '🔥 暖氣範圍'], pct > 50 ? '#ffd34d' : pct > 20 ? '#ffa040' : '#ff6a5a');
-  $('fuel').textContent = pct; $('pFuel').classList.toggle('danger', pct < 20);
+  $('fuel').textContent = pct; $('fuelBar').firstElementChild.style.width = pct + '%'; $('fuelBar').classList.toggle('danger', pct < 20);
 }
 
 // ===== 煤礦：營地西南邊的黑色礦石，買下後主角敲得到；煤丟進火爐很耐燒（伐木工不挖煤） =====
@@ -723,7 +734,6 @@ let shovelUnlock = null;
 const coldWave = { t: save.coldT ?? CFG.coldFirst, on: 0, failed: false };
 function updateColdWave(dt) {
   const active = save.level >= 1;
-  $('pCold').style.display = active ? '' : 'none';
   if (!active) { $('frost').style.opacity = 0; return; }
   const c = coldWave;
   if (c.on > 0) {
@@ -739,8 +749,6 @@ function updateColdWave(dt) {
     else if (Math.ceil(c.t) === 15 && Math.ceil(c.t + dt) > 15) toast('❄️ 15 秒後寒潮來襲，先把火爐加滿柴！');
   }
   save.coldT = Math.max(0, Math.round(c.t));
-  $('cold').textContent = c.on > 0 ? '寒潮中！' + Math.ceil(c.on) : Math.ceil(c.t) + ' 秒';
-  $('pCold').classList.toggle('danger', c.on > 0);
   $('frost').style.opacity = c.on > 0 ? 1 : 0;
 }
 
@@ -1180,7 +1188,20 @@ function updateHero(dt) {
     beep(140, 0.5, 'sawtooth', 0.07, 0.5);
   }
   const v = Math.ceil(hero.hp); $('hp').textContent = v;
-  $('pHp').classList.toggle('danger', v < 35);
+  $('hpBar').firstElementChild.style.width = v + '%'; $('hpBar').classList.toggle('danger', v < 35);
+  updateAlert();
+}
+
+// 畫面上方的事件提醒：熊群、寒潮快來（15 秒內）或正在發生時才出現，平常不讀秒
+let shownAlert = '';
+function updateAlert() {
+  let t = '', cls = '';
+  if (gate.raiding) { t = '🐻 熊群來襲！守住北門'; }
+  else if (save.level >= 1 && coldWave.on > 0) { t = '❄️ 寒潮中 ' + Math.ceil(coldWave.on) + ' 秒，顧好營火'; cls = 'cold'; }
+  else if (gate.raidT <= 15) { t = '🐻 熊群 ' + Math.ceil(gate.raidT) + ' 秒後來襲'; cls = 'warn'; }
+  else if (save.level >= 1 && coldWave.t <= 15) { t = '❄️ 寒潮 ' + Math.ceil(coldWave.t) + ' 秒後來，先加柴'; cls = 'cold'; }
+  const key = t + cls; if (key === shownAlert) return; shownAlert = key;
+  $('alert').textContent = t; $('alert').className = cls; $('alert').style.display = t ? 'block' : 'none';
 }
 
 // 建築：被打會晃、血量存檔、揹木頭靠近就修、全部被拆光就失敗
@@ -1348,7 +1369,8 @@ function step(dt) {
     if (u.cool > 0) { u.cool -= dt; u.pad.visible = u.label.visible = u.cool <= 0; continue; } // 剛升級完：閃亮後要等一下才能再升級
     const p = u.price();
     const on = Math.hypot(player.position.x - u.x, player.position.z - u.z) < 1.2;
-    if (on && save.cash > 0 && u.paid < p) {
+    u.stand = on ? (u.stand || 0) + dt : 0;                     // 站穩 0.6 秒才開始付錢，路過不會誤買
+    if (on && u.stand > CFG.padDelay && save.cash > 0 && u.paid < p) {
       u.payAcc += dt * p / CFG.payRate;
       const pay = Math.min(Math.floor(u.payAcc), save.cash, p - u.paid);
       if (pay > 0) {
