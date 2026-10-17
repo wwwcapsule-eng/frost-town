@@ -69,7 +69,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 'use strict';
-const VERSION = '0.28';
+const VERSION = '0.29';
 
 // ===== 數值（之後平衡都改這裡） =====
 const CFG = {
@@ -96,6 +96,7 @@ const CFG = {
   fuelMax: 100, fuelBurn: 0.4, fuelPerLog: 5, heat: [10, 17], // 火爐：柴滿 100、每秒燒 0.4、一根木頭 +5；暖氣圈半徑（最小、最大）
   heatUp: 7, furnaceUpPrice: 150,
   minePrice: 100, coalHp: 4, coalPerRock: 2, coalRegrow: 20, fuelPerCoal: 20, // 煤礦（村莊解鎖）：價錢、敲幾下、掉幾塊、幾秒長回來；一塊煤 = 火爐 +20（木頭只有 +5）
+  snowEvery: 7, snowMax: 10, snowHp: 3, snowSlow: 0.45, shovelPrice: 60, // 雪堆（村莊開始）：幾秒積一堆、最多幾堆、鏟幾下、踩到剩幾成速度、鏟雪工價錢
   coldFirst: 120, coldEvery: 150, coldLen: 30, coldBurn: 3, coldShrink: 0.75, coldReward: 30, // 寒潮（村莊開始）：第一次幾秒後、之後每幾秒、持續幾秒、火爐燒幾倍快、暖氣圈縮成幾成、撐過去的獎金 // 火爐升級（村莊解鎖）：暖氣圈最大半徑 +7
 };
 // 城市等級：人口到門檻就升級（藍圖見 docs/企劃評估.md 第 8 節）；houses＝這一級最多能蓋幾間民房
@@ -433,12 +434,14 @@ function updateVillagers(dt) {
   villagers.forEach((v, i) => {
     const p = QUEUE(i), d = p.sub(v.g.position); d.y = 0;
     const len = d.length();
-    if (len > 0.05) { v.g.position.addScaledVector(d, Math.min(1, 3 * dt / len)); v.g.position.y = Math.abs(Math.sin(guideT * 10 + i)) * 0.08; }
+    if (len > 0.05) { v.g.position.addScaledVector(d, Math.min(1, 3 * slowAt(v.g.position.x, v.g.position.z) * dt / len)); v.g.position.y = Math.abs(Math.sin(guideT * 10 + i)) * 0.08; }
     else v.g.position.y = 0;
   });
   const front = villagers[0];
   const scared = bears.some(b => b.alive && b.aggro && Math.hypot(b.x, b.z) < 9); // 熊進營地，村民不敢買
-  if (front && !scared && bbq.cookedMeshes.length && front.g.position.distanceTo(QUEUE(0)) < 0.3) {
+  const blocked = piles.some(p => Math.hypot(p.x - CX, p.z - CZ - 1) < 1.6); // 雪堆擋在櫃台前，村民不買
+  blockWarn -= dt; if (blocked && bbq.cookedMeshes.length && blockWarn <= 0) { toast('❄️ 雪堆擋住櫃台了！快去鏟'); blockWarn = 8; }
+  if (front && !scared && !blocked && bbq.cookedMeshes.length && front.g.position.distanceTo(QUEUE(0)) < 0.3) {
     front.wait += dt;
     if (front.wait > 0.35) {
       const m = bbq.cookedMeshes.pop();
@@ -641,6 +644,58 @@ let mineUnlock = null;
 function openMine() { rocks.forEach(t => { t.locked = false; t.g.visible = true; }); document.getElementById('pCoal').style.display = ''; }
 if (save.mine) openMine();
 
+// ===== 雪堆：村莊開始，路上會積雪；踩到走很慢，堆在櫃台前村民就不買；主角站旁邊自動鏟，也能雇鏟雪工 =====
+const piles = [], pileMat = new THREE.MeshLambertMaterial({ color: 0xcfe3f7, flatShading: true });
+let snowT = 3, blockWarn = 0;
+function spawnPile() {
+  let x, z;
+  for (let tries = 0; tries < 20; tries++) {
+    if (Math.random() < 0.5) { x = CX + rand(-0.7, 0.7); z = rand(CZ + 0.5, CZ + 11); } // 村民排隊的路上
+    else { const a = rand(0, 6.28), r = rand(2, 7.6); x = Math.cos(a) * r; z = Math.sin(a) * r; } // 營地裡
+    if (Math.hypot(x - FX, z - FZ) > 1.8 && piles.every(p => Math.hypot(p.x - x, p.z - z) > 1.6)) break;
+  }
+  const m = new THREE.Mesh(new THREE.SphereGeometry(0.9, 10, 6), pileMat); // 淡藍白色，雪地上也看得出來
+  m.scale.set(1, 0.001, 1); m.position.set(x, 0, z); m.castShadow = m.receiveShadow = true; scene.add(m);
+  piles.push({ m, x, z, hp: CFG.snowHp, grow: 0, shake: 0 });
+}
+function slowAt(x, z) { return piles.some(p => Math.hypot(p.x - x, p.z - z) < 0.95) ? CFG.snowSlow : 1; }
+function hitPile(p) {
+  p.hp--; p.shake = 0.2; burstChips(p.x, p.z, false);
+  if (p.hp <= 0) { scene.remove(p.m); piles.splice(piles.indexOf(p), 1); }
+}
+let shovelCd = 0;
+function updateSnow(dt) {
+  if (save.level < 1) return;
+  snowT -= dt * (coldWave.on > 0 ? 3 : 1);                      // 寒潮時積雪快 3 倍
+  if (snowT <= 0) { snowT = CFG.snowEvery; if (piles.length < CFG.snowMax) spawnPile(); }
+  shovelCd -= dt;
+  for (const p of piles) {
+    p.grow = Math.min(1, p.grow + dt * 1.5);
+    const k = p.hp / CFG.snowHp; p.m.scale.set(0.5 + 0.5 * k, (0.35 + 0.25 * k) * p.grow, 0.5 + 0.5 * k);
+    if (p.shake > 0) { p.shake -= dt; p.m.position.x = p.x + Math.sin(p.shake * 70) * 0.06; } else p.m.position.x = p.x;
+  }
+  const near = piles.find(p => Math.hypot(p.x - player.position.x, p.z - player.position.z) < 1.7);
+  if (near && shovelCd <= 0) { shovelCd = 0.3; hitPile(near); sfx.chop(); }
+  for (const s of shovelers) {                                   // 鏟雪工：找最近的雪堆去鏟
+    let t = null, best = 1e9;
+    for (const p of piles) { const d = Math.hypot(p.x - s.g.position.x, p.z - s.g.position.z); if (d < best) { best = d; t = p; } }
+    s.cd -= dt;
+    if (!t) { routeTo(s, 5.5, -2, dt); continue; }
+    if (best > 1.2) routeTo(s, t.x, t.z, dt); else if (s.cd <= 0) { s.cd = 0.5; hitPile(t); s.g.rotation.y += 0.6; }
+  }
+}
+const shovelers = [];
+function addShoveler() {
+  const g = new THREE.Group();
+  const b = box(0.6, 0.75, 0.45, M(0x4fb3e8)); b.position.y = 0.6; g.add(b);
+  const h = box(0.45, 0.42, 0.42, mats.skin); h.position.y = 1.2; g.add(h);
+  const hat = box(0.5, 0.18, 0.5, M(0xffffff)); hat.position.y = 1.5; g.add(hat);
+  const sh = box(0.12, 0.12, 0.9, mats.axe); sh.position.set(0.35, 0.6, 0.35); g.add(sh);   // 鏟子
+  g.position.set(5.5, 0, -2); scene.add(g);
+  shovelers.push({ g, cd: 0, walk: 0 });
+}
+let shovelUnlock = null;
+
 // ===== 寒潮：村莊開始，每隔一段時間氣溫驟降 30 秒，火爐燒得快、暖氣圈縮小；撐過去（火沒熄）有獎金 =====
 const coldWave = { t: save.coldT ?? CFG.coldFirst, on: 0, failed: false };
 function updateColdWave(dt) {
@@ -672,10 +727,13 @@ function levelUnlocks() {
   if (houseUnlock.done && save.houses < LEVELS[save.level].houses) houseUnlock = addHouseUnlock();
   if (save.level >= 1 && !save.mine && !mineUnlock) mineUnlock = makeUnlock({ x: -10, z: 6, icon: '⛏️', name: () => '開採煤礦',
     price: () => save.mine ? null : CFG.minePrice, buy: () => { save.mine = 1; openMine(); toast('煤礦開放了！煤丟進火爐很耐燒'); } });
+  if (save.level >= 1 && !save.shovel && !shovelUnlock) shovelUnlock = makeUnlock({ x: 6.6, z: -3, icon: '🧹', name: () => '雇用鏟雪工',
+    price: () => save.shovel ? null : CFG.shovelPrice, buy: () => { save.shovel = 1; addShoveler(); toast('鏟雪工會自己去鏟雪！'); } });
   if (save.level >= 1 && !save.furnace && !furnaceUnlock) furnaceUnlock = makeUnlock({ x: 2.2, z: -4, icon: '🔥', name: () => '火爐升級',
     price: () => save.furnace ? null : CFG.furnaceUpPrice, buy: () => { save.furnace = 1; toast('暖氣圈變大了！'); } });
 }
 levelUnlocks();
+if (save.shovel) addShoveler();
 function checkLevel() {
   const next = LEVELS[save.level + 1];
   if (!next || population() < next.need) return;
@@ -702,7 +760,7 @@ function routeTo(w, x, z, dt) {
 function walkTo(w, x, z, dt) {
   const dx = x - w.g.position.x, dz = z - w.g.position.z, d = Math.hypot(dx, dz);
   if (d < 0.1) return true;
-  const s = Math.min(d, CFG.workerSpeed * dt);
+  const s = Math.min(d, CFG.workerSpeed * slowAt(w.g.position.x, w.g.position.z) * dt);
   w.g.position.x += dx / d * s; w.g.position.z += dz / d * s;
   w.g.rotation.y = Math.atan2(dx, dz); w.walk += dt * 12; w.g.position.y = Math.abs(Math.sin(w.walk)) * 0.1;
   return false;
@@ -1036,7 +1094,8 @@ function step(dt) {
   const moving = Math.hypot(mx, mz) > 0.05;
   if (moving) {
     if (hintOn) { hintOn = false; $('hint').style.display = 'none'; }
-    let nx = player.position.x + mx * CFG.speed * dt, nz = player.position.z + mz * CFG.speed * dt;
+    const sp = CFG.speed * slowAt(player.position.x, player.position.z) * dt; // 踩到雪堆走很慢
+    let nx = player.position.x + mx * sp, nz = player.position.z + mz * sp;
     if (!save.east && nx > 12.2) nx = 12.2;           // 冰牆擋住
     nx = Math.max(-40, Math.min(40, nx)); nz = Math.max(-40, Math.min(40, nz));
     for (const t of trees) {                          // 不要穿過樹幹
@@ -1186,6 +1245,7 @@ function step(dt) {
   updateWorkers(dt);
   updateGate(dt);
   updateColdWave(dt);
+  updateSnow(dt);
   updateFurnace(dt);
   updateBuildings(dt);
   checkLevel();
@@ -1230,7 +1290,7 @@ function loop() {
 }
 loop();
 addEventListener('visibilitychange', () => { if (document.hidden) writeSave(); });
-window.__game = { rocks, coldWave, hero, save, furnace, houses, player, carried, mills, unlocks, trees, bears, gate, buildings, towers, step, render: () => renderer.render(scene, camera) }; // 測試用
+window.__game = { piles, shovelers, spawnPile, rocks, coldWave, hero, save, furnace, houses, player, carried, mills, unlocks, trees, bears, gate, buildings, towers, step, render: () => renderer.render(scene, camera) }; // 測試用
 </script>
 </body>
 </html>
