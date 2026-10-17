@@ -16,6 +16,7 @@
   #ver{font-size:12px;font-weight:900;color:#25415e;text-shadow:0 1px 0 #fff;padding-left:4px}
   #bag{position:fixed;left:10px;bottom:calc(14px + env(safe-area-inset-bottom));display:flex;gap:6px;pointer-events:none}
   #bag .pill{min-width:0;padding:3px 9px 3px 6px}
+  #pStore{position:fixed;left:10px;bottom:calc(56px + env(safe-area-inset-bottom));pointer-events:none} /* 倉庫存量：在背包上面一排 */
   .pill{background:rgba(30,40,60,.72);color:#fff;border-radius:16px;padding:4px 12px 4px 8px;font-weight:700;font-size:18px;
     display:flex;align-items:center;gap:6px;min-width:76px}
   .pill b{font-size:20px}
@@ -34,7 +35,7 @@
     background:rgba(255,255,255,.88);color:#25415e;font-weight:900;font-size:13px;line-height:1.35;padding:5px 10px;border-radius:12px;
     text-align:center;pointer-events:none;box-shadow:0 2px 0 rgba(0,0,0,.12)}
   #goal.done{background:#ffd34d;animation:bump .4s}
-  #alert{position:fixed;bottom:calc(70px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);background:rgba(200,40,40,.88);color:#fff;
+  #alert{position:fixed;bottom:calc(104px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);background:rgba(200,40,40,.88);color:#fff;
     font-weight:900;font-size:16px;padding:6px 14px;border-radius:14px;white-space:nowrap;pointer-events:none;display:none}
   #alert.cold{background:rgba(40,120,200,.88)}
   #alert.warn{background:rgba(220,140,20,.9)}
@@ -81,6 +82,7 @@
   <div class="pill" id="pCoal" style="display:none">⚫ <b id="coal">0</b><span class="cap" id="capC"></span></div>
   <div class="pill" id="pWood">🪵 <b id="wood">0</b><span class="cap" id="capW"></span></div>
 </div>
+<div class="pill" id="pStore" style="display:none">📦 🧱<b id="sPlank">0</b> 🔥<b id="sFuel">0</b> 🍖<b id="sFood">0</b></div>
 <div id="bars">
   <div class="bar" id="hpBar"><i></i><span>❤️ <b id="hp">100</b></span></div>
   <div class="bar" id="fuelBar"><i></i><span>🔥 <em id="fireName" style="font-style:normal">營火</em> <b id="fuel">100</b>%</span></div>

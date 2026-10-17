@@ -70,6 +70,7 @@ function hud() {
   if (shownCash !== save.cash) { $('cash').textContent = save.cash; bump('pCash'); shownCash = save.cash; }
   const nMeat = countOf('meat') - flies.filter(f => f.toBack === 'meat').length, nCoal = carried.filter(m => m.userData.type === 'coal').length, nLog = carried.length - nMeat - nCoal;
   if (shownWood !== carried.length * 10000 + nMeat * 100 + nCoal) { $('wood').textContent = nLog; $('meat').textContent = nMeat; $('coal').textContent = nCoal; shownWood = carried.length * 10000 + nMeat * 100 + nCoal; }
+  if (save.wh) { const st = save.store; $('sPlank').textContent = st.plank; $('sFuel').textContent = st.log + st.coal; $('sFood').textContent = st.food; $('pStore').classList.toggle('danger', wh.hungry); }
   $('capW').textContent = '/' + capacity(); $('capM').textContent = '/' + capacity(); $('capC').textContent = '/' + capacity();
   $('pCoal').classList.toggle('full', countOf('coal') >= capacity());
   if (!save.coalTip && countOf('coal') > 0) { save.coalTip = true; toast('⚫ 煤比木頭耐燒 4 倍！丟進火爐，或在🏗️規劃蓋🔨鐵匠鋪拿去賣'); }
@@ -169,7 +170,7 @@ function updateGuide(dt) {
   if (!guide.visible) return;
   let x, z, h = 2.2;
   const out = mills.find(m => m.out.length);
-  const aff = unlocks.find(u => !u.done && u.price() - u.paid <= save.cash);
+  const aff = unlocks.find(u => !u.done && !u.mat && u.price() - u.paid <= save.cash);
   if (out) { x = out.outPad.position.x; z = out.outPad.position.z; }
   else if (carried.length >= Math.min(capacity(), 9)) { const s = mills.find(m => m.accept === carried[carried.length - 1].userData.type) || { inPad: fg }; x = s.inPad.position.x; z = s.inPad.position.z; }
   else if (aff && !carried.length) { x = aff.x; z = aff.z; h = 3.2; }
