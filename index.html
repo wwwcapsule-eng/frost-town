@@ -103,7 +103,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 'use strict';
-const VERSION = '0.37';
+const VERSION = '0.38';
 
 // ===== 數值（之後平衡都改這裡） =====
 const CFG = {
@@ -584,7 +584,9 @@ if (save.mill2) addMill2();
 makeUnlock({ x: LOT.tower1[0], z: LOT.tower1[1], icon: '🏹', name: () => '弩砲塔',
   price: () => save.tower ? null : 40, buy: () => { save.tower = true; buildTower(); addTower2Unlock(); toast('弩砲塔會自動射熊！'); } });
 const towers = [];
-function buildTower(x = 5.2, z = -FENCE_R - 1.3) {
+const towerZ = x => -Math.sqrt((FENCE_R + 1.8) ** 2 - x * x); // 弩砲塔站在圍欄外 1.8、北門門板旁邊，不跟圍欄或門板穿模
+const nearTower = (x, z) => towers.some(tw => Math.hypot(x - tw.g.position.x, z - tw.g.position.z) < 2.4);
+function buildTower(x = 6.4, z = towerZ(x)) {
   const g = new THREE.Group();
   const base = box(1.6, 2.2, 1.6, mats.wood); base.position.y = 1.1; g.add(base);
   const deck = box(2, 0.25, 2, mats.trunk); deck.position.y = 2.3; g.add(deck);
@@ -593,15 +595,16 @@ function buildTower(x = 5.2, z = -FENCE_R - 1.3) {
   const arms = box(1.6, 0.14, 0.18, M(0x3c4a5a)); arms.position.z = 0.5; bow.add(arms);
   g.position.set(x, 0, z); scene.add(g);
   towers.push({ g, bow, cd: 0, bld: addBuilding('弩砲塔' + towers.length, g, 1.0) });
+  trees.forEach(t => { if (!t.gone && !t.coal && nearTower(t.x, t.z)) { t.gone = true; t.alive = false; t.regrow = Infinity; scene.remove(t.g); } }); // 塔旁邊的樹移走，不穿模
 }
 if (save.tower) buildTower();
 // 第二座弩砲塔：要先有第一座才會出現
 function addTower2Unlock() {
   makeUnlock({ x: LOT.tower2[0], z: LOT.tower2[1], icon: '🏹', name: () => '第二座弩砲塔',
-  price: () => save.tower2 ? null : 90, buy: () => { save.tower2 = true; buildTower(-5.4); toast('北門兩側都有弩砲塔了！'); } });
+  price: () => save.tower2 ? null : 90, buy: () => { save.tower2 = true; buildTower(-6.4); toast('北門兩側都有弩砲塔了！'); } });
 }
 if (save.tower && !save.tower2) addTower2Unlock();
-if (save.tower2) buildTower(-5.4);
+if (save.tower2) buildTower(-6.4);
 
 // ===== 北門防守：熊群定時來撞北門，用木頭修門 =====
 const gate = { hp: save.gateHp ?? CFG.gateHp, hit: 0, raidT: save.raidT ?? CFG.raidFirst, posts: new THREE.Group(), broken: false };
@@ -696,7 +699,7 @@ fg.position.set(FX, 0, FZ); scene.add(fg);
 const heatRing = new THREE.Mesh(new THREE.RingGeometry(0.985, 1, 96), new THREE.MeshBasicMaterial({ color: 0xff9a3c, transparent: true, opacity: 0.8, depthWrite: false }));
 const heatFill = new THREE.Mesh(new THREE.CircleGeometry(1, 64), new THREE.MeshBasicMaterial({ color: 0xffb060, transparent: true, opacity: 0.1, depthWrite: false }));
 [heatRing, heatFill].forEach(m => { m.rotation.x = -Math.PI / 2; m.position.set(FX, 0.025, FZ); scene.add(m); });
-const furnaceLabel = makeLabel(); furnaceLabel.scale.set(2.6, 1.3, 1); furnaceLabel.position.set(FX, 3.3, FZ); scene.add(furnaceLabel);
+const furnaceLabel = makeLabel(); furnaceLabel.scale.set(2.6, 1.3, 1); furnaceLabel.position.set(FX + 1.2, 2.4, FZ + 1.2); scene.add(furnaceLabel); // 放在火爐靠鏡頭那側，不蓋住後面背包付款格的標籤
 // 營火分段（作者 10/17 回饋第 5 項）：不同 % 有不同畫面；火越小，熊群來得越多
 const FIRE_STAGES = [ // min：營火 % 以上就是這一段；light：整體亮度；frost：畫面四周結霜；glow：火光；bears：熊群多來幾隻
   { min: 70, name: '旺', light: 1, frost: 0, glow: 1.6, sky: 0xcfe3f2, bears: 0 },
@@ -880,6 +883,7 @@ function canBuild(x, z) {
   if (HOUSE_LOTS.slice(save.houses).some(l => d(l.x, l.z) < 2.8)) return false;    // 民房區保留給南門外的民房
   if (Object.values(LOT).some(([a, b]) => d(a, b) < 2.4)) return false;            // 付款格、建築的固定地塊
   if (Math.abs(x) < 1.6 || (x > 0 && Math.abs(z) < 1.6)) return false;            // 南北主路、東路
+  if (z > 0 && (Math.abs(r - 9.8) < 1.6 || Math.abs(r - 14.3) < 1.6)) return false; // 民房環狀路
   return true;
 }
 function planUi() {
@@ -980,7 +984,7 @@ function applyTerritory(init) {
   camp.scale.setScalar((FENCE_R - 0.2) / 8.5);
   gateLabel.position.z = -FENCE_R - 0.2;
   repairPad.position.z = -FENCE_R + 2.1; repairLabel.position.z = -FENCE_R + 2.1;
-  towers.forEach(t => moveBuilding(t.bld, t.g.position.x, -FENCE_R - 1.3));
+  towers.forEach(t => moveBuilding(t.bld, t.g.position.x, towerZ(t.g.position.x)));
   houses.forEach(h => {                                            // 南門外的民房整排往外搬；自己規劃的碰到圍欄就往外推
     const m = /^民房(\d+)$/.exec(h.key);
     if (m) { const [x, z] = houseSpot(+m[1]); moveBuilding(h, x, z); }
@@ -997,11 +1001,11 @@ function applyTerritory(init) {
     if (t.gone) continue;
     const r = Math.hypot(t.x, t.z);
     if (t.coal) continue;                                          // 煤礦石在固定地塊上，不移動
-    if (r < FENCE_R + 2.2) { t.gone = true; t.alive = false; t.regrow = Infinity; scene.remove(t.g); if (!t.locked) moved++; }
+    if (r < FENCE_R + 2.2 || nearTower(t.x, t.z)) { t.gone = true; t.alive = false; t.regrow = Infinity; scene.remove(t.g); if (!t.locked) moved++; }
   }
   for (let i = 0, tries = 0; i < moved && tries < 400; tries++) {  // 北邊森林往外補一樣多棵
     const x = rand(-13, 9), z = rand(-FENCE_R - 14, -FENCE_R - 2.6);
-    if (!nearNorthDoors(x, z, 1.2) && trees.every(t => t.gone || (t.x - x) ** 2 + (t.z - z) ** 2 > 2.6)) { addTree(x, z, false); i++; }
+    if (!nearNorthDoors(x, z, 1.2) && !nearTower(x, z) && trees.every(t => t.gone || (t.x - x) ** 2 + (t.z - z) ** 2 > 2.6)) { addTree(x, z, false); i++; }
   }
   for (const b of bears) if (!b.aggro && b.z > -FENCE_R - 2) { [b.x, b.z] = bearSpot(); }
   for (let i = piles.length - 1; i >= 0; i--) if (Math.abs(Math.hypot(piles[i].x, piles[i].z) - FENCE_R) < 1.3) { scene.remove(piles[i].m); piles.splice(i, 1); }
