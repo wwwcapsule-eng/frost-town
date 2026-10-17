@@ -42,6 +42,8 @@
   #title small{display:block;font-size:12px;font-weight:700;opacity:.7}
   #reset{position:fixed;left:12px;bottom:calc(12px + env(safe-area-inset-bottom));font-size:12px;border:0;border-radius:10px;
     padding:6px 10px;background:rgba(30,40,60,.45);color:#fff}
+  #saveCode{position:fixed;left:180px;bottom:calc(12px + env(safe-area-inset-bottom));font-size:12px;border:0;border-radius:10px;
+    padding:6px 10px;background:rgba(30,40,60,.45);color:#fff}
   #mute{position:fixed;left:96px;bottom:calc(12px + env(safe-area-inset-bottom));font-size:12px;border:0;border-radius:10px;
     padding:6px 10px;background:rgba(30,40,60,.45);color:#fff}
   #planBtn{position:fixed;right:12px;bottom:calc(14px + env(safe-area-inset-bottom));font-size:18px;font-weight:900;border:0;border-radius:14px;
@@ -89,6 +91,7 @@
 <div id="hint"></div>
 <div id="joy"><div id="knob"></div></div>
 <button id="reset">重新開始</button>
+<button id="saveCode">💾 存檔</button>
 <button id="planBtn">🏗️ 規劃</button>
 <div id="planBar"><div id="planTip"></div><div class="row">
   <button data-k="house">🏠 民房<br><small id="pkHouse"></small></button>
@@ -103,7 +106,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 'use strict';
-const VERSION = '0.39';
+const VERSION = '0.40';
 
 // ===== 數值（之後平衡都改這裡） =====
 const CFG = {
@@ -168,6 +171,18 @@ let resetting = false; // 重新開始時不要再把舊進度寫回去
 function writeSave() { if (resetting) return; try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) {} }
 function wipeAndReload() { resetting = true; try { localStorage.removeItem(SAVE_KEY); } catch (e) {} location.reload(); }
 document.getElementById('retry').onclick = wipeAndReload;
+// 存檔碼（企劃 9.4）：手機瀏覽器可能清掉存檔，玩家可以把進度抄成一段文字、換手機或清掉後貼回來
+document.getElementById('saveCode').onclick = () => {
+  writeSave();
+  const code = btoa(unescape(encodeURIComponent(JSON.stringify(save))));
+  try { navigator.clipboard.writeText(code); } catch (e) {}
+  const got = prompt('這是你的存檔碼（已試著複製），請存在記事本。\n要讀取別的進度：把存檔碼貼在下面、按確定。', code);
+  if (!got || got.trim() === code) return;
+  let data;
+  try { data = JSON.parse(decodeURIComponent(escape(atob(got.trim())))); } catch (e) {}
+  if (!data || typeof data !== 'object' || Array.isArray(data) || typeof data.cash !== 'number') { alert('存檔碼看不懂，請確認有完整貼上。'); return; }
+  resetting = true; try { localStorage.setItem(SAVE_KEY, JSON.stringify(data)); } catch (e) {} location.reload();
+};
 document.getElementById('reset').onclick = () => {
   if (confirm('確定要清除進度、重新開始嗎？')) { resetting = true; try { localStorage.removeItem(SAVE_KEY); } catch (e) {} location.reload(); }
 };
@@ -1388,7 +1403,7 @@ const GOALS = [
   { t: () => '把營火進化成石爐（營火 Lv4）', done: () => save.stove >= 1 },
   { t: () => '城市的新玩法製作中，繼續擴張吧！', done: () => false },
 ];
-save.goal = save.goal || 0;
+save.goal = Math.min(save.goal || 0, GOALS.length - 1); // 匯入的存檔碼可能不對，不要超出範圍
 let shownGoal = '', goalFlash = 0;
 function updateGoal(dt) {
   while (save.goal < GOALS.length - 1 && GOALS[save.goal].done()) {
