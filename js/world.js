@@ -19,13 +19,28 @@ Object.assign(sun.shadow.camera, { left: -18, right: 18, top: 18, bottom: -18, n
 scene.add(sun, sun.target);
 const sunRot = new THREE.Matrix4().lookAt(new THREE.Vector3(-10, 20, 8), new THREE.Vector3(), new THREE.Vector3(0, 1, 0)), sunInv = sunRot.clone().invert(), sunC = new THREE.Vector3(), SUN_TEX = 36 / 1024;
 
-const M = c => new THREE.MeshLambertMaterial({ color: c });
+// 賽璐璐風格（v0.67，作者 10/18）：卡通著色，亮、中、暗三段色塊，不是平滑漸層
+const TOON = new THREE.DataTexture(new Uint8Array([95, 155, 215]), 3, 1, THREE.LuminanceFormat);
+TOON.minFilter = TOON.magFilter = THREE.NearestFilter; TOON.needsUpdate = true;
+const M = c => new THREE.MeshToonMaterial({ color: c, gradientMap: TOON });
 const mats = {
-  snow: M(0xf4f8fc), dirt: M(0xc98c5a), trunk: M(0x7a4a2a), leaf: M(0x3f7f9a), leafSnow: M(0xe8f2fa),
+  snow: new THREE.MeshLambertMaterial({ color: 0xf4f8fc }), dirt: new THREE.MeshLambertMaterial({ color: 0xc98c5a }), // 地面用平滑著色：卡通色階會把營火光畫成一圈硬邊的黃圈
+  trunk: M(0x7a4a2a), leaf: M(0x3f7f9a), leafSnow: M(0xe8f2fa),
   log: M(0xb06a35), meat: M(0xd9414a), fur: M(0xf2f0ea), cash: M(0x3fbf5a), wood: M(0x8a5a35), roof: M(0xb53a2e), player: M(0x2f8fd8),
-  skin: M(0xffd6b0), ice: new THREE.MeshLambertMaterial({ color: 0xd6ecff, transparent: true, opacity: 0.85 }),
+  skin: M(0xffd6b0), ice: new THREE.MeshToonMaterial({ color: 0xd6ecff, gradientMap: TOON, transparent: true, opacity: 0.85 }),
   axe: M(0xdfe6ee), coal: M(0x2a2c33), rock: M(0x6b7280),
 };
+// ===== 3D 模型（Kenney CC0，放在 assets/models）：載好之前先用方塊，載好就換上；材質換成賽璐璐 =====
+const MODELS = {}, gltf = THREE.GLTFLoader ? new THREE.GLTFLoader() : null;
+function loadModel(key, url, height, onLoad) {                    // height：縮放到多高
+  if (!gltf) return;                                              // 載不到載入器（沒網路）就一直用方塊
+  gltf.load(url, r => {
+    const o = r.scene;
+    o.traverse(m => { if (m.isMesh) { m.material = new THREE.MeshToonMaterial({ map: m.material.map, color: m.material.color, gradientMap: TOON }); m.castShadow = m.receiveShadow = true; } });
+    const s = new THREE.Box3().setFromObject(o).getSize(new THREE.Vector3());
+    o.scale.setScalar(height / s.y); MODELS[key] = o; onLoad();
+  }, undefined, () => {});
+}
 function box(w, h, d, mat) { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.castShadow = m.receiveShadow = true; return m; }
 
 // 地面：雪地＋營地泥土圓
@@ -133,13 +148,23 @@ function makePad(x, z, size, color, icon) {
 
 // ===== 樹 =====
 const trees = [];
-function addTree(x, z, locked) {
-  const g = new THREE.Group();
+const TREE_KEYS = ['treeA', 'treeB', 'treeC'];
+function treeLook(g) {                                            // 雪松：有模型用模型（三種隨機），沒有就用圓錐
+  g.clear();
+  const k = TREE_KEYS[(Math.random() * 3) | 0];
+  if (MODELS[k]) { g.add(MODELS[k].clone()); return; }
   const trunk = box(0.35, 0.8, 0.35, mats.trunk); trunk.position.y = 0.4; g.add(trunk);
   [[1.3, 1.3, 1.0], [1.0, 1.1, 1.7], [0.65, 0.9, 2.3]].forEach(([r, h, y]) => {
     const c = new THREE.Mesh(new THREE.ConeGeometry(r, h, 7), mats.leaf); c.position.y = y; c.castShadow = true; g.add(c);
     const s = new THREE.Mesh(new THREE.ConeGeometry(r * 0.55, h * 0.45, 7), mats.leafSnow); s.position.y = y + h * 0.3; g.add(s);
   });
+}
+let treesLoaded = 0;
+['a', 'b', 'c'].forEach((v, i) => loadModel(TREE_KEYS[i], 'assets/models/holiday/tree-snow-' + v + '.glb', 3, () => {
+  if (++treesLoaded === 3) trees.forEach(t => { if (!t.coal) treeLook(t.g); });
+}));
+function addTree(x, z, locked) {
+  const g = new THREE.Group(); treeLook(g);
   g.position.set(x, 0, z); g.rotation.y = Math.random() * 6;
   const sc = 0.85 + Math.random() * 0.35; g.scale.setScalar(sc);
   scene.add(g);

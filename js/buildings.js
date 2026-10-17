@@ -265,6 +265,7 @@ const stoveG = new THREE.Group(); fg.add(stoveG);
 const sBase = new THREE.Mesh(new THREE.BoxGeometry(2.2, 1, 2.2), M(0x6f747d)); sBase.position.y = 0.5; sBase.castShadow = sBase.receiveShadow = true; stoveG.add(sBase);
 const sChim = new THREE.Mesh(new THREE.BoxGeometry(0.5, 1.6, 0.5), M(0x5a5f68)); sChim.position.set(0.65, 1.6, -0.65); sChim.castShadow = true; stoveG.add(sChim);
 fg.position.set(FX, 0, FZ); scene.add(fg);
+loadModel('campfire', 'assets/models/survival/campfire-pit.glb', 0.7, () => { const m = MODELS.campfire.clone(); m.position.y = -0.35; stone.material = new THREE.MeshBasicMaterial({ visible: false }); stone.add(m); }); // 石圈隱形、模型掛在它底下，石爐時一起藏起來
 const fireLv = () => 1 + save.territory + save.stove;              // 營火等級：Lv1～3 營火（＝領地）、Lv4～6 石爐（企劃 9.3）
 const fireName = () => save.stove ? '石爐' : '營火';
 function updateStoveLook() { stoveG.visible = save.stove > 0; stone.visible = !save.stove; flame.position.y = save.stove ? 1.4 + 0.15 * save.stove : 1.2; }
