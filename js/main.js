@@ -58,12 +58,13 @@ const GOALS = PRO ? [ // 正式關：建築要自己用規劃模式選位置，�
   { t: () => '城市的新玩法製作中，繼續擴張吧！', done: () => false },
 ] : [
   { t: () => '升級任意 3 個項目（' + Math.min(save.buys, 3) + '/3）', done: () => save.buys >= 3 },
+  { t: () => '揹 ' + CFG.whLogs + ' 根木頭蓋📦倉庫（建築要用倉庫的🧱木材蓋）', done: () => !!save.wh },
   { t: () => '升級營火，擴大領地', done: () => save.territory >= 1 },
   { t: () => '開拓東邊，打開新場地', done: () => !!save.east },
   { t: () => '蓋民房，人口到 20（' + population() + '/20）', done: () => save.level >= 1 },
   { t: () => '開採煤礦，煤很耐燒', done: () => !!save.mine },
   { t: () => '用🏗️規劃蓋🔨鐵匠鋪，揹煤去賣', done: () => planned('smith') },
-  { t: () => '蓋🚚自動運輸（換錢或進倉庫，二選一）', done: () => !!save.truck },
+  { t: () => '蓋🚚自動運輸，木頭、煤自動換錢', done: () => !!save.truck },
   { t: () => '營火升級 Lv2，領地再擴大', done: () => save.territory >= 2 },
   { t: () => '用🏗️規劃模式蓋民房，人口到 80（' + population() + '/80）', done: () => save.level >= 2 },
   { t: () => '把營火進化成石爐（營火 Lv4）', done: () => save.stove >= 1 },
@@ -123,7 +124,7 @@ function updateBuildings(dt) {
 // 血量、北門、營火這些警告不在這裡管，永遠會顯示；地上的付款格圖示一直都在
 function quietLabels() {
   const px = player.position.x, pz = player.position.z;
-  const list = [...mills.map(m => m.label), ...unlocks.filter(u => !u.done && !(u.cool > 0)).map(u => u.label), repairLabel, truckObj && truckObj.label].filter(Boolean);
+  const list = [...mills.map(m => m.label), ...unlocks.filter(u => !u.done && !(u.cool > 0)).map(u => u.label), repairLabel, truckObj && truckObj.label, wh.label].filter(Boolean);
   list.map(l => [l, Math.hypot(l.position.x - px, l.position.z - pz)]).sort((a, b) => a[1] - b[1])
     .forEach(([l, d], i) => l.visible = d < CFG.labelNear && i < CFG.labelMax);
 }
@@ -248,7 +249,10 @@ function step(dt) {
       mill.timer += dt;
       if (mill.timer >= mill.time) {
         mill.timer = 0; mill.queue--;
-        if (mill.customers) addCooked(mill); else spawnBill(mill, mill.g.position.clone().add(tmp.set(1.2, 1, 1)));
+        const st = save.store;                    // 有倉庫：木頭做成🧱木材、烤肉先存給工人吃，存滿了多的才換錢
+        if (mill.customers) { if (save.wh && st.food < CFG.foodKeep) toStore('food', mill); else addCooked(mill); }
+        else if (save.wh && mill.accept === 'log' && st.plank < CFG.storeMax) toStore('plank', mill);
+        else spawnBill(mill, mill.g.position.clone().add(tmp.set(1.2, 1, 1)));
       }
     } else if (!cold) mill.timer = 0;
     mill.label.set(mill.queue ? [mill.name, (cold ? '凍住了 ' : '加工中 ') + mill.queue] : [mill.name]);
@@ -272,13 +276,21 @@ function step(dt) {
     const dist = Math.hypot(player.position.x - u.x, player.position.z - u.z), on = dist < 1.2;
     const near = dist < 6; if (near !== u.near) { u.near = near; u.refresh(); }
     u.stand = on ? (u.stand || 0) + dt : 0;                     // 站穩 0.6 秒才開始付錢，路過不會誤買
-    if (on && u.stand > CFG.padDelay && save.cash > 0 && u.paid < p) {
+    // 付什麼：錢、倉庫的🧱木材（mat: 'plank'）、背上的木頭（mat: 'log'）
+    const have = u.mat === 'plank' ? (save.wh ? save.store.plank : 0) : u.mat === 'log' ? carried.filter(m => m.userData.type === 'log').length : save.cash;
+    if (on && u.stand > CFG.padDelay && have > 0 && u.paid < p) {
       u.payAcc += dt * p / CFG.payRate;
-      const pay = Math.min(Math.floor(u.payAcc), save.cash, p - u.paid);
+      const pay = Math.min(Math.floor(u.payAcc), have, p - u.paid);
       if (pay > 0) {
-        u.payAcc -= pay; save.cash -= pay; u.paid += pay;
-        const b = box(0.5, 0.1, 0.3, mats.cash);
-        fly(b, player.position.clone().add(tmp.set(0, 2, 0)), () => new THREE.Vector3(u.x, 0.1, u.z), 0.25, () => scene.remove(b), 1);
+        u.payAcc -= pay; u.paid += pay;
+        if (u.mat === 'log') for (let i = 0; i < pay; i++) {
+          const m = carried.splice(carried.map(m => m.userData.type).lastIndexOf('log'), 1)[0], wp = m.getWorldPosition(new THREE.Vector3());
+          stackRoot.remove(m); restack(); fly(m, wp, () => new THREE.Vector3(u.x, 0.1, u.z), 0.25, () => scene.remove(m), 1);
+        } else {
+          if (u.mat === 'plank') save.store.plank -= pay; else save.cash -= pay;
+          const b = box(0.5, 0.1, 0.3, u.mat ? mats.wood : mats.cash);
+          fly(b, player.position.clone().add(tmp.set(0, 2, 0)), () => new THREE.Vector3(u.x, 0.1, u.z), 0.25, () => scene.remove(b), 1);
+        }
       }
       if (u.paid >= p) { u.paid = 0; u.payAcc = 0; sparkle(u.x, u.z); u.buy(); save.buys++; sfx.unlock(); u.cool = CFG.buildCool; levelUnlocks(); writeSave(); }
       u.refresh();
@@ -289,7 +301,7 @@ function step(dt) {
   updateGuide(dt);
   updateBears(dt);
   updateVillagers(dt);
-  updateTower(dt); updateTransport(dt);
+  updateTower(dt); updateTransport(dt); updateStore(dt);
   updateWorkers(dt);
   updateGate(dt);
   updateColdWave(dt);

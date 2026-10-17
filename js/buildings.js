@@ -100,8 +100,9 @@ function makeUnlock(def) {
   u.refresh = () => {
     const p = u.price();
     if (p == null) { scene.remove(pad); scene.remove(label); u.done = true; return; }
-    if (u.near) { label.set([u.name(), '💵 ' + (p - u.paid)], '#ffe066', [36, 68]); label.scale.set(3.2, 1.8, 1); label.position.y = 1.9; } // 錢放大，像參考影片
-    else { label.set(['💵 ' + (p - u.paid)], '#ffe066', [60]); label.scale.set(1.9, 1.05, 1); label.position.y = 0.9; } // 遠的只顯示小價錢，不會互相蓋住
+    const cost = u.mat === 'plank' && !save.wh ? '先蓋📦倉庫' : ({ plank: '🧱 ', log: '🪵 ' }[u.mat] || '💵 ') + (p - u.paid); // mat：用倉庫的木材或背上的木頭付，不是錢
+    if (u.near) { label.set([u.name(), cost], '#ffe066', [36, 68]); label.scale.set(3.2, 1.8, 1); label.position.y = 1.9; } // 錢放大，像參考影片
+    else { label.set([cost], '#ffe066', [60]); label.scale.set(1.9, 1.05, 1); label.position.y = 0.9; } // 遠的只顯示小價錢，不會互相蓋住
     pad.fill.scale.y = Math.max(0.0001, u.paid / p);
   };
   u.refresh(); unlocks.push(u);
@@ -116,8 +117,8 @@ if (save.east) openEast();
 if (save.mill2 && !PRO) addMill2(); // 正式關的第二台鋸木機在 save.plan 裡
 
 // ===== 弩砲塔：自動射北邊的熊，熊倒下的肉掉在地上，走過去撿 =====
-if (!PRO) makeUnlock({ x: LOT.tower1[0], z: LOT.tower1[1], icon: '🏹', name: () => '弩砲塔',
-  price: () => save.tower ? null : 40, buy: () => { save.tower = true; buildTower(); addTower2Unlock(); toast('弩砲塔會自動射熊！'); } });
+if (!PRO) makeUnlock({ x: LOT.tower1[0], z: LOT.tower1[1], icon: '🏹', name: () => '弩砲塔', mat: 'plank',
+  price: () => save.tower ? null : P(40), buy: () => { save.tower = true; buildTower(); addTower2Unlock(); toast('弩砲塔會自動射熊！'); } });
 const towers = [];
 const towerZ = x => -Math.sqrt((FENCE_R + 1.8) ** 2 - x * x); // 弩砲塔站在圍欄外 1.8、北門門板旁邊，不跟圍欄或門板穿模
 const nearTower = (x, z) => towers.some(tw => Math.hypot(x - tw.g.position.x, z - tw.g.position.z) < 2.4);
@@ -135,8 +136,8 @@ function buildTower(x = 6.4, z = towerZ(x), fixed = false) {
 if (save.tower) buildTower();
 // 第二座弩砲塔：要先有第一座才會出現
 function addTower2Unlock() {
-  makeUnlock({ x: LOT.tower2[0], z: LOT.tower2[1], icon: '🏹', name: () => '第二座弩砲塔',
-  price: () => save.tower2 ? null : 90, buy: () => { save.tower2 = true; buildTower(-6.4); toast('北門兩側都有弩砲塔了！'); } });
+  makeUnlock({ x: LOT.tower2[0], z: LOT.tower2[1], icon: '🏹', name: () => '第二座弩砲塔', mat: 'plank',
+  price: () => save.tower2 ? null : P(90), buy: () => { save.tower2 = true; buildTower(-6.4); toast('北門兩側都有弩砲塔了！'); } });
 }
 if (save.tower && !save.tower2) addTower2Unlock();
 if (save.tower2) buildTower(-6.4);
@@ -201,6 +202,29 @@ function addWorker() {
 }
 for (let i = 0; i < save.workers; i++) addWorker();
 
+// ===== 倉庫（企劃 11.3～11.5，第 2 時代第一棟）：揹 10 根木頭來蓋；工人採的木頭送進來，
+// 倉庫自動補營火、用木材修門和建築、多的木頭送去鋸木廠做成🧱木材；烤肉先存進來給工人吃，多的才賣村民 =====
+save.store = Object.assign({ log: 0, coal: 0, plank: 0, food: CFG.whFood }, save.store);
+if (save.truck === 'store') save.wh = true;                       // 舊存檔：買過「自動運輸：進倉庫」的直接有倉庫
+const wh = { bld: null, pad: null, label: null, t: 0, eatT: 0, hungry: false };
+function buildWarehouse() {
+  const [x, z] = LOT.store, g = new THREE.Group();
+  const base = box(2.6, 1.6, 2.2, mats.wood); base.position.y = 0.8; g.add(base);
+  const roof = box(3, 0.3, 2.6, M(0x4f6f8f)); roof.position.y = 1.75; g.add(roof);
+  const door = box(1.2, 1.1, 0.06, mats.trunk); door.position.set(0, 0.55, 1.12); g.add(door);
+  g.position.set(x, 0, z); scene.add(g);
+  wh.pad = makePad(x, z + 2.7, 1.8, 0xffffff, '📦');
+  wh.label = makeLabel(); wh.label.scale.set(3, 1.5, 1); wh.label.position.set(x, 3, z); scene.add(wh.label);
+  wh.bld = addBuilding('倉庫', g, 1.6);
+  document.getElementById('pStore').style.display = '';
+}
+if (save.wh) buildWarehouse();
+else makeUnlock({ x: LOT.store[0], z: LOT.store[1] + 2.7, icon: '📦', mat: 'log', name: () => '蓋倉庫',
+  price: () => save.wh ? null : CFG.whLogs, buy: () => {
+    save.wh = true; buildWarehouse(); unlocks.forEach(u => !u.done && u.refresh()); // 用木材付的付款格改顯示價錢
+    toast('📦 倉庫蓋好了！工人的木頭送來這裡，自動補營火、修門；鋸木廠做的🧱木材拿來蓋建築');
+  } });
+
 // ===== 民房：在南門外一間間往外蓋，每間 +5 人口；付款格蓋好後會移到下一塊空地 =====
 const houses = [], FX0 = 0, FZ0 = -3; // 營火位置（跟下面的 FX, FZ 一樣）
 function houseSpot(i) { const l = HOUSE_LOTS[Math.min(i, HOUSE_LOTS.length - 1)]; return [l.x, l.z]; }
@@ -220,8 +244,8 @@ for (let i = 0; i < save.houses; i++) buildHouse(i);
 function housePrice() { return CFG.housePrice[0] + houses.length * CFG.housePrice[1]; } // 南門外的和規劃模式蓋的一起算
 function addHouseUnlock() {
   const [x, z] = houseSpot(save.houses);
-  const u = makeUnlock({ x, z, icon: '🏠', name: () => '蓋民房',
-    price: () => houses.length < LEVELS[save.level].houses && houseLotOpen() ? housePrice() : null,
+  const u = makeUnlock({ x, z, icon: '🏠', name: () => '蓋民房', mat: 'plank',
+    price: () => houses.length < LEVELS[save.level].houses && houseLotOpen() ? P(housePrice()) : null,
     buy: () => {
       buildHouse(save.houses++); toast('蓋好民房，人口 +' + CFG.housePop + '！');
       [u.x, u.z] = houseSpot(save.houses); u.pad.position.set(u.x, 0.03, u.z); u.label.position.set(u.x, 1.9, u.z);
@@ -353,7 +377,7 @@ function updateSnow(dt) {
   }
   const near = piles.find(p => Math.hypot(p.x - player.position.x, p.z - player.position.z) < 1.7);
   if (near && shovelCd <= 0) { shovelCd = 0.3; hitPile(near); sfx.chop(); }
-  for (const s of shovelers) {                                   // 鏟雪工：找最近的雪堆去鏟
+  if (!wh.hungry) for (const s of shovelers) {                   // 鏟雪工：找最近的雪堆去鏟（沒食物會罷工）
     let t = null, best = 1e9;
     for (const p of piles) { const d = Math.hypot(p.x - s.g.position.x, p.z - s.g.position.z); if (d < best) { best = d; t = p; } }
     s.cd -= dt;
