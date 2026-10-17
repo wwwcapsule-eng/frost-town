@@ -119,6 +119,14 @@ function updateBuildings(dt) {
   }
 }
 
+// 標籤不打架（v0.59，作者第三次回饋第 3 點）：建築名稱、付款格價錢、修門、倉庫這些標籤，只顯示主角附近最近的 6 個；
+// 血量、北門、營火這些警告不在這裡管，永遠會顯示；地上的付款格圖示一直都在
+function quietLabels() {
+  const px = player.position.x, pz = player.position.z;
+  const list = [...mills.map(m => m.label), ...unlocks.filter(u => !u.done && !(u.cool > 0)).map(u => u.label), repairLabel, truckObj && truckObj.label].filter(Boolean);
+  list.map(l => [l, Math.hypot(l.position.x - px, l.position.z - pz)]).sort((a, b) => a[1] - b[1])
+    .forEach(([l, d], i) => l.visible = d < CFG.labelNear && i < CFG.labelMax);
+}
 function step(dt) {
   if (gameOver || paused) return;
   // 移動
@@ -139,6 +147,7 @@ function step(dt) {
       const dx = nx - t.x, dz = nz - t.z, d = Math.hypot(dx, dz);
       if (d < 0.7 && d > 0) { nx = t.x + dx / d * 0.7; nz = t.z + dz / d * 0.7; }
     }
+    [nx, nz] = pushOut(nx, nz, 0.4);                  // 不要穿過建築
     const r1 = Math.hypot(nx, nz);                     // 圍欄擋住，只有門口過得去
     if (Math.abs(r1 - FENCE_R) < 0.4 && !inGate(nx, nz)) {
       const k = (Math.hypot(player.position.x, player.position.z) < FENCE_R ? FENCE_R - 0.4 : FENCE_R + 0.4) / r1;
@@ -254,6 +263,7 @@ function step(dt) {
     }
   }
 
+  quietLabels();
   // 付款格
   for (const u of unlocks) {
     if (u.done) continue;

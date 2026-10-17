@@ -1,5 +1,5 @@
 'use strict';
-const VERSION = '0.58';
+const VERSION = '0.59';
 
 // ===== 數值（之後平衡都改這裡） =====
 const CFG = {
@@ -18,6 +18,7 @@ const CFG = {
   wolfHp: 1, wolfSpeed: 4.4, wolfLv: 4, // 冰狼：石爐時代（營火 Lv4）起跟熊群一起來，一次 4～6 隻、跑很快、血少
   towerRange: 11, towerInterval: 1.1, // 弩砲塔射程與射速
   buildCool: 2,             // 升級完要等幾秒才能再升級
+  labelNear: 11, labelMax: 6, // 名稱、價錢標籤：主角幾格內才顯示、最多同時幾個
   coldBase: 0.6, coldPerUnit: 0.25, coldMax: 4, // 野外寒冷：出了暖氣圈每秒掉 0.6 血，每遠 1 格多掉 0.25，最多每秒 4（寒潮時 ×1.5）
   playerHp: 100, bearHitDps: 14, bearChase: 6, heal: 20, // 主角血量、熊每秒打人多少、熊幾格內會追人、在營地裡每秒回血
   buildHp: 100, bearBuildDps: 2.5, // 建築血量、熊每秒對建築的傷害
