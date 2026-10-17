@@ -119,7 +119,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 'use strict';
-const VERSION = '0.52';
+const VERSION = '0.53';
 
 // ===== 數值（之後平衡都改這裡） =====
 const CFG = {
@@ -214,15 +214,16 @@ document.body.prepend(renderer.domElement);
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0xcfe3f2);
 scene.fog = new THREE.Fog(0xcfe3f2, 45, 90);
-const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 200);
+const camera = new THREE.PerspectiveCamera(45, 1, 1, 200);
 
 const hemi = new THREE.HemisphereLight(0xffffff, 0x9fb8d0, 0.75); scene.add(hemi);
 const sun = new THREE.DirectionalLight(0xffffff, 0.75);
 sun.position.set(-10, 20, 8);
 sun.castShadow = true;
-sun.shadow.mapSize.set(1024, 1024);
+sun.shadow.mapSize.set(1024, 1024); sun.shadow.bias = -0.0008; sun.shadow.normalBias = 0.03; // 減少陰影條紋閃爍
 Object.assign(sun.shadow.camera, { left: -18, right: 18, top: 18, bottom: -18, near: 1, far: 60 });
 scene.add(sun, sun.target);
+const sunRot = new THREE.Matrix4().lookAt(new THREE.Vector3(-10, 20, 8), new THREE.Vector3(), new THREE.Vector3(0, 1, 0)), sunInv = sunRot.clone().invert(), sunC = new THREE.Vector3(), SUN_TEX = 36 / 1024;
 
 const M = c => new THREE.MeshLambertMaterial({ color: c });
 const mats = {
@@ -1134,6 +1135,7 @@ function applyTerritory(init) {
   NG_PX = FENCE_R * Math.sin(GATES[0].half); NG_PZ = -FENCE_R * Math.cos(GATES[0].half); NG_LEN = NG_PX;
   buildFence(); buildDoorsAll();
   camp.scale.setScalar((FENCE_R - 0.2) / 8.5);
+  fireLight.distance = FENCE_R + 7;                                // 營火光跟著領地變大，蓋住整個營地
   gateLabel.position.z = -FENCE_R - 0.2;
   repairPad.position.z = -FENCE_R + 2.1; repairLabel.position.z = -FENCE_R + 2.1;
   towers.forEach(t => {
@@ -1787,8 +1789,9 @@ function step(dt) {
   // 鏡頭跟隨
   camera.position.lerp(tmp.copy(player.position).add(camOffset), 1 - Math.exp(-dt * 6));
   camera.lookAt(player.position.x, 0.8, player.position.z);
-  sun.position.set(player.position.x - 10, 20, player.position.z + 8);
-  sun.target.position.copy(player.position);
+  // 陰影跟著主角，但對齊陰影貼圖的格子，走路時影子邊緣才不會一閃一閃
+  sunC.copy(player.position).applyMatrix4(sunInv); sunC.x = Math.round(sunC.x / SUN_TEX) * SUN_TEX; sunC.y = Math.round(sunC.y / SUN_TEX) * SUN_TEX; sunC.applyMatrix4(sunRot);
+  sun.target.position.copy(sunC); sun.position.set(sunC.x - 10, sunC.y + 20, sunC.z + 8);
 
   if (toastT > 0) { toastT -= dt; if (toastT <= 0) $('toast').style.opacity = 0; }
   saveTimer += dt; if (saveTimer > 2) { saveTimer = 0; writeSave(); }
