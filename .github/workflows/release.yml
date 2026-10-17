@@ -28,10 +28,10 @@ jobs:
           fetch-depth: 0
       - id: v
         run: |
-          V=$(grep -oP "const VERSION = '\K[0-9.]+" index.html)
+          V=$(grep -oP "const VERSION = '\K[0-9.]+" js/config.js)
           N=$((10#$(echo "$V" | tr -d .)))
-          # 合併前 main 上的版本
-          PV=$(git show ${{ github.event.before }}:index.html 2>/dev/null | grep -oP "const VERSION = '\K[0-9.]+" || echo 0.00)
+          # 合併前 main 上的版本（v0.57 拆檔前寫在 index.html）
+          PV=$( (git show ${{ github.event.before }}:js/config.js || git show ${{ github.event.before }}:index.html) 2>/dev/null | grep -oP "const VERSION = '\K[0-9.]+" || echo 0.00)
           P=$((10#$(echo "$PV" | tr -d .)))
           echo "上一版 v$PV → 這一版 v$V"
           echo "version=$V" >> "$GITHUB_OUTPUT"
@@ -53,6 +53,7 @@ jobs:
       - run: |
           mkdir _site
           cp index.html _site/
+          cp -r js _site/
           [ -d assets ] && cp -r assets _site/ || true
       - uses: actions/upload-pages-artifact@v3
         with:
