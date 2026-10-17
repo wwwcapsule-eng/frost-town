@@ -15,10 +15,25 @@
   .pill{background:rgba(30,40,60,.72);color:#fff;border-radius:16px;padding:4px 12px 4px 8px;font-weight:700;font-size:18px;
     display:flex;align-items:center;gap:6px;min-width:76px}
   .pill b{font-size:20px}
+  @media (max-width:500px){.pill{font-size:15px;padding:3px 9px 3px 6px;min-width:0}.pill b{font-size:17px}.cap{font-size:11px}}
   .pill.bump{animation:bump .25s}
   .cap{font-size:13px;opacity:.75}
   .pill.full{background:rgba(200,120,20,.85)}
   .pill.danger{background:rgba(200,40,40,.85);animation:blink .8s infinite}
+  #bars{position:fixed;top:calc(10px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);width:min(150px, calc(100vw - 250px));display:flex;flex-direction:column;gap:5px;pointer-events:none}
+  .bar{position:relative;height:20px;border-radius:10px;background:rgba(30,40,60,.72);overflow:hidden;color:#fff;font-weight:900;font-size:13px}
+  .bar i{position:absolute;left:0;top:0;bottom:0;border-radius:10px;transition:width .2s}
+  .bar span{position:relative;display:block;text-align:center;line-height:20px;text-shadow:0 1px 2px rgba(0,0,0,.6)}
+  #hpBar i{background:#e8474f}#fuelBar i{background:#ff9a2e}
+  .bar.danger{animation:blink .8s infinite}
+  #goal{position:fixed;top:calc(62px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);width:min(240px, calc(100vw - 210px));box-sizing:border-box;
+    background:rgba(255,255,255,.88);color:#25415e;font-weight:900;font-size:13px;line-height:1.35;padding:5px 10px;border-radius:12px;
+    text-align:center;pointer-events:none;box-shadow:0 2px 0 rgba(0,0,0,.12)}
+  #goal.done{background:#ffd34d;animation:bump .4s}
+  #alert{position:fixed;bottom:calc(70px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);background:rgba(200,40,40,.88);color:#fff;
+    font-weight:900;font-size:16px;padding:6px 14px;border-radius:14px;white-space:nowrap;pointer-events:none;display:none}
+  #alert.cold{background:rgba(40,120,200,.88)}
+  #alert.warn{background:rgba(220,140,20,.9)}
   #frost{position:fixed;inset:0;pointer-events:none;box-shadow:inset 0 0 110px 40px rgba(150,210,255,.7);background:rgba(170,215,255,.12);opacity:0;transition:opacity 1s}
   #vignette{position:fixed;inset:0;pointer-events:none;box-shadow:inset 0 0 80px 20px rgba(220,30,30,.55);opacity:0;transition:opacity .4s}
   @keyframes bump{50%{transform:scale(1.15)}}
@@ -61,11 +76,13 @@
   <div class="pill" id="pMeat">🍖 <b id="meat">0</b><span class="cap" id="capM"></span></div>
   <div class="pill" id="pCoal" style="display:none">⚫ <b id="coal">0</b><span class="cap" id="capC"></span></div>
   <div class="pill" id="pWood">🪵 <b id="wood">0</b><span class="cap" id="capW"></span></div>
-  <div class="pill" id="pCold" style="display:none">❄️ <b id="cold">--</b></div>
-  <div class="pill" id="pFuel">🔥 <b id="fuel">100</b><span class="cap">%</span></div>
-  <div class="pill" id="pHp">❤️ <b id="hp">100</b></div>
-  <div class="pill" id="pRaid">🐻 <b id="raid">--</b></div>
 </div>
+<div id="bars">
+  <div class="bar" id="hpBar"><i></i><span>❤️ <b id="hp">100</b></span></div>
+  <div class="bar" id="fuelBar"><i></i><span>🔥 營火 <b id="fuel">100</b>%</span></div>
+</div>
+<div id="goal"></div>
+<div id="alert"></div>
 <div id="vignette"></div>
 <div id="frost"></div>
 <div id="toast"></div>
@@ -86,7 +103,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 'use strict';
-const VERSION = '0.30';
+const VERSION = '0.35';
 
 // ===== 數值（之後平衡都改這裡） =====
 const CFG = {
@@ -103,15 +120,16 @@ const CFG = {
   bearHp: 5, bearCount: 5, bearRespawn: 20, meatPerBear: 2,
   towerRange: 11, towerInterval: 1.1, // 弩砲塔射程與射速
   buildCool: 2,             // 升級完要等幾秒才能再升級
+  coldBase: 0.6, coldPerUnit: 0.25, coldMax: 4, // 野外寒冷：出了暖氣圈每秒掉 0.6 血，每遠 1 格多掉 0.25，最多每秒 4（寒潮時 ×1.5）
   playerHp: 100, bearHitDps: 14, bearChase: 6, heal: 20, // 主角血量、熊每秒打人多少、熊幾格內會追人、在營地裡每秒回血
   buildHp: 100, bearBuildDps: 2.5, // 建築血量、熊每秒對建築的傷害
   gateHp: 100, raidEvery: 60, raidFirst: 90, raidBears: 2, bearDps: 1.5, // 北門血量、熊群幾秒來一次、一次幾隻、每隻每秒傷害
   workerSpeed: 3.6, workerChop: 0.6, workerLoad: 6, // 伐木工：速度約主角 60%、出手間隔、一次揹幾根
-  payRate: 1.1,             // 付款格：幾秒內付完整筆
+  payRate: 1.1, padDelay: 0.6, // padDelay：站在付款格上幾秒後才開始付錢             // 付款格：幾秒內付完整筆
   popBase: 2,               // 一開始的人口（主角和夥伴），每個伐木工 +1
   housePop: 5, housePrice: [25, 15], // 每間民房住幾人；民房價錢：第一間 25，之後每間多 15
   fuelMax: 100, fuelBurn: 0.4, fuelPerLog: 5, heat: [10, 17], // 火爐：柴滿 100、每秒燒 0.4、一根木頭 +5；暖氣圈半徑（最小、最大）
-  heatUp: 7, furnaceUpPrice: 150,
+  terrPrice: [60, 150], terrNeedBuys: 3, // 營火升級（擴大領地）：Lv1 60 元（升級任意 3 個項目後出現）、Lv2 150 元（村莊＋開拓東邊後）
   minePrice: 100, coalHp: 4, coalPerRock: 2, coalRegrow: 20, fuelPerCoal: 20, // 煤礦（村莊解鎖）：價錢、敲幾下、掉幾塊、幾秒長回來；一塊煤 = 火爐 +20（木頭只有 +5）
   snowEvery: 7, snowMax: 10, snowHp: 3, snowSlow: 0.45, shovelPrice: 60, // 雪堆（村莊開始）：幾秒積一堆、最多幾堆、鏟幾下、踩到剩幾成速度、鏟雪工價錢
   heaterPrice: 120, heaterR: 7, cell: 3, // 規劃模式：暖氣塔價錢、暖氣範圍半徑、格子大小
@@ -121,15 +139,20 @@ const CFG = {
 // cam＝鏡頭拉遠倍數；unlock＝升級卡片上列的新東西
 const LEVELS = [
   { name: '營地', icon: '🏕️', need: 0, houses: 4, heaters: 0, cam: 1 },
-  { name: '村莊', icon: '🏘️', need: 20, houses: 20, heaters: 1, cam: 1.25, unlock: ['🏠 民房上限 4 → 20 間', '🔥 火爐升級：暖氣圈變大', '🏗️ 規劃模式：民房、暖氣塔自己決定蓋在哪', '⛏️ 煤礦、🧹 鏟雪工、❄️ 寒潮'] },
+  { name: '村莊', icon: '🏘️', need: 20, houses: 20, heaters: 1, cam: 1.25, unlock: ['🏠 民房上限 4 → 20 間', '🔥 營火升級 Lv2：領地再擴大（要先開拓東邊）', '🏗️ 規劃模式：民房、暖氣塔自己決定蓋在哪', '⛏️ 煤礦、🧹 鏟雪工、❄️ 寒潮'] },
   { name: '小鎮', icon: '🏙️', need: 80, houses: 40, heaters: 4, cam: 1.45, unlock: ['🏠 民房上限 20 → 40 間', '🔥 暖氣塔最多 4 座'] },
   { name: '城市', icon: '🌆', need: 300, houses: 40, heaters: 4, cam: 1.6, unlock: ['🚧 城市的新玩法製作中，敬請期待'] },
 ];
+
+// 領地等級：營火升級一次，圍欄往外推（r＝圍欄半徑）、暖氣圈變大（heat）、鏡頭拉遠一點（cam）
+const TERR = [ { r: 8.7, heat: 0, cam: 1 }, { r: 11.5, heat: 3, cam: 1.12 }, { r: 14, heat: 7, cam: 1.22 } ];
 
 // ===== 存檔 =====
 const SAVE_KEY = 'frost-town-save-v1';
 let save = { cash: 0, bag: 0, axe: 0, east: false, mill2: false, tower: false, workers: 0, level: 0, houses: 0 };
 try { Object.assign(save, JSON.parse(localStorage.getItem(SAVE_KEY) || '{}')); } catch (e) {}
+if (save.territory == null) save.territory = save.furnace ? (save.east ? 2 : 1) : 0;          // 舊進度：火爐升級過就當作領地擴大過
+if (save.buys == null) save.buys = (save.bag || 0) + (save.axe || 0) + (save.tower ? 1 : 0) + (save.tower2 ? 1 : 0) + (save.workers || 0) + (save.east ? 1 : 0) + (save.mill2 ? 1 : 0);
 let resetting = false; // 重新開始時不要再把舊進度寫回去
 function writeSave() { if (resetting) return; try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) {} }
 function wipeAndReload() { resetting = true; try { localStorage.removeItem(SAVE_KEY); } catch (e) {} location.reload(); }
@@ -149,7 +172,7 @@ scene.background = new THREE.Color(0xcfe3f2);
 scene.fog = new THREE.Fog(0xcfe3f2, 45, 90);
 const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 200);
 
-scene.add(new THREE.HemisphereLight(0xffffff, 0x9fb8d0, 0.75));
+const hemi = new THREE.HemisphereLight(0xffffff, 0x9fb8d0, 0.75); scene.add(hemi);
 const sun = new THREE.DirectionalLight(0xffffff, 0.75);
 sun.position.set(-10, 20, 8);
 sun.castShadow = true;
@@ -246,7 +269,7 @@ function addTree(x, z, locked) {
 }
 function rand(a, b) { return a + Math.random() * (b - a); }
 // 北門門板往外開的範圍：兩根門柱為圓心、門板長為半徑（門柱位置跟下面 GATES 的北門一樣）
-const NG_HALF = 0.5, NG_PX = 8.7 * Math.sin(NG_HALF), NG_PZ = -8.7 * Math.cos(NG_HALF), NG_LEN = NG_PX;
+let NG_PX = 8.7 * Math.sin(0.5), NG_PZ = -8.7 * Math.cos(0.5), NG_LEN = NG_PX; // 領地擴大時重算
 function nearNorthDoors(x, z, pad) { return z < NG_PZ + 0.5 && (Math.hypot(x - NG_PX, z - NG_PZ) < NG_LEN + pad || Math.hypot(x + NG_PX, z - NG_PZ) < NG_LEN + pad); }
 // 北邊森林（一開始就能砍）；門板擺動範圍內不長樹
 for (let i = 0; i < 70; i++) {
@@ -265,19 +288,25 @@ for (let z = -14; z <= 12; z += 1.6) {
 }
 scene.add(iceWall);
 // ===== 營地圍欄：走不過去，只能從三個門進出；門有人靠近會自己打開 =====
-const FENCE_R = 8.7;
-const GATES = [
-  { a: Math.PI * 1.5, half: 0.5 },  // 北門（熊會來撞）
-  { a: Math.PI / 2, half: 0.3 },    // 南門（村民進出）
-  { a: 0, half: 0.45 },             // 東門
+let FENCE_R = 8.7;                  // 圍欄半徑：營火升級（擴大領地）時變大
+const GATES = [                      // w＝門寬（固定），half＝門在圓上佔的角度一半（跟著半徑重算）
+  { a: Math.PI * 1.5, w: 8.3, half: 0.5 },  // 北門（熊會來撞）
+  { a: Math.PI / 2, w: 5.1, half: 0.3 },    // 南門（村民進出）
+  { a: 0, w: 7.6, half: 0.45 },             // 東門
 ];
 function angDiff(a, b) { let d = (a - b) % (Math.PI * 2); if (d > Math.PI) d -= Math.PI * 2; if (d < -Math.PI) d += Math.PI * 2; return Math.abs(d); }
 function inGate(x, z) { const a = Math.atan2(z, x); return GATES.some(g => angDiff(a, g.a) < g.half - 0.05); }
 function gatePoint(g, r) { return [Math.cos(g.a) * r, Math.sin(g.a) * r]; }
-for (let a = 0; a < Math.PI * 2; a += 0.12) {
-  if (GATES.some(g => angDiff(a, g.a) < g.half)) continue;
-  const p = box(0.22, 0.9, 0.22, mats.wood); p.position.set(Math.cos(a) * FENCE_R, 0.45, Math.sin(a) * FENCE_R); scene.add(p);
+const fencePosts = new THREE.Group(); scene.add(fencePosts);
+function buildFence() {
+  fencePosts.clear();
+  const step = 1.05 / FENCE_R;                                    // 半徑變大，柱子間距維持差不多
+  for (let a = 0; a < Math.PI * 2; a += step) {
+    if (GATES.some(g => angDiff(a, g.a) < g.half)) continue;
+    const p = box(0.22, 0.9, 0.22, mats.wood); p.position.set(Math.cos(a) * FENCE_R, 0.45, Math.sin(a) * FENCE_R); fencePosts.add(p);
+  }
 }
+buildFence();
 // 雙開木門：兩片門板各自繞門柱轉，往外打開
 const doors = [];
 function makeDoors(g, tall) {
@@ -303,10 +332,11 @@ function makeDoors(g, tall) {
   doors.push(d);
   return d;
 }
-const southDoors = makeDoors(GATES[1], false), eastDoors = makeDoors(GATES[2], false);
+let southDoors = makeDoors(GATES[1], false), eastDoors = makeDoors(GATES[2], false);
 function updateDoors(dt) {
   const movers = [player.position, ...workers.map(w => w.g.position), ...villagers.map(v => v.g.position), ...leaving.map(l => l.g.position)];
   for (const d of doors) {
+    if (d === eastDoors && !save.east) continue;                     // 東邊還被冰牆擋著，東門不開
     const near = movers.some(p => Math.hypot(p.x - d.x, p.z - d.z) < 3.8);
     d.open += ((near ? 1 : 0) - d.open) * Math.min(1, dt * 8);
     d.leaves.forEach(l => l.pivot.rotation.y = l.base + l.sign * d.open * 1.45);
@@ -315,7 +345,7 @@ function updateDoors(dt) {
 
 // ===== 北極熊：在北邊森林閒晃，打倒掉肉，過一陣子重生 =====
 const bears = [];
-function bearSpot() { let x, z; do { x = rand(-12, 8); z = rand(-23, -11); } while (nearNorthDoors(x, z, 2)); return [x, z]; }
+function bearSpot() { let x, z; do { x = rand(-12, 8); z = rand(-FENCE_R - 14, -FENCE_R - 2.3); } while (nearNorthDoors(x, z, 2)); return [x, z]; }
 for (let i = 0; i < CFG.bearCount; i++) {
   const g = new THREE.Group();
   const bd = box(1.5, 0.9, 0.95, mats.fur); bd.position.y = 0.75; g.add(bd);
@@ -342,13 +372,13 @@ function updateBears(dt) {
     if (b.turn <= 0) { b.turn = rand(1.5, 4); b.dir = rand(0, 6.28); b.idle = Math.random() < 0.35; }
     if (b.aggro && b.shake <= 0) {                 // 熊群來襲：衝向北門，北門破了就去拆最近的建築
       let tx, tz, reach = 0.3, prey = null;
-      if (gate.hp > 0) { tx = Math.max(-3, Math.min(3, b.x)); tz = -9.8; }
+      if (gate.hp > 0) { tx = Math.max(-3, Math.min(3, b.x)); tz = -FENCE_R - 1.1; }
       else {
         prey = buildings.filter(o => !o.dead).sort((p, q) => Math.hypot(p.x - b.x, p.z - b.z) - Math.hypot(q.x - b.x, q.z - b.z))[0];
         if (prey) { tx = prey.x; tz = prey.z; reach = prey.r + 0.9; } else { tx = CX; tz = CZ - 1.5; }
         const bearIn = Math.hypot(b.x, b.z) < FENCE_R, preyIn = Math.hypot(tx, tz) < FENCE_R;
-        const inGateBand = Math.abs(b.x) < 3 && b.z > -10.6 && b.z < -6.6;
-        if (bearIn !== preyIn && !inGateBand) { tx = Math.max(-2.5, Math.min(2.5, b.x)); tz = bearIn ? -7 : -10; reach = 0.3; prey = null; } // 進出營地都走北門
+        const inGateBand = Math.abs(b.x) < 3 && b.z > -FENCE_R - 1.9 && b.z < -FENCE_R + 2.1;
+        if (bearIn !== preyIn && !inGateBand) { tx = Math.max(-2.5, Math.min(2.5, b.x)); tz = bearIn ? -FENCE_R + 1.7 : -FENCE_R - 1.3; reach = 0.3; prey = null; } // 進出營地都走北門
       }
       const dx = tx - b.x, dz = tz - b.z, d = Math.hypot(dx, dz);
       if (d > reach) { b.dir = Math.atan2(dx, dz); b.x += dx / d * 2.2 * dt; b.z += dz / d * 2.2 * dt; }
@@ -362,7 +392,7 @@ function updateBears(dt) {
     } else if (!b.idle && b.shake <= 0) {
       b.hunting = false;
       b.x += Math.sin(b.dir) * 1.2 * dt; b.z += Math.cos(b.dir) * 1.2 * dt;
-      if (b.x < -13 || b.x > 9 || b.z < -24 || b.z > -10) { b.dir = Math.atan2(-2 - b.x, -17 - b.z); b.x += Math.sin(b.dir) * 1.5 * dt; b.z += Math.cos(b.dir) * 1.5 * dt; } // 追完人慢慢走回森林
+      if (b.x < -13 || b.x > 9 || b.z < -FENCE_R - 15 || b.z > -FENCE_R - 1.3) { b.dir = Math.atan2(-2 - b.x, -FENCE_R - 8 - b.z); b.x += Math.sin(b.dir) * 1.5 * dt; b.z += Math.cos(b.dir) * 1.5 * dt; } // 追完人慢慢走回森林
     }
     if (!b.aggro && !b.hunting && nearNorthDoors(b.x, b.z, 1.6)) {  // 平常閒晃的熊不靠近北門，碰到就往北走開
       b.z -= 2.5 * dt; b.dir = Math.PI + rand(-0.6, 0.6); b.idle = false;
@@ -457,7 +487,7 @@ function updateVillagers(dt) {
     else v.g.position.y = 0;
   });
   const front = villagers[0];
-  const scared = bears.some(b => b.alive && b.aggro && Math.hypot(b.x, b.z) < 9); // 熊進營地，村民不敢買
+  const scared = bears.some(b => b.alive && b.aggro && Math.hypot(b.x, b.z) < FENCE_R + 0.3); // 熊進營地，村民不敢買
   const blocked = piles.some(p => Math.hypot(p.x - CX, p.z - CZ - 1) < 1.6); // 雪堆擋在櫃台前，村民不買
   blockWarn -= dt; if (blocked && bbq.cookedMeshes.length && blockWarn <= 0) { toast('❄️ 雪堆擋住櫃台了！快去鏟'); blockWarn = 8; }
   if (front && !scared && !blocked && bbq.cookedMeshes.length && front.g.position.distanceTo(QUEUE(0)) < 0.3) {
@@ -493,15 +523,10 @@ function makeUnlock(def) {
   u.refresh(); unlocks.push(u);
   return u;
 }
-makeUnlock({ x: -2.6, z: -4.6, icon: '🎒', name: () => '背包擴充',
+makeUnlock({ x: -3.4, z: -5.6, icon: '🎒', name: () => '背包擴充',
   price: () => [12, 35, 90][save.bag], buy: () => { save.bag++; toast('背包容量 ' + CFG.capacity[save.bag] + '！'); } });
 makeUnlock({ x: 1.5, z: 5.5, icon: '🪓', name: () => '斧頭升級',
   price: () => [20, 60, 140][save.axe], buy: () => { save.axe++; toast('砍得更快了！'); } });
-makeUnlock({ x: 10.5, z: 0, icon: '🌲', name: () => '開拓東邊',
-  price: () => save.east ? null : 50, buy: () => { save.east = true; openEast(); toast('東邊森林開放了！'); } });
-makeUnlock({ x: -6.3, z: 1.2, icon: '🪚', name: () => '第二台鋸木機',
-  price: () => save.mill2 ? null : 80, buy: () => { save.mill2 = true; addMill2(); toast('加工速度翻倍！'); } });
-
 function openEast() { scene.remove(iceWall); trees.forEach(t => { if (!t.coal) t.locked = false; }); }
 if (save.east) openEast();
 if (save.mill2) addMill2();
@@ -510,7 +535,7 @@ if (save.mill2) addMill2();
 makeUnlock({ x: 4, z: -5.5, icon: '🏹', name: () => '弩砲塔',
   price: () => save.tower ? null : 40, buy: () => { save.tower = true; buildTower(); addTower2Unlock(); toast('弩砲塔會自動射熊！'); } });
 const towers = [];
-function buildTower(x = 5.2, z = -10) {
+function buildTower(x = 5.2, z = -FENCE_R - 1.3) {
   const g = new THREE.Group();
   const base = box(1.6, 2.2, 1.6, mats.wood); base.position.y = 1.1; g.add(base);
   const deck = box(2, 0.25, 2, mats.trunk); deck.position.y = 2.3; g.add(deck);
@@ -524,10 +549,10 @@ if (save.tower) buildTower();
 // 第二座弩砲塔：要先有第一座才會出現
 function addTower2Unlock() {
   makeUnlock({ x: -5.8, z: -6, icon: '🏹', name: () => '第二座弩砲塔',
-  price: () => save.tower2 ? null : 90, buy: () => { save.tower2 = true; buildTower(-5.4, -10); toast('北門兩側都有弩砲塔了！'); } });
+  price: () => save.tower2 ? null : 90, buy: () => { save.tower2 = true; buildTower(-5.4); toast('北門兩側都有弩砲塔了！'); } });
 }
 if (save.tower && !save.tower2) addTower2Unlock();
-if (save.tower2) buildTower(-5.4, -10);
+if (save.tower2) buildTower(-5.4);
 
 // ===== 北門防守：熊群定時來撞北門，用木頭修門 =====
 const gate = { hp: save.gateHp ?? CFG.gateHp, hit: 0, raidT: save.raidT ?? CFG.raidFirst, posts: new THREE.Group(), broken: false };
@@ -541,7 +566,7 @@ function updateGate(dt) {
   gate.raidT -= dt;
   if (gate.raidT <= 0) {
     gate.raidT = CFG.raidEvery;
-    const pool = bears.filter(b => b.alive && !b.aggro).sort((a, b) => b.z - a.z).slice(0, CFG.raidBears);
+    const pool = bears.filter(b => b.alive && !b.aggro).sort((a, b) => b.z - a.z).slice(0, raidCount());
     pool.forEach(b => b.aggro = true);
     if (pool.length) { toast('🐻 熊群來襲！守住北門！'); beep(220, 0.4, 'sawtooth', 0.06, 0.6); }
   }
@@ -554,17 +579,16 @@ function updateGate(dt) {
   const pct = Math.round(gate.hp / CFG.gateHp * 100);
   gateLabel.set(['北門 ' + pct + '%'], pct > 60 ? '#9fe870' : pct > 25 ? '#ffd34d' : '#ff6a5a');
   const raiding = bears.some(b => b.alive && b.aggro);
-  $("raid").textContent = raiding ? "來襲中！" : Math.ceil(gate.raidT) + " 秒";
-  $("pRaid").classList.toggle("danger", raiding);
+  gate.raiding = raiding;
   $("vignette").style.opacity = raiding ? 1 : 0;
   // 站在修門格上，背上的木頭一根根拿去修
   repairCd -= dt;
   const k = carried.map(m => m.userData.type).lastIndexOf('log');
-  if (gate.hp < CFG.gateHp && k >= 0 && repairCd <= 0 && Math.hypot(player.position.x, player.position.z + 6.6) < 1.3) {
+  if (gate.hp < CFG.gateHp && k >= 0 && repairCd <= 0 && Math.hypot(player.position.x - repairPad.position.x, player.position.z - repairPad.position.z) < 1.3) {
     repairCd = 0.12;
     const m = carried.splice(k, 1)[0]; const wp = m.getWorldPosition(new THREE.Vector3());
     stackRoot.remove(m); restack();
-    fly(m, wp, () => new THREE.Vector3(rand(-3, 3), 1, -8.9), 0.35, () => { scene.remove(m); gate.hp = Math.min(CFG.gateHp, gate.hp + 10); });
+    fly(m, wp, () => new THREE.Vector3(rand(-3, 3), 1, -FENCE_R - 0.2), 0.35, () => { scene.remove(m); gate.hp = Math.min(CFG.gateHp, gate.hp + 10); });
   }
   repairPad.fill.scale.y = Math.max(0.0001, gate.hp / CFG.gateHp);
 }
@@ -586,7 +610,7 @@ for (let i = 0; i < save.workers; i++) addWorker();
 
 // ===== 民房：在南門外一間間往外蓋，每間 +5 人口；付款格蓋好後會移到下一塊空地 =====
 const houses = [];
-function houseSpot(i) { return [[-3.2, 3.2, -6.5, 6.5][i % 4], 12 + Math.floor(i / 4) * 3.5]; }
+function houseSpot(i) { return [[-3.2, 3.2, -6.5, 6.5][i % 4], FENCE_R + 3.3 + Math.floor(i / 4) * 3.5]; } // 南門外一排排往外蓋
 function buildHouse(i) { const [x, z] = houseSpot(i); buildHouseAt(x, z, '民房' + i); }
 function buildHouseAt(x, z, key) {
   const g = new THREE.Group();
@@ -610,7 +634,7 @@ function addHouseUnlock() {
     } });
   return u;
 }
-let houseUnlock = addHouseUnlock();
+let houseUnlock = save.east ? addHouseUnlock() : { done: true }; // 民房要先開拓東邊（作者 10/17 回饋第 2 項）
 
 // ===== 中央火爐＋暖氣圈：圈內的建築才會運作；柴剩不到一半圈子開始縮小，燒光就全部凍住 =====
 const FX = 0, FZ = -3;
@@ -623,6 +647,31 @@ const heatRing = new THREE.Mesh(new THREE.RingGeometry(0.985, 1, 96), new THREE.
 const heatFill = new THREE.Mesh(new THREE.CircleGeometry(1, 64), new THREE.MeshBasicMaterial({ color: 0xffb060, transparent: true, opacity: 0.1, depthWrite: false }));
 [heatRing, heatFill].forEach(m => { m.rotation.x = -Math.PI / 2; m.position.set(FX, 0.025, FZ); scene.add(m); });
 const furnaceLabel = makeLabel(); furnaceLabel.scale.set(2.6, 1.3, 1); furnaceLabel.position.set(FX, 3.3, FZ); scene.add(furnaceLabel);
+// 營火分段（作者 10/17 回饋第 5 項）：不同 % 有不同畫面；火越小，熊群來得越多
+const FIRE_STAGES = [ // min：營火 % 以上就是這一段；light：整體亮度；frost：畫面四周結霜；glow：火光；bears：熊群多來幾隻
+  { min: 70, name: '旺', light: 1, frost: 0, glow: 1.6, sky: 0xcfe3f2, bears: 0 },
+  { min: 40, name: '普通', light: 0.88, frost: 0.15, glow: 1.1, sky: 0xc4d9ea, bears: 0 },
+  { min: 20, name: '變弱', light: 0.72, frost: 0.45, glow: 0.7, sky: 0xaec6dc, bears: 1, msg: '🔥 營火變弱了，天氣變冷，熊會多來一隻' },
+  { min: 1, name: '快熄', light: 0.58, frost: 0.75, glow: 0.35, sky: 0x93aac2, bears: 2, msg: '🥶 營火快熄了！快加柴，熊群會更多' },
+  { min: -1, name: '熄滅', light: 0.48, frost: 1, glow: 0, sky: 0x7f93a8, bears: 2 },
+];
+const fireLight = new THREE.PointLight(0xff9a3c, 1.2, 14, 1.5); fireLight.position.set(FX, 2.5, FZ); scene.add(fireLight);
+const skyCol = new THREE.Color(0xcfe3f2), tmpCol = new THREE.Color();
+let fireStage = 0;
+function fireStageOf(pct) { return FIRE_STAGES.findIndex(st => pct >= st.min); }
+function raidCount() { return CFG.raidBears + FIRE_STAGES[fireStage].bears; }
+function updateFireLook(dt, pct) {
+  const i = fireStageOf(pct), st = FIRE_STAGES[i];
+  if (i > fireStage && st.msg) { toast(st.msg); beep(260, 0.3, 'triangle', 0.05, 0.6); }
+  fireStage = i;
+  const k = 1 - Math.exp(-dt * 2);                                // 慢慢轉過去，不會一下跳
+  hemi.intensity += (0.75 * st.light - hemi.intensity) * k;
+  sun.intensity += (0.75 * st.light - sun.intensity) * k;
+  fireLight.intensity += (st.glow - fireLight.intensity) * k;
+  skyCol.lerp(tmpCol.setHex(st.sky), k); scene.background.copy(skyCol); scene.fog.color.copy(skyCol);
+  $('frost').style.opacity = Math.max(st.frost, save.level >= 1 && coldWave.on > 0 ? 1 : 0);
+}
+
 let feedCd = 0;
 function updateFurnace(dt) {
   const f = furnace;
@@ -638,7 +687,7 @@ function updateFurnace(dt) {
     fly(m, wp, () => new THREE.Vector3(FX, 1.2, FZ), 0.3, () => { scene.remove(m); f.pend -= per; f.fuel = Math.min(CFG.fuelMax, f.fuel + per); });
   }
   const pct = Math.round(f.fuel / CFG.fuelMax * 100);
-  const rMax = CFG.heat[1] + (save.furnace ? CFG.heatUp : 0);
+  const rMax = CFG.heat[1] + TERR[save.territory].heat;
   f.r = f.fuel > 0 ? CFG.heat[0] + (rMax - CFG.heat[0]) * Math.min(1, pct / 50) : 0;
   if (coldWave.on > 0) f.r *= CFG.coldShrink; // 寒潮：暖氣圈縮小
   heatRing.scale.setScalar(Math.max(0.001, f.r)); heatFill.scale.setScalar(Math.max(0.001, f.r));
@@ -649,7 +698,8 @@ function updateFurnace(dt) {
   if (f.fuel <= 0 && !f.out) { toast('🔥 火爐熄了！建築都凍住了，快加柴！'); beep(180, 0.4, 'sawtooth', 0.06, 0.6); }
   f.out = f.fuel <= 0;
   furnaceLabel.set(['火爐 ' + pct + '%', pct < 50 ? (save.mine ? '🪵⚫ 揹木頭或煤來加' : '🪵 揹木頭來加柴') : '🔥 暖氣範圍'], pct > 50 ? '#ffd34d' : pct > 20 ? '#ffa040' : '#ff6a5a');
-  $('fuel').textContent = pct; $('pFuel').classList.toggle('danger', pct < 20);
+  updateFireLook(dt, pct);
+  $('fuel').textContent = pct; $('fuelBar').firstElementChild.style.width = pct + '%'; $('fuelBar').classList.toggle('danger', pct < 20);
 }
 
 // ===== 煤礦：營地西南邊的黑色礦石，買下後主角敲得到；煤丟進火爐很耐燒（伐木工不挖煤） =====
@@ -674,7 +724,7 @@ function spawnPile() {
   let x, z;
   for (let tries = 0; tries < 20; tries++) {
     if (Math.random() < 0.5) { x = CX + rand(-0.7, 0.7); z = rand(CZ + 0.5, CZ + 11); } // 村民排隊的路上
-    else { const a = rand(0, 6.28), r = rand(2, 7.6); x = Math.cos(a) * r; z = Math.sin(a) * r; } // 營地裡
+    else { const a = rand(0, 6.28), r = rand(2, FENCE_R - 1.1); x = Math.cos(a) * r; z = Math.sin(a) * r; } // 營地裡
     if (Math.hypot(x - FX, z - FZ) > 1.8 && piles.every(p => Math.hypot(p.x - x, p.z - z) > 1.6)) break;
   }
   const m = new THREE.Mesh(new THREE.SphereGeometry(0.9, 10, 6), pileMat); // 淡藍白色，雪地上也看得出來
@@ -723,8 +773,7 @@ let shovelUnlock = null;
 const coldWave = { t: save.coldT ?? CFG.coldFirst, on: 0, failed: false };
 function updateColdWave(dt) {
   const active = save.level >= 1;
-  $('pCold').style.display = active ? '' : 'none';
-  if (!active) { $('frost').style.opacity = 0; return; }
+  if (!active) return;
   const c = coldWave;
   if (c.on > 0) {
     c.on -= dt; if (furnace.out) c.failed = true;
@@ -739,9 +788,6 @@ function updateColdWave(dt) {
     else if (Math.ceil(c.t) === 15 && Math.ceil(c.t + dt) > 15) toast('❄️ 15 秒後寒潮來襲，先把火爐加滿柴！');
   }
   save.coldT = Math.max(0, Math.round(c.t));
-  $('cold').textContent = c.on > 0 ? '寒潮中！' + Math.ceil(c.on) : Math.ceil(c.t) + ' 秒';
-  $('pCold').classList.toggle('danger', c.on > 0);
-  $('frost').style.opacity = c.on > 0 ? 1 : 0;
 }
 
 // ===== 暖氣塔：把火爐的熱送到遠一點的地方（規劃模式蓋） =====
@@ -779,7 +825,7 @@ function canBuild(x, z) {
   if (buildings.some(b => d(b.x, b.z) < b.r + 1.6)) return false;
   if (unlocks.some(u => !u.done && d(u.x, u.z) < 2.3)) return false;
   if (mills.some(m => d(m.inPad.position.x, m.inPad.position.z) < 2 || d(m.outPad.position.x, m.outPad.position.z) < 2)) return false;
-  if (trees.some(t => d(t.x, t.z) < 1.7)) return false;
+  if (trees.some(t => !t.gone && d(t.x, t.z) < 1.7)) return false;
   return true;
 }
 function planUi() {
@@ -843,16 +889,75 @@ function planCamera(dt) {
 }
 
 // ===== 城市等級升級：人口到門檻 → 暫停、跳出「新解鎖」卡片、鏡頭拉遠、出現新付款格 =====
-let paused = false, furnaceUnlock = null;
+let paused = false, terrUnlock = null, eastUnlock = null, mill2Unlock = null;
+// 營火升級＝擴大領地：Lv1 升級任意 3 個項目後出現；Lv2 要村莊等級＋已開拓東邊
+function terrReady() { return save.territory === 0 ? save.buys >= CFG.terrNeedBuys : save.territory === 1 && save.level >= 1 && save.east; }
 function levelUnlocks() {
-  if (houseUnlock.done && houses.length < LEVELS[save.level].houses) houseUnlock = addHouseUnlock();
-  if (save.level >= 1 && !save.mine && !mineUnlock) mineUnlock = makeUnlock({ x: -10, z: 6, icon: '⛏️', name: () => '開採煤礦',
+  if (terrUnlock && terrUnlock.done) terrUnlock = null;
+  if (!terrUnlock && terrReady()) terrUnlock = makeUnlock({ x: -1.4, z: -0.2, icon: '🔥', name: () => '營火升級 Lv' + (save.territory + 1),
+    price: () => terrUnlock && terrUnlock.waiting ? null : CFG.terrPrice[save.territory], buy: () => { expandTerritory(); terrUnlock.waiting = true; } });
+  if (!eastUnlock && !save.east && save.territory >= 1) eastUnlock = makeUnlock({ x: FENCE_R - 1.6, z: 0, icon: '🌲', name: () => '開拓東邊',
+    price: () => save.east ? null : 50, buy: () => { save.east = true; openEast(); buildDoorsAll(); toast('東邊開放了！現在可以蓋民房、第二台鋸木機'); } });
+  if (!mill2Unlock && !save.mill2 && save.east) mill2Unlock = makeUnlock({ x: -6.3, z: 1.2, icon: '🪚', name: () => '第二台鋸木機',
+    price: () => save.mill2 ? null : 80, buy: () => { save.mill2 = true; addMill2(); toast('加工速度翻倍！'); } });
+  if (save.east && houseUnlock.done && houses.length < LEVELS[save.level].houses) houseUnlock = addHouseUnlock();
+  if (save.level >= 1 && !save.mine && !mineUnlock) mineUnlock = makeUnlock({ x: -FENCE_R - 3, z: 6, icon: '⛏️', name: () => '開採煤礦',
     price: () => save.mine ? null : CFG.minePrice, buy: () => { save.mine = 1; openMine(); toast('煤礦開放了！煤丟進火爐很耐燒'); } });
   if (save.level >= 1 && !save.shovel && !shovelUnlock) shovelUnlock = makeUnlock({ x: 6.6, z: -3, icon: '🧹', name: () => '雇用鏟雪工',
     price: () => save.shovel ? null : CFG.shovelPrice, buy: () => { save.shovel = 1; addShoveler(); toast('鏟雪工會自己去鏟雪！'); } });
-  if (save.level >= 1 && !save.furnace && !furnaceUnlock) furnaceUnlock = makeUnlock({ x: 2.2, z: -4, icon: '🔥', name: () => '火爐升級',
-    price: () => save.furnace ? null : CFG.furnaceUpPrice, buy: () => { save.furnace = 1; toast('暖氣圈變大了！'); } });
 }
+
+// ===== 擴大領地：圍欄往外推，北門、弩砲塔、修門格、民房跟著搬，圈進來的樹移走、北邊森林往外補 =====
+function moveBuilding(b, x, z) {
+  b.x = x; b.z = z; b.g.position.set(x, 0, z); b.rubble.position.set(x, 0, z); b.label.position.x = x; b.label.position.z = z;
+}
+function buildDoorsAll() {
+  for (const d of doors) scene.remove(d.group);
+  doors.length = 0;
+  const vis = gate.posts.visible;
+  gate.posts = makeDoors(GATES[0], true).group; gate.posts.visible = vis;
+  southDoors = makeDoors(GATES[1], false); eastDoors = makeDoors(GATES[2], false);
+}
+function applyTerritory(init) {
+  FENCE_R = TERR[save.territory].r;
+  GATES.forEach(g => g.half = Math.asin(g.w / 2 / FENCE_R));
+  NG_PX = FENCE_R * Math.sin(GATES[0].half); NG_PZ = -FENCE_R * Math.cos(GATES[0].half); NG_LEN = NG_PX;
+  buildFence(); buildDoorsAll();
+  camp.scale.setScalar((FENCE_R - 0.2) / 8.5);
+  gateLabel.position.z = -FENCE_R - 0.2;
+  repairPad.position.z = -FENCE_R + 2.1; repairLabel.position.z = -FENCE_R + 2.1;
+  towers.forEach(t => moveBuilding(t.bld, t.g.position.x, -FENCE_R - 1.3));
+  houses.forEach(h => {                                            // 南門外的民房整排往外搬；自己規劃的碰到圍欄就往外推
+    const m = /^民房(\d+)$/.exec(h.key);
+    if (m) { const [x, z] = houseSpot(+m[1]); moveBuilding(h, x, z); }
+    else { const r = Math.hypot(h.x, h.z); if (Math.abs(r - FENCE_R) < 2) moveBuilding(h, h.x / r * (FENCE_R + 2.2), h.z / r * (FENCE_R + 2.2)); }
+  });
+  if (!houseUnlock.done) { [houseUnlock.x, houseUnlock.z] = houseSpot(save.houses); houseUnlock.pad.position.set(houseUnlock.x, 0.03, houseUnlock.z); houseUnlock.label.position.set(houseUnlock.x, 1.9, houseUnlock.z); }
+  for (const u of unlocks) {                                       // 卡在圍欄上的付款格往內挪
+    if (u.done || u === houseUnlock) continue;
+    const r = Math.hypot(u.x, u.z);
+    if (Math.abs(r - FENCE_R) < 1.6) { const k = (FENCE_R - 1.8) / r; u.x *= k; u.z *= k; u.pad.position.set(u.x, 0.03, u.z); u.label.position.set(u.x, u.label.position.y, u.z); }
+  }
+  let moved = 0;
+  for (const t of trees) {                                         // 圈進領地的樹移走（煤礦往外推）
+    if (t.gone) continue;
+    const r = Math.hypot(t.x, t.z);
+    if (t.coal) { if (r < FENCE_R + 2) { const k = (FENCE_R + 2.2) / r; t.x *= k; t.z *= k; t.g.position.set(t.x, 0, t.z); } continue; }
+    if (r < FENCE_R + 2.2) { t.gone = true; t.alive = false; t.regrow = Infinity; scene.remove(t.g); if (!t.locked) moved++; }
+  }
+  for (let i = 0, tries = 0; i < moved && tries < 400; tries++) {  // 北邊森林往外補一樣多棵
+    const x = rand(-13, 9), z = rand(-FENCE_R - 14, -FENCE_R - 2.6);
+    if (!nearNorthDoors(x, z, 1.2) && trees.every(t => t.gone || (t.x - x) ** 2 + (t.z - z) ** 2 > 2.6)) { addTree(x, z, false); i++; }
+  }
+  for (const b of bears) if (!b.aggro && b.z > -FENCE_R - 2) { [b.x, b.z] = bearSpot(); }
+  for (let i = piles.length - 1; i >= 0; i--) if (Math.abs(Math.hypot(piles[i].x, piles[i].z) - FENCE_R) < 1.3) { scene.remove(piles[i].m); piles.splice(i, 1); }
+  if (!init) resize();
+}
+function expandTerritory() {
+  save.territory++; applyTerritory(); writeSave();
+  toast('🔥 營火升級！領地擴大了'); sparkle(FX, FZ);
+}
+applyTerritory(true);
 levelUnlocks();
 if (save.shovel) addShoveler();
 function checkLevel() {
@@ -1109,7 +1214,7 @@ function resize() {
   const w = innerWidth, h = innerHeight;
   renderer.setSize(w, h); camera.aspect = w / h;
   camera.fov = 40;
-  camOffset.copy(camBase).multiplyScalar((w < h ? Math.min(1.9, 1 + (h / w - 1) * 0.75) : 1) * zoom * LEVELS[save.level].cam); // 直式（手機）、城市等級越高，鏡頭越遠
+  camOffset.copy(camBase).multiplyScalar((w < h ? Math.min(1.9, 1 + (h / w - 1) * 0.75) : 1) * zoom * LEVELS[save.level].cam * TERR[save.territory].cam); // 直式（手機）、城市等級越高，鏡頭越遠
   camera.updateProjectionMatrix();
 }
 addEventListener('resize', resize);
@@ -1166,9 +1271,21 @@ function huntable(b) {
   return !b.aggro && hurtCd <= 0 && Math.hypot(player.position.x, player.position.z) > FENCE_R + 0.3 &&
     Math.hypot(player.position.x - b.x, player.position.z - b.z) < (b.hunting ? CFG.bearChase + 2 : CFG.bearChase);
 }
+// 離暖氣圈邊緣多遠（≤0 表示在暖氣裡）：火爐的圈和暖氣塔的圈取最近的那個
+function coldOver(x, z) {
+  let over = Math.hypot(x - FX, z - FZ) - furnace.r;
+  const hr = furnace.fuel > 0 ? CFG.heaterR * (coldWave.on > 0 ? CFG.coldShrink : 1) : 0;
+  for (const h of heaters) if (!h.bld.dead) over = Math.min(over, Math.hypot(x - h.x, z - h.z) - hr);
+  return over;
+}
 function updateHero(dt) {
   hurtCd -= dt;
-  if (Math.hypot(player.position.x, player.position.z) < FENCE_R) hero.hp = Math.min(CFG.playerHp, hero.hp + CFG.heal * dt);
+  hero.over = coldOver(player.position.x, player.position.z);
+  if (hero.over <= 0) hero.hp = Math.min(CFG.playerHp, hero.hp + CFG.heal * dt);   // 在暖氣裡回血
+  else {                                                                            // 野外會冷到掉血，離越遠掉越多
+    const dps = Math.min(CFG.coldMax, CFG.coldBase + hero.over * CFG.coldPerUnit) * (coldWave.on > 0 ? 1.5 : 1);
+    hero.hp -= dps * dt; if (hero.hp <= 0) hero.cause = 'cold';
+  }
   if (hero.hit > 0) { hero.hit -= dt; player.children[0].material.emissive?.setHex(0x661111); } else player.children[0].material.emissive?.setHex(0);
   if (hero.hp <= 0) {
     const lose = carried.splice(Math.ceil(carried.length / 2));  // 掉一半背包
@@ -1176,11 +1293,50 @@ function updateHero(dt) {
     player.position.set(0, 0, 2); camera.position.copy(player.position).add(camOffset);
     hero.hp = CFG.playerHp; hurtCd = 3;                         // 回營地，3 秒內熊不會再追
     bears.forEach(b => b.hunting = false);
-    toast(lose.length ? '被熊打倒了！掉了 ' + lose.length + ' 個東西' : '被熊打倒了！');
+    const why = hero.cause === 'cold' ? '凍昏了！' : '被熊打倒了！'; hero.cause = null;
+    toast(lose.length ? why + '掉了 ' + lose.length + ' 個東西' : why);
     beep(140, 0.5, 'sawtooth', 0.07, 0.5);
   }
   const v = Math.ceil(hero.hp); $('hp').textContent = v;
-  $('pHp').classList.toggle('danger', v < 35);
+  $('hpBar').firstElementChild.style.width = v + '%'; $('hpBar').classList.toggle('danger', v < 35);
+  updateAlert();
+}
+
+// 目標提示（作者 10/17 回饋第 2 項）：畫面上方告訴玩家下一步做什麼；完成一個給一點獎金
+const GOALS = [
+  { t: () => '升級任意 3 個項目（' + Math.min(save.buys, 3) + '/3）', done: () => save.buys >= 3 },
+  { t: () => '升級營火，擴大領地', done: () => save.territory >= 1 },
+  { t: () => '開拓東邊，打開新場地', done: () => !!save.east },
+  { t: () => '蓋民房，人口到 20（' + population() + '/20）', done: () => save.level >= 1 },
+  { t: () => '開採煤礦，煤很耐燒', done: () => !!save.mine },
+  { t: () => '營火升級 Lv2，領地再擴大', done: () => save.territory >= 2 },
+  { t: () => '用🏗️規劃模式蓋民房，人口到 80（' + population() + '/80）', done: () => save.level >= 2 },
+  { t: () => '城市的新玩法製作中，繼續擴張吧！', done: () => false },
+];
+save.goal = save.goal || 0;
+let shownGoal = '', goalFlash = 0;
+function updateGoal(dt) {
+  while (save.goal < GOALS.length - 1 && GOALS[save.goal].done()) {
+    const reward = 10 * (save.goal + 1); save.goal++; save.cash += reward; goalFlash = 1.5;
+    toast('🎯 目標完成！獎金 +' + reward + ' 元'); sfx.coin();
+  }
+  goalFlash -= dt;
+  const t = '🎯 ' + GOALS[save.goal].t();
+  if (t !== shownGoal) { $('goal').textContent = t; shownGoal = t; }
+  $('goal').classList.toggle('done', goalFlash > 0);
+}
+
+// 畫面上方的事件提醒：熊群、寒潮快來（15 秒內）或正在發生時才出現，平常不讀秒
+let shownAlert = '';
+function updateAlert() {
+  let t = '', cls = '';
+  if (gate.raiding) { t = '🐻 熊群來襲！守住北門'; }
+  else if (save.level >= 1 && coldWave.on > 0) { t = '❄️ 寒潮中 ' + Math.ceil(coldWave.on) + ' 秒，顧好營火'; cls = 'cold'; }
+  else if (hero.over > 0 && hero.hp < 60) { t = '🥶 好冷！回營火旁取暖'; cls = 'cold'; }
+  else if (gate.raidT <= 15) { t = '🐻 ' + raidCount() + ' 隻熊 ' + Math.ceil(gate.raidT) + ' 秒後來襲'; cls = 'warn'; }
+  else if (save.level >= 1 && coldWave.t <= 15) { t = '❄️ 寒潮 ' + Math.ceil(coldWave.t) + ' 秒後來，先加柴'; cls = 'cold'; }
+  const key = t + cls; if (key === shownAlert) return; shownAlert = key;
+  $('alert').textContent = t; $('alert').className = cls; $('alert').style.display = t ? 'block' : 'none';
 }
 
 // 建築：被打會晃、血量存檔、揹木頭靠近就修、全部被拆光就失敗
@@ -1348,7 +1504,8 @@ function step(dt) {
     if (u.cool > 0) { u.cool -= dt; u.pad.visible = u.label.visible = u.cool <= 0; continue; } // 剛升級完：閃亮後要等一下才能再升級
     const p = u.price();
     const on = Math.hypot(player.position.x - u.x, player.position.z - u.z) < 1.2;
-    if (on && save.cash > 0 && u.paid < p) {
+    u.stand = on ? (u.stand || 0) + dt : 0;                     // 站穩 0.6 秒才開始付錢，路過不會誤買
+    if (on && u.stand > CFG.padDelay && save.cash > 0 && u.paid < p) {
       u.payAcc += dt * p / CFG.payRate;
       const pay = Math.min(Math.floor(u.payAcc), save.cash, p - u.paid);
       if (pay > 0) {
@@ -1356,7 +1513,7 @@ function step(dt) {
         const b = box(0.5, 0.1, 0.3, mats.cash);
         fly(b, player.position.clone().add(tmp.set(0, 2, 0)), () => new THREE.Vector3(u.x, 0.1, u.z), 0.25, () => scene.remove(b), 1);
       }
-      if (u.paid >= p) { u.paid = 0; u.payAcc = 0; sparkle(u.x, u.z); u.buy(); sfx.unlock(); u.cool = CFG.buildCool; writeSave(); }
+      if (u.paid >= p) { u.paid = 0; u.payAcc = 0; sparkle(u.x, u.z); u.buy(); save.buys++; sfx.unlock(); u.cool = CFG.buildCool; levelUnlocks(); writeSave(); }
       u.refresh();
     } else u.payAcc = 0;
   }
@@ -1374,6 +1531,7 @@ function step(dt) {
   updateBuildings(dt);
   checkLevel();
   updateHero(dt);
+  updateGoal(dt);
   updateDoors(dt);
   // 飛行動畫
   for (let i = flies.length - 1; i >= 0; i--) {
@@ -1416,7 +1574,7 @@ function loop() {
 }
 loop();
 addEventListener('visibilitychange', () => { if (document.hidden) writeSave(); });
-window.__game = { plan, setPlan, planPointer, canBuild, heaters, piles, shovelers, spawnPile, rocks, coldWave, hero, save, furnace, houses, player, carried, mills, unlocks, trees, bears, gate, buildings, towers, step, render: () => renderer.render(scene, camera) }; // 測試用
+window.__game = { coldOver, fireStage: () => fireStage, raidCount, plan, setPlan, planPointer, canBuild, heaters, piles, shovelers, spawnPile, rocks, coldWave, hero, save, furnace, houses, player, carried, mills, unlocks, trees, bears, gate, buildings, towers, step, render: () => renderer.render(scene, camera) }; // 測試用
 </script>
 </body>
 </html>
