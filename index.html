@@ -63,7 +63,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 'use strict';
-const VERSION = '0.23';
+const VERSION = '0.24';
 
 // ===== 數值（之後平衡都改這裡） =====
 const CFG = {
@@ -78,7 +78,6 @@ const CFG = {
   logValue: 1,              // 一根木頭換幾元
   meatValue: 3,             // 一塊肉換幾元
   bearHp: 5, bearCount: 5, bearRespawn: 20, meatPerBear: 2,
-  villagers: 6,             // 排隊的村民人數
   towerRange: 11, towerInterval: 1.1, // 弩砲塔射程與射速
   buildCool: 2,             // 升級完要等幾秒才能再升級
   playerHp: 100, bearHitDps: 14, bearChase: 6, heal: 20, // 主角血量、熊每秒打人多少、熊幾格內會追人、在營地裡每秒回血
@@ -87,17 +86,18 @@ const CFG = {
   workerSpeed: 3.6, workerChop: 0.6, workerLoad: 6, // 伐木工：速度約主角 60%、出手間隔、一次揹幾根
   payRate: 1.1,             // 付款格：幾秒內付完整筆
   popBase: 2,               // 一開始的人口（主角和夥伴），每個伐木工 +1
+  housePop: 5, housePrice: [25, 15], // 每間民房住幾人；民房價錢：第一間 25，之後每間多 15
 };
-// 城市等級：人口到門檻就升級（藍圖見 docs/企劃評估.md 第 8 節）
+// 城市等級：人口到門檻就升級（藍圖見 docs/企劃評估.md 第 8 節）；houses＝這一級最多能蓋幾間民房
 const LEVELS = [
-  { name: '營地', icon: '🏕️', need: 0 },
-  { name: '村莊', icon: '🏘️', need: 20 },
-  { name: '小鎮', icon: '🏙️', need: 80 },
+  { name: '營地', icon: '🏕️', need: 0, houses: 4 },
+  { name: '村莊', icon: '🏘️', need: 20, houses: 12 },
+  { name: '小鎮', icon: '🏙️', need: 80, houses: 12 },
 ];
 
 // ===== 存檔 =====
 const SAVE_KEY = 'frost-town-save-v1';
-let save = { cash: 0, bag: 0, axe: 0, east: false, mill2: false, tower: false, workers: 0, level: 0 };
+let save = { cash: 0, bag: 0, axe: 0, east: false, mill2: false, tower: false, workers: 0, level: 0, houses: 0 };
 try { Object.assign(save, JSON.parse(localStorage.getItem(SAVE_KEY) || '{}')); } catch (e) {}
 let resetting = false; // 重新開始時不要再把舊進度寫回去
 function writeSave() { if (resetting) return; try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) {} }
@@ -415,8 +415,9 @@ function makeVillager(i) {
   scene.add(g);
   return { g, wait: 0 };
 }
-for (let i = 0; i < CFG.villagers; i++) villagers.push(makeVillager(i));
 function updateVillagers(dt) {
+  // 排隊的村民跟著人口變多（最多 16 個，手機效能）
+  while (villagers.length < Math.min(16, 4 + Math.floor(population() / 3))) villagers.push(makeVillager(villagers.length));
   villagers.forEach((v, i) => {
     const p = QUEUE(i), d = p.sub(v.g.position); d.y = 0;
     const len = d.length();
@@ -433,7 +434,6 @@ function updateVillagers(dt) {
       fly(m, wp, () => front.g.position.clone().add(tmp.set(0, 1.4, 0)), 0.25, () => { front.g.add(m); m.position.set(0, 0.9, 0.35); }, 0.6);
       spawnBill(bbq, front.g.position.clone().add(tmp.set(0, 1.4, 0)));
       villagers.shift(); leaving.push({ g: front.g, t: 3.5, dir: rand(-0.6, 0.6) });
-      villagers.push(makeVillager(villagers.length));
     }
   }
   for (let i = leaving.length - 1; i >= 0; i--) {
@@ -549,6 +549,32 @@ function addWorker() {
   workers.push({ g, back, load: 0, tree: null, cd: 0, walk: 0 });
 }
 for (let i = 0; i < save.workers; i++) addWorker();
+
+// ===== 民房：在南門外一間間往外蓋，每間 +5 人口；付款格蓋好後會移到下一塊空地 =====
+const houses = [];
+function houseSpot(i) { return [[-3.2, 3.2, -6.5, 6.5][i % 4], 12 + Math.floor(i / 4) * 3.5]; }
+function buildHouse(i) {
+  const [x, z] = houseSpot(i), g = new THREE.Group();
+  const wall = box(2.2, 1.4, 2, M(0xd8c3a0)); wall.position.y = 0.7; g.add(wall);
+  const roof = new THREE.Mesh(new THREE.ConeGeometry(1.75, 1.1, 4), mats.roof); roof.position.y = 1.95; roof.rotation.y = Math.PI / 4; roof.castShadow = true; g.add(roof);
+  const door = box(0.5, 0.8, 0.06, mats.trunk); door.position.set(0, 0.4, -1.02); g.add(door); // 門朝營地
+  const win = box(0.45, 0.4, 0.06, M(0xffd36b)); win.position.set(0.65, 0.85, -1.02); g.add(win);
+  const chimney = box(0.3, 0.7, 0.3, M(0x777777)); chimney.position.set(0.5, 2.2, 0.3); g.add(chimney);
+  g.position.set(x, 0, z); scene.add(g);
+  houses.push(addBuilding('民房' + i, g, 1.3));
+}
+for (let i = 0; i < save.houses; i++) buildHouse(i);
+function addHouseUnlock() {
+  const [x, z] = houseSpot(save.houses);
+  const u = makeUnlock({ x, z, icon: '🏠', name: () => '蓋民房',
+    price: () => save.houses < LEVELS[save.level].houses ? CFG.housePrice[0] + save.houses * CFG.housePrice[1] : null,
+    buy: () => {
+      buildHouse(save.houses++); toast('蓋好民房，人口 +' + CFG.housePop + '！');
+      [u.x, u.z] = houseSpot(save.houses); u.pad.position.set(u.x, 0.03, u.z); u.label.position.set(u.x, 1.9, u.z);
+    } });
+  return u;
+}
+let houseUnlock = addHouseUnlock();
 // 圍欄裡外要走門：先走到最近的門口，穿過門再走向目標
 function routeTo(w, x, z, dt) {
   const px = w.g.position.x, pz = w.g.position.z, rIn = Math.hypot(px, pz) < FENCE_R, tIn = Math.hypot(x, z) < FENCE_R;
@@ -716,7 +742,7 @@ function fly(mesh, from, toFn, dur, onDone, arc = 1.5) {
 // ===== HUD =====
 const $ = id => document.getElementById(id);
 let shownCash = -1, shownWood = -1;
-function population() { return CFG.popBase + save.workers; }
+function population() { return CFG.popBase + save.workers + houses.filter(h => !h.dead).length * CFG.housePop; }
 function hud() {
   const lv = LEVELS[save.level], next = LEVELS[save.level + 1];
   $('pop').textContent = population(); $('capP').textContent = next ? '/' + next.need : '';
@@ -1034,7 +1060,7 @@ function step(dt) {
         const b = box(0.5, 0.1, 0.3, mats.cash);
         fly(b, player.position.clone().add(tmp.set(0, 2, 0)), () => new THREE.Vector3(u.x, 0.1, u.z), 0.25, () => scene.remove(b), 1);
       }
-      if (u.paid >= p) { u.paid = 0; u.payAcc = 0; u.buy(); sfx.unlock(); sparkle(u.x, u.z); u.cool = CFG.buildCool; writeSave(); }
+      if (u.paid >= p) { u.paid = 0; u.payAcc = 0; sparkle(u.x, u.z); u.buy(); sfx.unlock(); u.cool = CFG.buildCool; writeSave(); }
       u.refresh();
     } else u.payAcc = 0;
   }
