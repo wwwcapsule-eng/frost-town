@@ -36,10 +36,10 @@
   #joy{position:fixed;width:120px;height:120px;margin:-60px 0 0 -60px;border-radius:50%;background:rgba(255,255,255,.25);
     border:3px solid rgba(255,255,255,.6);display:none;pointer-events:none}
   #knob{position:absolute;left:50%;top:50%;width:52px;height:52px;margin:-26px 0 0 -26px;border-radius:50%;background:rgba(255,255,255,.85)}
-  #lose{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(20,30,50,.7);z-index:20}
-  #lose .box{background:#fff;border-radius:18px;padding:24px 28px;text-align:center;font-weight:700;color:#333;max-width:80vw}
-  #lose .big{font-size:28px;font-weight:900;margin-bottom:6px}
-  #lose button{margin-top:16px;font-size:20px;font-weight:900;border:0;border-radius:12px;padding:12px 28px;background:#ffd34d;color:#333}
+  #lose,#lvup{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(20,30,50,.7);z-index:20}
+  .box{background:#fff;border-radius:18px;padding:24px 28px;text-align:center;font-weight:700;color:#333;max-width:80vw;line-height:1.7}
+  .box .big{font-size:28px;font-weight:900;margin-bottom:6px}
+  .box button{margin-top:16px;font-size:20px;font-weight:900;border:0;border-radius:12px;padding:12px 28px;background:#ffd34d;color:#333}
 </style>
 </head>
 <body>
@@ -59,12 +59,13 @@
 <div id="joy"><div id="knob"></div></div>
 <button id="reset">重新開始</button>
 <div id="lose"><div class="box"><div class="big">🐻 營地失守了</div><div>所有建築都被熊拆掉了</div><button id="retry">重新開始</button></div></div>
+<div id="lvup"><div class="box"><div class="big" id="lvTitle"></div><div id="lvList"></div><button id="lvOk">太好了！</button></div></div>
 <button id="mute"></button>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 'use strict';
-const VERSION = '0.25';
+const VERSION = '0.26';
 
 // ===== 數值（之後平衡都改這裡） =====
 const CFG = {
@@ -89,12 +90,14 @@ const CFG = {
   popBase: 2,               // 一開始的人口（主角和夥伴），每個伐木工 +1
   housePop: 5, housePrice: [25, 15], // 每間民房住幾人；民房價錢：第一間 25，之後每間多 15
   fuelMax: 100, fuelBurn: 0.4, fuelPerLog: 5, heat: [10, 17], // 火爐：柴滿 100、每秒燒 0.4、一根木頭 +5；暖氣圈半徑（最小、最大）
+  heatUp: 7, furnaceUpPrice: 150, // 火爐升級（村莊解鎖）：暖氣圈最大半徑 +7
 };
 // 城市等級：人口到門檻就升級（藍圖見 docs/企劃評估.md 第 8 節）；houses＝這一級最多能蓋幾間民房
+// cam＝鏡頭拉遠倍數；unlock＝升級卡片上列的新東西
 const LEVELS = [
-  { name: '營地', icon: '🏕️', need: 0, houses: 4 },
-  { name: '村莊', icon: '🏘️', need: 20, houses: 12 },
-  { name: '小鎮', icon: '🏙️', need: 80, houses: 12 },
+  { name: '營地', icon: '🏕️', need: 0, houses: 4, cam: 1 },
+  { name: '村莊', icon: '🏘️', need: 20, houses: 12, cam: 1.25, unlock: ['🏠 民房上限 4 → 12 間', '🔥 火爐升級：暖氣圈變大'] },
+  { name: '小鎮', icon: '🏙️', need: 80, houses: 12, cam: 1.45, unlock: ['🚧 小鎮的新玩法製作中，敬請期待'] },
 ];
 
 // ===== 存檔 =====
@@ -604,7 +607,8 @@ function updateFurnace(dt) {
     fly(m, wp, () => new THREE.Vector3(FX, 1.2, FZ), 0.3, () => { scene.remove(m); f.pend--; f.fuel = Math.min(CFG.fuelMax, f.fuel + CFG.fuelPerLog); });
   }
   const pct = Math.round(f.fuel / CFG.fuelMax * 100);
-  f.r = f.fuel > 0 ? CFG.heat[0] + (CFG.heat[1] - CFG.heat[0]) * Math.min(1, pct / 50) : 0;
+  const rMax = CFG.heat[1] + (save.furnace ? CFG.heatUp : 0);
+  f.r = f.fuel > 0 ? CFG.heat[0] + (rMax - CFG.heat[0]) * Math.min(1, pct / 50) : 0;
   heatRing.scale.setScalar(Math.max(0.001, f.r)); heatFill.scale.setScalar(Math.max(0.001, f.r));
   flame.visible = f.fuel > 0; flame.scale.setScalar(0.4 + 0.6 * pct / 100); flame.scale.y *= 1 + Math.sin(guideT * 20) * 0.12;
   for (const b of buildings) b.cold = Math.hypot(b.x - FX, b.z - FZ) > f.r;
@@ -613,6 +617,25 @@ function updateFurnace(dt) {
   furnaceLabel.set(['火爐 ' + pct + '%', pct < 50 ? '🪵 揹木頭來加柴' : '🔥 暖氣範圍'], pct > 50 ? '#ffd34d' : pct > 20 ? '#ffa040' : '#ff6a5a');
   $('fuel').textContent = pct; $('pFuel').classList.toggle('danger', pct < 20);
 }
+
+// ===== 城市等級升級：人口到門檻 → 暫停、跳出「新解鎖」卡片、鏡頭拉遠、出現新付款格 =====
+let paused = false, furnaceUnlock = null;
+function levelUnlocks() {
+  if (houseUnlock.done && save.houses < LEVELS[save.level].houses) houseUnlock = addHouseUnlock();
+  if (save.level >= 1 && !save.furnace && !furnaceUnlock) furnaceUnlock = makeUnlock({ x: 2.2, z: -4, icon: '🔥', name: () => '火爐升級',
+    price: () => save.furnace ? null : CFG.furnaceUpPrice, buy: () => { save.furnace = 1; toast('暖氣圈變大了！'); } });
+}
+levelUnlocks();
+function checkLevel() {
+  const next = LEVELS[save.level + 1];
+  if (!next || population() < next.need) return;
+  save.level++; writeSave(); levelUnlocks(); resize();
+  $('lvTitle').textContent = '🎉 升級為' + next.name + '！';
+  $('lvList').innerHTML = '新解鎖：<br>' + next.unlock.join('<br>');
+  $('lvup').style.display = 'flex'; paused = true;
+  sfx.unlock(); sparkle(player.position.x, player.position.z);
+}
+document.getElementById('lvOk').onclick = () => { $('lvup').style.display = 'none'; paused = false; clock.getDelta(); };
 // 圍欄裡外要走門：先走到最近的門口，穿過門再走向目標
 function routeTo(w, x, z, dt) {
   const px = w.g.position.x, pz = w.g.position.z, rIn = Math.hypot(px, pz) < FENCE_R, tIn = Math.hypot(x, z) < FENCE_R;
@@ -853,7 +876,7 @@ function resize() {
   const w = innerWidth, h = innerHeight;
   renderer.setSize(w, h); camera.aspect = w / h;
   camera.fov = 40;
-  camOffset.copy(camBase).multiplyScalar((w < h ? Math.min(1.9, 1 + (h / w - 1) * 0.75) : 1) * zoom); // 直式（手機）鏡頭拉遠
+  camOffset.copy(camBase).multiplyScalar((w < h ? Math.min(1.9, 1 + (h / w - 1) * 0.75) : 1) * zoom * LEVELS[save.level].cam); // 直式（手機）、城市等級越高，鏡頭越遠
   camera.updateProjectionMatrix();
 }
 addEventListener('resize', resize);
@@ -952,7 +975,7 @@ function updateBuildings(dt) {
 }
 
 function step(dt) {
-  if (gameOver) return;
+  if (gameOver || paused) return;
   // 移動
   let ix = joy.x, iy = joy.y;
   if (keys.KeyA || keys.ArrowLeft) ix -= 1; if (keys.KeyD || keys.ArrowRight) ix += 1;
@@ -1113,6 +1136,7 @@ function step(dt) {
   updateGate(dt);
   updateFurnace(dt);
   updateBuildings(dt);
+  checkLevel();
   updateHero(dt);
   updateDoors(dt);
   // 飛行動畫
