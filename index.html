@@ -79,7 +79,7 @@
 </div>
 <div id="bars">
   <div class="bar" id="hpBar"><i></i><span>❤️ <b id="hp">100</b></span></div>
-  <div class="bar" id="fuelBar"><i></i><span>🔥 營火 <b id="fuel">100</b>%</span></div>
+  <div class="bar" id="fuelBar"><i></i><span>🔥 <em id="fireName" style="font-style:normal">營火</em> <b id="fuel">100</b>%</span></div>
 </div>
 <div id="goal"></div>
 <div id="alert"></div>
@@ -103,7 +103,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 'use strict';
-const VERSION = '0.38';
+const VERSION = '0.39';
 
 // ===== 數值（之後平衡都改這裡） =====
 const CFG = {
@@ -129,6 +129,7 @@ const CFG = {
   popBase: 2,               // 一開始的人口（主角和夥伴），每個伐木工 +1
   housePop: 5, housePrice: [25, 15], // 每間民房住幾人；民房價錢：第一間 25，之後每間多 15
   fuelMax: 100, fuelBurn: 0.4, fuelPerLog: 5, heat: [10, 17], // 火爐：柴滿 100、每秒燒 0.4、一根木頭 +5；暖氣圈半徑（最小、最大）
+  stovePrice: [250, 400, 600], stoveBurn: 0.8, stoveHeat: 2, // 石爐 Lv4～6（領地 Lv3＋煤礦後）：價錢、每級燒柴變成幾成、每級暖氣圈 +2
   terrPrice: [60, 150], terrNeedBuys: 3, // 營火升級（擴大領地）：Lv1 60 元（升級任意 3 個項目後出現）、Lv2 150 元（村莊＋開拓東邊後）
   minePrice: 100, coalHp: 4, coalPerRock: 2, coalRegrow: 20, fuelPerCoal: 20, // 煤礦（村莊解鎖）：價錢、敲幾下、掉幾塊、幾秒長回來；一塊煤 = 火爐 +20（木頭只有 +5）
   snowEvery: 7, snowMax: 10, snowHp: 3, snowSlow: 0.45, shovelPrice: 60, // 雪堆（村莊開始）：幾秒積一堆、最多幾堆、鏟幾下、踩到剩幾成速度、鏟雪工價錢
@@ -159,7 +160,7 @@ const ROCK_LOTS = [[-11.2, -0.6], [-10.2, 2.2], [-11.6, -3.4], [-9.9, -6.2], [-1
 
 // ===== 存檔 =====
 const SAVE_KEY = 'frost-town-save-v1';
-let save = { cash: 0, bag: 0, axe: 0, east: false, mill2: false, tower: false, workers: 0, level: 0, houses: 0 };
+let save = { cash: 0, bag: 0, axe: 0, east: false, mill2: false, tower: false, workers: 0, level: 0, houses: 0, stove: 0 };
 try { Object.assign(save, JSON.parse(localStorage.getItem(SAVE_KEY) || '{}')); } catch (e) {}
 if (save.territory == null) save.territory = save.furnace ? (save.east ? 2 : 1) : 0;          // 舊進度：火爐升級過就當作領地擴大過
 if (save.buys == null) save.buys = (save.bag || 0) + (save.axe || 0) + (save.tower ? 1 : 0) + (save.tower2 ? 1 : 0) + (save.workers || 0) + (save.east ? 1 : 0) + (save.mill2 ? 1 : 0);
@@ -695,7 +696,15 @@ const furnace = { fuel: save.fuel ?? CFG.fuelMax, pend: 0, r: 0, out: false };
 const fg = new THREE.Group();
 const stone = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 1.1, 0.7, 8), M(0x8a8f99)); stone.position.y = 0.35; stone.castShadow = stone.receiveShadow = true; fg.add(stone);
 const flame = new THREE.Mesh(new THREE.ConeGeometry(0.55, 1.2, 6), new THREE.MeshBasicMaterial({ color: 0xff8a1f })); flame.position.y = 1.2; fg.add(flame);
+// 石爐（營火 Lv4～6）：石砌方爐＋煙囪，換掉原本的石圈
+const stoveG = new THREE.Group(); fg.add(stoveG);
+const sBase = new THREE.Mesh(new THREE.BoxGeometry(2.2, 1, 2.2), M(0x6f747d)); sBase.position.y = 0.5; sBase.castShadow = sBase.receiveShadow = true; stoveG.add(sBase);
+const sChim = new THREE.Mesh(new THREE.BoxGeometry(0.5, 1.6, 0.5), M(0x5a5f68)); sChim.position.set(0.65, 1.6, -0.65); sChim.castShadow = true; stoveG.add(sChim);
 fg.position.set(FX, 0, FZ); scene.add(fg);
+const fireLv = () => 1 + save.territory + save.stove;              // 營火等級：Lv1～3 營火（＝領地）、Lv4～6 石爐（企劃 9.3）
+const fireName = () => save.stove ? '石爐' : '營火';
+function updateStoveLook() { stoveG.visible = save.stove > 0; stone.visible = !save.stove; flame.position.y = save.stove ? 1.4 + 0.15 * save.stove : 1.2; }
+updateStoveLook();
 const heatRing = new THREE.Mesh(new THREE.RingGeometry(0.985, 1, 96), new THREE.MeshBasicMaterial({ color: 0xff9a3c, transparent: true, opacity: 0.8, depthWrite: false }));
 const heatFill = new THREE.Mesh(new THREE.CircleGeometry(1, 64), new THREE.MeshBasicMaterial({ color: 0xffb060, transparent: true, opacity: 0.1, depthWrite: false }));
 [heatRing, heatFill].forEach(m => { m.rotation.x = -Math.PI / 2; m.position.set(FX, 0.025, FZ); scene.add(m); });
@@ -728,7 +737,7 @@ function updateFireLook(dt, pct) {
 let feedCd = 0;
 function updateFurnace(dt) {
   const f = furnace;
-  f.fuel = Math.max(0, f.fuel - CFG.fuelBurn * (coldWave.on > 0 ? CFG.coldBurn : 1) * dt); save.fuel = Math.round(f.fuel * 10) / 10;
+  f.fuel = Math.max(0, f.fuel - CFG.fuelBurn * CFG.stoveBurn ** save.stove * (coldWave.on > 0 ? CFG.coldBurn : 1) * dt); save.fuel = Math.round(f.fuel * 10) / 10;
   // 揹木頭站到火爐旁，一根根丟進去
   feedCd -= dt;
   const types = carried.map(m => m.userData.type), kc = types.lastIndexOf('coal'), k = kc >= 0 ? kc : types.lastIndexOf('log'); // 有煤先丟煤
@@ -740,7 +749,7 @@ function updateFurnace(dt) {
     fly(m, wp, () => new THREE.Vector3(FX, 1.2, FZ), 0.3, () => { scene.remove(m); f.pend -= per; f.fuel = Math.min(CFG.fuelMax, f.fuel + per); });
   }
   const pct = Math.round(f.fuel / CFG.fuelMax * 100);
-  const rMax = CFG.heat[1] + TERR[save.territory].heat;
+  const rMax = CFG.heat[1] + TERR[save.territory].heat + CFG.stoveHeat * save.stove;
   f.r = f.fuel > 0 ? CFG.heat[0] + (rMax - CFG.heat[0]) * Math.min(1, pct / 50) : 0;
   if (coldWave.on > 0) f.r *= CFG.coldShrink; // 寒潮：暖氣圈縮小
   heatRing.scale.setScalar(Math.max(0.001, f.r)); heatFill.scale.setScalar(Math.max(0.001, f.r));
@@ -751,9 +760,9 @@ function updateFurnace(dt) {
   if (f.fuel <= 0 && !f.out) { toast('🔥 火爐熄了！建築都凍住了，快加柴！'); beep(180, 0.4, 'sawtooth', 0.06, 0.6); }
   f.out = f.fuel <= 0;
   furnaceLabel.visible = pct < 50 || Math.hypot(player.position.x - FX, player.position.z - FZ) < 5;
-  furnaceLabel.set(['火爐 ' + pct + '%', pct < 50 ? (save.mine ? '🪵⚫ 揹木頭或煤來加' : '🪵 揹木頭來加柴') : '🔥 暖氣範圍'], pct > 50 ? '#ffd34d' : pct > 20 ? '#ffa040' : '#ff6a5a');
+  furnaceLabel.set([fireName() + ' Lv' + fireLv() + ' ' + pct + '%', pct < 50 ? (save.mine ? '🪵⚫ 揹木頭或煤來加' : '🪵 揹木頭來加柴') : '🔥 暖氣範圍'], pct > 50 ? '#ffd34d' : pct > 20 ? '#ffa040' : '#ff6a5a');
   updateFireLook(dt, pct);
-  $('fuel').textContent = pct; $('fuelBar').firstElementChild.style.width = pct + '%'; $('fuelBar').classList.toggle('danger', pct < 20);
+  $('fuel').textContent = pct; $('fireName').textContent = fireName(); $('fuelBar').firstElementChild.style.width = pct + '%'; $('fuelBar').classList.toggle('danger', pct < 20);
 }
 
 // ===== 煤礦：營地西南邊的黑色礦石，買下後主角敲得到；煤丟進火爐很耐燒（伐木工不挖煤） =====
@@ -869,7 +878,7 @@ const ghost = box(2.2, 1.4, 2, new THREE.MeshLambertMaterial({ color: 0xffffff, 
 function planCost(k) { return k === 'house' ? housePrice() : CFG.heaterPrice; }
 function planLimit(k) {
   const lv = LEVELS[save.level];
-  return k === 'house' ? houses.length < lv.houses : heaters.length < lv.heaters;
+  return k === 'house' ? houses.length < lv.houses : heaters.length < lv.heaters + (save.stove ? 1 : 0);
 }
 function canBuild(x, z) {
   const r = Math.hypot(x, z), d = (a, b) => Math.hypot(a - x, b - z);
@@ -889,7 +898,7 @@ function canBuild(x, z) {
 function planUi() {
   const lv = LEVELS[save.level];
   $('pkHouse').textContent = planLimit('house') ? '💵 ' + planCost('house') : '已滿 ' + lv.houses + ' 間';
-  $('pkHeater').textContent = planLimit('heater') ? '💵 ' + planCost('heater') : lv.heaters ? '已滿 ' + lv.heaters + ' 座' : '村莊解鎖';
+  $('pkHeater').textContent = planLimit('heater') ? '💵 ' + planCost('heater') : lv.heaters ? '已滿 ' + (lv.heaters + (save.stove ? 1 : 0)) + ' 座' : '村莊解鎖';
   document.querySelectorAll('#planBar [data-k]').forEach(b => b.classList.toggle('sel', b.dataset.k === plan.kind));
   let tip = '先選一種建築，再點地上的格子（拖曳可以移動畫面）', ok = false;
   if (plan.kind && plan.cell) {
@@ -947,13 +956,20 @@ function planCamera(dt) {
 }
 
 // ===== 城市等級升級：人口到門檻 → 暫停、跳出「新解鎖」卡片、鏡頭拉遠、出現新付款格 =====
-let paused = false, terrUnlock = null, eastUnlock = null, mill2Unlock = null;
+let paused = false, stoveUnlock = null, terrUnlock = null, eastUnlock = null, mill2Unlock = null;
 // 營火升級＝擴大領地：Lv1 升級任意 3 個項目後出現；Lv2 要村莊等級＋已開拓東邊
 function terrReady() { return save.territory === 0 ? save.buys >= CFG.terrNeedBuys : save.territory === 1 && save.level >= 1 && save.east; }
 function levelUnlocks() {
   if (terrUnlock && terrUnlock.done) terrUnlock = null;
   if (!terrUnlock && terrReady()) terrUnlock = makeUnlock({ x: LOT.terr[0], z: LOT.terr[1], icon: '🔥', name: () => '營火升級 Lv' + (save.territory + 1),
     price: () => terrUnlock && terrUnlock.waiting ? null : CFG.terrPrice[save.territory], buy: () => { expandTerritory(); terrUnlock.waiting = true; } });
+  // 石爐：領地升到最大（營火 Lv3）＋有煤礦後，同一格繼續升 Lv4～6
+  if (!stoveUnlock && save.stove < 3 && save.territory >= 2 && save.mine && (!terrUnlock || terrUnlock.waiting)) {
+    stoveUnlock = makeUnlock({ x: LOT.terr[0], z: LOT.terr[1], icon: '🪨', name: () => (save.stove ? '石爐升級' : '蓋石爐') + ' Lv' + (fireLv() + 1),
+      price: () => CFG.stovePrice[save.stove] ?? null, buy: () => { save.stove++; updateStoveLook(); sparkle(FX, FZ);
+        toast(save.stove === 1 ? '🪨 營火進化成石爐！更耐燒、暖氣更大、暖氣塔 +1 座' : '🪨 石爐升級！更耐燒、暖氣更大'); } });
+    stoveUnlock.cool = CFG.buildCool;
+  }
   if (!eastUnlock && !save.east && save.territory >= 1) eastUnlock = makeUnlock({ x: FENCE_R - 2.2, z: 0, icon: '🌲', name: () => '開拓東邊',
     price: () => save.east ? null : 50, buy: () => { save.east = true; openEast(); buildDoorsAll(); toast('東邊開放了！現在可以蓋民房、第二台鋸木機'); } });
   if (!mill2Unlock && !save.mill2 && save.east) mill2Unlock = makeUnlock({ x: LOT.mill2[0], z: LOT.mill2[1], icon: '🪚', name: () => '第二台鋸木機',
@@ -1369,6 +1385,7 @@ const GOALS = [
   { t: () => '開採煤礦，煤很耐燒', done: () => !!save.mine },
   { t: () => '營火升級 Lv2，領地再擴大', done: () => save.territory >= 2 },
   { t: () => '用🏗️規劃模式蓋民房，人口到 80（' + population() + '/80）', done: () => save.level >= 2 },
+  { t: () => '把營火進化成石爐（營火 Lv4）', done: () => save.stove >= 1 },
   { t: () => '城市的新玩法製作中，繼續擴張吧！', done: () => false },
 ];
 save.goal = save.goal || 0;
