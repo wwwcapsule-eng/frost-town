@@ -19,6 +19,7 @@
   .cap{font-size:13px;opacity:.75}
   .pill.full{background:rgba(200,120,20,.85)}
   .pill.danger{background:rgba(200,40,40,.85);animation:blink .8s infinite}
+  #frost{position:fixed;inset:0;pointer-events:none;box-shadow:inset 0 0 110px 40px rgba(150,210,255,.7);background:rgba(170,215,255,.12);opacity:0;transition:opacity 1s}
   #vignette{position:fixed;inset:0;pointer-events:none;box-shadow:inset 0 0 80px 20px rgba(220,30,30,.55);opacity:0;transition:opacity .4s}
   @keyframes bump{50%{transform:scale(1.15)}}
   #title{position:fixed;top:calc(10px + env(safe-area-inset-top));left:12px;color:#25415e;font-weight:900;font-size:20px;
@@ -49,11 +50,13 @@
   <div class="pill" id="pCash">💵 <b id="cash">0</b></div>
   <div class="pill" id="pMeat">🍖 <b id="meat">0</b><span class="cap" id="capM"></span></div>
   <div class="pill" id="pWood">🪵 <b id="wood">0</b><span class="cap" id="capW"></span></div>
+  <div class="pill" id="pCold" style="display:none">❄️ <b id="cold">--</b></div>
   <div class="pill" id="pFuel">🔥 <b id="fuel">100</b><span class="cap">%</span></div>
   <div class="pill" id="pHp">❤️ <b id="hp">100</b></div>
   <div class="pill" id="pRaid">🐻 <b id="raid">--</b></div>
 </div>
 <div id="vignette"></div>
+<div id="frost"></div>
 <div id="toast"></div>
 <div id="hint"></div>
 <div id="joy"><div id="knob"></div></div>
@@ -65,7 +68,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 'use strict';
-const VERSION = '0.26';
+const VERSION = '0.27';
 
 // ===== 數值（之後平衡都改這裡） =====
 const CFG = {
@@ -90,7 +93,8 @@ const CFG = {
   popBase: 2,               // 一開始的人口（主角和夥伴），每個伐木工 +1
   housePop: 5, housePrice: [25, 15], // 每間民房住幾人；民房價錢：第一間 25，之後每間多 15
   fuelMax: 100, fuelBurn: 0.4, fuelPerLog: 5, heat: [10, 17], // 火爐：柴滿 100、每秒燒 0.4、一根木頭 +5；暖氣圈半徑（最小、最大）
-  heatUp: 7, furnaceUpPrice: 150, // 火爐升級（村莊解鎖）：暖氣圈最大半徑 +7
+  heatUp: 7, furnaceUpPrice: 150,
+  coldFirst: 120, coldEvery: 150, coldLen: 30, coldBurn: 3, coldShrink: 0.75, coldReward: 30, // 寒潮（村莊開始）：第一次幾秒後、之後每幾秒、持續幾秒、火爐燒幾倍快、暖氣圈縮成幾成、撐過去的獎金 // 火爐升級（村莊解鎖）：暖氣圈最大半徑 +7
 };
 // 城市等級：人口到門檻就升級（藍圖見 docs/企劃評估.md 第 8 節）；houses＝這一級最多能蓋幾間民房
 // cam＝鏡頭拉遠倍數；unlock＝升級卡片上列的新東西
@@ -596,7 +600,7 @@ const furnaceLabel = makeLabel(); furnaceLabel.scale.set(2.6, 1.3, 1); furnaceLa
 let feedCd = 0;
 function updateFurnace(dt) {
   const f = furnace;
-  f.fuel = Math.max(0, f.fuel - CFG.fuelBurn * dt); save.fuel = Math.round(f.fuel * 10) / 10;
+  f.fuel = Math.max(0, f.fuel - CFG.fuelBurn * (coldWave.on > 0 ? CFG.coldBurn : 1) * dt); save.fuel = Math.round(f.fuel * 10) / 10;
   // 揹木頭站到火爐旁，一根根丟進去
   feedCd -= dt;
   const k = carried.map(m => m.userData.type).lastIndexOf('log');
@@ -609,6 +613,7 @@ function updateFurnace(dt) {
   const pct = Math.round(f.fuel / CFG.fuelMax * 100);
   const rMax = CFG.heat[1] + (save.furnace ? CFG.heatUp : 0);
   f.r = f.fuel > 0 ? CFG.heat[0] + (rMax - CFG.heat[0]) * Math.min(1, pct / 50) : 0;
+  if (coldWave.on > 0) f.r *= CFG.coldShrink; // 寒潮：暖氣圈縮小
   heatRing.scale.setScalar(Math.max(0.001, f.r)); heatFill.scale.setScalar(Math.max(0.001, f.r));
   flame.visible = f.fuel > 0; flame.scale.setScalar(0.4 + 0.6 * pct / 100); flame.scale.y *= 1 + Math.sin(guideT * 20) * 0.12;
   for (const b of buildings) b.cold = Math.hypot(b.x - FX, b.z - FZ) > f.r;
@@ -616,6 +621,31 @@ function updateFurnace(dt) {
   f.out = f.fuel <= 0;
   furnaceLabel.set(['火爐 ' + pct + '%', pct < 50 ? '🪵 揹木頭來加柴' : '🔥 暖氣範圍'], pct > 50 ? '#ffd34d' : pct > 20 ? '#ffa040' : '#ff6a5a');
   $('fuel').textContent = pct; $('pFuel').classList.toggle('danger', pct < 20);
+}
+
+// ===== 寒潮：村莊開始，每隔一段時間氣溫驟降 30 秒，火爐燒得快、暖氣圈縮小；撐過去（火沒熄）有獎金 =====
+const coldWave = { t: save.coldT ?? CFG.coldFirst, on: 0, failed: false };
+function updateColdWave(dt) {
+  const active = save.level >= 1;
+  $('pCold').style.display = active ? '' : 'none';
+  if (!active) { $('frost').style.opacity = 0; return; }
+  const c = coldWave;
+  if (c.on > 0) {
+    c.on -= dt; if (furnace.out) c.failed = true;
+    if (c.on <= 0) {
+      c.t = CFG.coldEvery;
+      if (!c.failed) { save.cash += CFG.coldReward; sfx.unlock(); toast('撐過寒潮了！獎金 +' + CFG.coldReward + ' 元'); }
+      else toast('寒潮過去了…下次記得先把火爐加滿柴');
+    }
+  } else {
+    c.t -= dt;
+    if (c.t <= 0) { c.on = CFG.coldLen; c.failed = false; toast('❄️ 寒潮來了！火爐燒得更快，撐住 ' + CFG.coldLen + ' 秒！'); beep(300, 0.6, 'triangle', 0.06, 0.4); }
+    else if (Math.ceil(c.t) === 15 && Math.ceil(c.t + dt) > 15) toast('❄️ 15 秒後寒潮來襲，先把火爐加滿柴！');
+  }
+  save.coldT = Math.max(0, Math.round(c.t));
+  $('cold').textContent = c.on > 0 ? '寒潮中！' + Math.ceil(c.on) : Math.ceil(c.t) + ' 秒';
+  $('pCold').classList.toggle('danger', c.on > 0);
+  $('frost').style.opacity = c.on > 0 ? 1 : 0;
 }
 
 // ===== 城市等級升級：人口到門檻 → 暫停、跳出「新解鎖」卡片、鏡頭拉遠、出現新付款格 =====
@@ -1134,6 +1164,7 @@ function step(dt) {
   updateTower(dt);
   updateWorkers(dt);
   updateGate(dt);
+  updateColdWave(dt);
   updateFurnace(dt);
   updateBuildings(dt);
   checkLevel();
@@ -1151,7 +1182,7 @@ function step(dt) {
 
   // 下雪
   for (let i = 0; i < snowN; i++) {
-    snowPos[i * 3 + 1] -= dt * 1.5;
+    snowPos[i * 3 + 1] -= dt * (coldWave.on > 0 ? 5 : 1.5); // 寒潮時雪下得又快又急
     if (snowPos[i * 3 + 1] < 0) {
       snowPos[i * 3 + 1] = 18;
       snowPos[i * 3] = player.position.x + rand(-25, 25); snowPos[i * 3 + 2] = player.position.z + rand(-25, 25);
@@ -1178,7 +1209,7 @@ function loop() {
 }
 loop();
 addEventListener('visibilitychange', () => { if (document.hidden) writeSave(); });
-window.__game = { hero, save, furnace, houses, player, carried, mills, unlocks, trees, bears, gate, buildings, towers, step, render: () => renderer.render(scene, camera) }; // 測試用
+window.__game = { coldWave, hero, save, furnace, houses, player, carried, mills, unlocks, trees, bears, gate, buildings, towers, step, render: () => renderer.render(scene, camera) }; // 測試用
 </script>
 </body>
 </html>
