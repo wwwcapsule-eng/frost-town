@@ -45,6 +45,7 @@
 <body>
 <div id="title">寒霜小鎮<small id="ver"></small></div>
 <div id="hud">
+  <div class="pill" id="pPop">👥 <b id="pop">0</b><span class="cap" id="capP"></span></div>
   <div class="pill" id="pCash">💵 <b id="cash">0</b></div>
   <div class="pill" id="pMeat">🍖 <b id="meat">0</b><span class="cap" id="capM"></span></div>
   <div class="pill" id="pWood">🪵 <b id="wood">0</b><span class="cap" id="capW"></span></div>
@@ -62,8 +63,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 'use strict';
-const VERSION = '0.22';
-document.getElementById('ver').textContent = 'v' + VERSION + '　灰盒原型';
+const VERSION = '0.23';
 
 // ===== 數值（之後平衡都改這裡） =====
 const CFG = {
@@ -86,11 +86,18 @@ const CFG = {
   gateHp: 100, raidEvery: 60, raidFirst: 90, raidBears: 2, bearDps: 1.5, // 北門血量、熊群幾秒來一次、一次幾隻、每隻每秒傷害
   workerSpeed: 3.6, workerChop: 0.6, workerLoad: 6, // 伐木工：速度約主角 60%、出手間隔、一次揹幾根
   payRate: 1.1,             // 付款格：幾秒內付完整筆
+  popBase: 2,               // 一開始的人口（主角和夥伴），每個伐木工 +1
 };
+// 城市等級：人口到門檻就升級（藍圖見 docs/企劃評估.md 第 8 節）
+const LEVELS = [
+  { name: '營地', icon: '🏕️', need: 0 },
+  { name: '村莊', icon: '🏘️', need: 20 },
+  { name: '小鎮', icon: '🏙️', need: 80 },
+];
 
 // ===== 存檔 =====
 const SAVE_KEY = 'frost-town-save-v1';
-let save = { cash: 0, bag: 0, axe: 0, east: false, mill2: false, tower: false, workers: 0 };
+let save = { cash: 0, bag: 0, axe: 0, east: false, mill2: false, tower: false, workers: 0, level: 0 };
 try { Object.assign(save, JSON.parse(localStorage.getItem(SAVE_KEY) || '{}')); } catch (e) {}
 let resetting = false; // 重新開始時不要再把舊進度寫回去
 function writeSave() { if (resetting) return; try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) {} }
@@ -709,7 +716,11 @@ function fly(mesh, from, toFn, dur, onDone, arc = 1.5) {
 // ===== HUD =====
 const $ = id => document.getElementById(id);
 let shownCash = -1, shownWood = -1;
+function population() { return CFG.popBase + save.workers; }
 function hud() {
+  const lv = LEVELS[save.level], next = LEVELS[save.level + 1];
+  $('pop').textContent = population(); $('capP').textContent = next ? '/' + next.need : '';
+  $('ver').textContent = 'v' + VERSION + '　' + lv.icon + ' ' + lv.name;
   if (shownCash !== save.cash) { $('cash').textContent = save.cash; bump('pCash'); shownCash = save.cash; }
   const nMeat = carried.filter(m => m.userData.type === 'meat').length, nLog = carried.length - nMeat;
   if (shownWood !== carried.length * 1000 + nMeat) { $('wood').textContent = nLog; $('meat').textContent = nMeat; shownWood = carried.length * 1000 + nMeat; }
