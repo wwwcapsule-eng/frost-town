@@ -12,24 +12,24 @@ function buildPlanned(p, i) {
 }
 save.plan.forEach(buildPlanned);
 const plan = { on: false, kind: null, cell: null, cx: 0, cz: 2, down: null };
-const grid = new THREE.GridHelper(66, 22, 0x25415e, 0x25415e); // 深藍色，雪地上也看得到
+const grid = new THREE.GridHelper(90, 30, 0x25415e, 0x25415e); // 深藍色，雪地上也看得到
 grid.material.transparent = true; grid.material.opacity = 0.3; grid.position.set(0, 0.06, 0); grid.visible = false; scene.add(grid);
 const cursor = new THREE.Mesh(new THREE.PlaneGeometry(CFG.cell * 0.94, CFG.cell * 0.94), new THREE.MeshBasicMaterial({ color: 0x5fd068, transparent: true, opacity: 0.5, depthWrite: false }));
 cursor.rotation.x = -Math.PI / 2; cursor.position.y = 0.07; cursor.visible = false; scene.add(cursor);
 const ghost = box(2.2, 1.4, 2, new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true, opacity: 0.55 })); ghost.visible = false; scene.add(ghost);
 // 分區（企劃 9.1，正式關）：民房區＝南邊 z > 3；防禦區＝北邊熊來的方向 z < -12；工業區＝西邊煤礦那側 x < -7；其他是加工區（鋸木機、烤肉攤）
-const zoneOf = (x, z) => z > 3 ? 'house' : z < -12 ? 'def' : x < -7 ? 'ind' : 'work';
+const zoneOf = (x, z) => z > 3 * TS ? 'house' : z < -12 * TS ? 'def' : x < -7 * TS ? 'ind' : 'work';
 const KIND_ZONE = { house: 'house', mill: 'work', grill: 'work', smith: 'ind', tower: 'def' };  // 暖氣塔哪一區都能蓋
 const ZONE_TXT = { house: '綠色的民房區', work: '橘色的加工區', ind: '紫色的工業區', def: '紅色的防禦區' };
 const zones = new THREE.Group(); zones.visible = false; scene.add(zones);
 [[56, 25, 0, 15.5, 0x5fd068], [35, 15, 10.5, -4.5, 0xffa53d], [21, 15, -17.5, -4.5, 0xa77be0], [56, 16, 0, -20, 0xe05a5a]].forEach(([w, h, x, z, c]) => {
   const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 0.16, depthWrite: false }));
-  m.rotation.x = -Math.PI / 2; m.position.set(x, 0.055, z); zones.add(m);
+  m.scale.set(TS, TS, 1); m.rotation.x = -Math.PI / 2; m.position.set(x * TS, 0.055, z * TS); zones.add(m);
 });
 // 正式關推薦位置（自己蓋、託管都會先幫你放好）：從火爐往外找第一個能蓋的格子（越近越暖、越好走）
 function autoSpot(k) {
   const c = CFG.cell, cells = [];
-  for (let i = -9; i < 9; i++) for (let j = -9; j < 9; j++) cells.push([(i + 0.5) * c, (j + 0.5) * c]);
+  for (let i = -12; i < 12; i++) for (let j = -12; j < 12; j++) cells.push([(i + 0.5) * c, (j + 0.5) * c]);
   const [ox, oz] = k === 'tower' ? [0, -FENCE_R - 3] : [FX, FZ];  // 弩砲塔：靠近北門外熊來的路；其他：靠近火爐比較暖
   cells.sort((a, b) => Math.hypot(a[0] - ox, a[1] - oz) - Math.hypot(b[0] - ox, b[1] - oz));
   return cells.find(([x, z]) => canBuild(x, z, k)) || null;
@@ -56,9 +56,9 @@ function canBuild(x, z, k) {
   const big = !!BIG[k];
   if (big && !canBuild(x, z + 2.7, 'pad')) return false;                         // 門口前的付款格也要有空地
   const r = Math.hypot(x, z), d = (a, b) => Math.hypot(a - x, b - z);
-  if (r > 27 || Math.abs(r - FENCE_R) < 1.8 || d(FX, FZ) < 2.6) return false;
-  if (Math.abs(x - CX) < 1.8 && z > CZ - 1 && z < CZ + 17) return false;          // 村民排隊的路
-  if (Math.abs(x) < 4.5 && z < -6 && z > -13) return false;                        // 北門前
+  if (r > 27 * TS || Math.abs(r - FENCE_R) < 1.8 || d(FX, FZ) < 2.6) return false;
+  if (Math.abs(x - CX) < 1.8 && z > CZ - 1 && z < CZ + 17 * TS) return false;          // 村民排隊的路
+  if (Math.abs(x) < 4.5 && z < -FENCE_R + 4 && z > -FENCE_R - 3) return false;                        // 北門前
   if (buildings.some(b => d(b.x, b.z) < b.r + (big ? 2.2 : 1.6))) return false;
   if (unlocks.some(u => !u.done && d(u.x, u.z) < 2.3)) return false;
   if (mills.some(m => d(m.inPad.position.x, m.inPad.position.z) < 2 || d(m.outPad.position.x, m.outPad.position.z) < 2)) return false;
@@ -126,7 +126,7 @@ function planPointer(type, e) {
   if (Math.hypot(dx, dy) > 10) { d.moved = true; clearTimeout(lpTimer); }
   if (type === 'up') clearTimeout(lpTimer);
   const k = 0.05 * LEVELS[save.level].cam;                       // 拖曳：移動畫面
-  if (d.moved) { plan.cx = Math.max(-28, Math.min(28, d.cx - dx * k)); plan.cz = Math.max(-28, Math.min(28, d.cz - dy * k)); }
+  if (d.moved) { plan.cx = Math.max(-28 * TS, Math.min(28 * TS, d.cx - dx * k)); plan.cz = Math.max(-28 * TS, Math.min(28 * TS, d.cz - dy * k)); }
   if (type === 'up') {
     plan.down = null;
     if (d.moved) return;
@@ -303,7 +303,7 @@ function applyTerritory(init) {
     if (r < FENCE_R + 2.2 || nearTower(t.x, t.z)) { t.gone = true; t.alive = false; t.regrow = Infinity; scene.remove(t.g); if (!t.locked) moved++; }
   }
   for (let i = 0, tries = 0; i < moved && tries < 400; tries++) {  // 北邊森林往外補一樣多棵
-    const x = rand(-13, 9), z = rand(-FENCE_R - 14, -FENCE_R - 2.6);
+    const x = rand(-13, 9) * TS, z = rand(-FENCE_R - 14 * TS, -FENCE_R - 2.6);
     if (!nearNorthDoors(x, z, 1.2) && !nearTower(x, z) && trees.every(t => t.gone || (t.x - x) ** 2 + (t.z - z) ** 2 > 2.6)) { addTree(x, z, false); i++; }
   }
   for (const b of bears) if (!b.aggro && b.z > -FENCE_R - 2) { [b.x, b.z] = bearSpot(); }

@@ -1,8 +1,9 @@
 'use strict';
-const VERSION = '0.59';
+const VERSION = '0.60';
 
 // ===== 數值（之後平衡都改這裡） =====
 const CFG = {
+  townScale: 1.35,         // 城鎮放大倍數（v0.60）：所有位置 ×這個數，建築大小不變 → 建築之間更寬
   speed: 6,                 // 主角移動速度
   chopRange: 1.9,           // 自動砍樹距離
   chopInterval: [0.45, 0.32, 0.22, 0.15], // 斧頭各等級的出手間隔（秒）
@@ -44,18 +45,20 @@ const LEVELS = [
   { name: '城市', icon: '🌆', need: 300, houses: 40, heaters: 4, cam: 1.6, unlock: ['🚧 城市的新玩法製作中，敬請期待'] },
 ];
 
+const TS = CFG.townScale;
 // 領地等級：營火升級一次，圍欄往外推（r＝圍欄半徑）、暖氣圈變大（heat）、鏡頭拉遠一點（cam）
-const TERR = [ { r: 10, heat: 0, cam: 1.05 }, { r: 14, heat: 3, cam: 1.15 }, { r: 18.5, heat: 7, cam: 1.28 } ];
+const TERR = [ { r: 10 * TS, heat: 0, cam: 1.15 }, { r: 14 * TS, heat: 3, cam: 1.28 }, { r: 18.5 * TS, heat: 7, cam: 1.42 } ];
 // 地塊配置（作者 10/17 第二次回饋：每個建築、付款格都有自己的位置，不互擋）
 // 營火廣場在 (0,-3)；N-S 主路 x≈0；東路 z≈0；民房在南邊一圈圈的地塊上，門朝營火
 const LOT = {
   bag: [-2.8, -5.6], axe: [2.8, -5.6], terr: [-3.2, 1.6], worker: [3.2, 1.6], shovel: [5.4, 4.2], tower1: [3.6, -7.4], tower2: [-3.6, -7.4],
   mill: [6.4, -4], mill2: [-6.4, -4], bbq: [-4.6, 3.8], minePad: [-8, 3], truckCash: [-8, 3], truckStore: [-8.6, -0.4],
 };
+for (const k in LOT) if (!/^tower/.test(k)) LOT[k] = LOT[k].map(v => +(v * TS).toFixed(2)); // 弩砲塔貼著北門（門寬不變），不放大
 const HOUSE_LOTS = [];                    // 第 1 圈 6 間（Lv1 領地），第 2 圈 10 間（Lv2 領地）
-[[11.6, [35, 50, 65, 115, 130, 145], 1], [16.2, [30, 41, 52, 63, 74, 106, 117, 128, 139, 150], 2]].forEach(([r, angs, ring]) =>
+[[11.6 * TS, [35, 50, 65, 115, 130, 145], 1], [16.2 * TS, [30, 41, 52, 63, 74, 106, 117, 128, 139, 150], 2]].forEach(([r, angs, ring]) =>
   angs.forEach(a => HOUSE_LOTS.push({ x: +(Math.cos(a * Math.PI / 180) * r).toFixed(2), z: +(Math.sin(a * Math.PI / 180) * r).toFixed(2), ring })));
-const ROCK_LOTS = [[-11.2, -0.6], [-10.2, 2.2], [-11.6, -3.4], [-9.9, -6.2], [-12, 1]]; // 煤礦區（西邊，第 1 次擴大領地後圈進來）
+const ROCK_LOTS = [[-11.2, -0.6], [-10.2, 2.2], [-11.6, -3.4], [-9.9, -6.2], [-12, 1]].map(p => p.map(v => v * TS)); // 煤礦區（西邊，第 1 次擴大領地後圈進來）
 
 // ===== 存檔 =====
 // 關卡（企劃 9.2）：教學關沿用原本的存檔；正式關（自己蓋／電腦託管）各有自己的存檔
@@ -66,6 +69,11 @@ const PRO = MODE !== 'tutorial';
 const SAVE_KEY = 'frost-town-save-v1' + (PRO ? '-' + MODE : '');
 let save = { cash: 0, bag: 0, axe: 0, east: false, mill2: false, tower: false, workers: 0, level: 0, houses: 0, stove: 0 };
 try { Object.assign(save, JSON.parse(localStorage.getItem(SAVE_KEY) || '{}')); } catch (e) {}
+if (save.plan && !save.scaled) {                                // v0.60 前的存檔：規劃蓋的、搬過的建築位置跟著城鎮放大
+  save.plan.forEach(p => { p.x *= TS; p.z *= TS; });
+  for (const k in save.moved || {}) save.moved[k] = save.moved[k].map(v => v * TS);
+}
+save.scaled = TS;
 if (save.territory == null) save.territory = save.furnace ? (save.east ? 2 : 1) : 0;          // 舊進度：火爐升級過就當作領地擴大過
 if (save.buys == null) save.buys = (save.bag || 0) + (save.axe || 0) + (save.tower ? 1 : 0) + (save.tower2 ? 1 : 0) + (save.workers || 0) + (save.east ? 1 : 0) + (save.mill2 ? 1 : 0);
 let resetting = false; // 重新開始時不要再把舊進度寫回去

@@ -39,9 +39,9 @@ function spawnBill(mill, from) {
 // ===== 村民排隊買烤肉：烤好的肉放櫃台，排第一個的村民拿走並付錢 =====
 const bbq = mills[1];
 // 櫃台和村民隊伍放在南邊，遠離北邊森林的熊；烤好的肉從烤肉攤送過來
-const CX = -0.5, CZ = 7.3;
+const CX = -0.5 * TS, CZ = 7.3 * TS;
 const counter = box(1.4, 0.8, 1, mats.wood); counter.position.set(CX, 0.4, CZ); scene.add(counter);
-bbq.outPad.position.set(-2.2, 0.03, 6.9); // 村民付的錢放在櫃台旁
+bbq.outPad.position.set(CX - 1.7, 0.03, CZ - 0.4); // 村民付的錢放在櫃台旁
 bbq.cookedMeshes = [];
 function addCooked(mill) {
   const m = new THREE.Mesh(logGeo, mats.meat); m.castShadow = true;
@@ -231,7 +231,7 @@ function addHouseUnlock() {
 let houseUnlock = save.east && !PRO ? addHouseUnlock() : { done: true }; // 民房要先開拓東邊（作者 10/17 回饋第 2 項）
 
 // ===== 中央火爐＋暖氣圈：圈內的建築才會運作；柴剩不到一半圈子開始縮小，燒光就全部凍住 =====
-const FX = 0, FZ = -3;
+const FX = 0, FZ = -3 * TS;
 const furnace = { fuel: save.fuel ?? CFG.fuelMax, pend: 0, r: 0, out: false };
 const fg = new THREE.Group();
 const stone = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 1.1, 0.7, 8), M(0x8a8f99)); stone.position.y = 0.35; stone.castShadow = stone.receiveShadow = true; fg.add(stone);
@@ -327,7 +327,7 @@ let snowT = 3, blockWarn = 0;
 function spawnPile() {
   let x, z;
   for (let tries = 0; tries < 20; tries++) {
-    if (Math.random() < 0.5) { x = CX + rand(-0.7, 0.7); z = rand(CZ + 0.5, CZ + 11); } // 村民排隊的路上
+    if (Math.random() < 0.5) { x = CX + rand(-0.7, 0.7); z = rand(CZ + 0.5, CZ + 11 * TS); } // 村民排隊的路上
     else { const a = rand(0, 6.28), r = rand(2, FENCE_R - 1.1); x = Math.cos(a) * r; z = Math.sin(a) * r; } // 營地裡
     if (Math.hypot(x - FX, z - FZ) > 1.8 && piles.every(p => Math.hypot(p.x - x, p.z - z) > 1.6)) break;
   }

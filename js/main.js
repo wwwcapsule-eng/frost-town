@@ -140,8 +140,8 @@ function step(dt) {
     if (hintOn) { hintOn = false; $('hint').style.display = 'none'; }
     const sp = CFG.speed * slowAt(player.position.x, player.position.z) * dt; // 踩到雪堆走很慢
     let nx = player.position.x + mx * sp, nz = player.position.z + mz * sp;
-    if (!save.east && nx > 15.2) nx = 15.2;           // 冰牆擋住
-    nx = Math.max(-40, Math.min(40, nx)); nz = Math.max(-40, Math.min(40, nz));
+    if (!save.east && nx > 16 * TS - 0.8) nx = 16 * TS - 0.8;           // 冰牆擋住
+    nx = Math.max(-40 * TS, Math.min(40 * TS, nx)); nz = Math.max(-40 * TS, Math.min(40 * TS, nz));
     for (const t of trees) {                          // 不要穿過樹幹
       if (!t.alive || (t.coal && t.locked)) continue;
       const dx = nx - t.x, dz = nz - t.z, d = Math.hypot(dx, dz);
