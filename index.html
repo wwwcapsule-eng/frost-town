@@ -103,7 +103,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 'use strict';
-const VERSION = '0.36';
+const VERSION = '0.37';
 
 // ===== 數值（之後平衡都改這裡） =====
 const CFG = {
@@ -204,6 +204,44 @@ const ground = new THREE.Mesh(new THREE.PlaneGeometry(120, 120), mats.snow);
 ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
 const camp = new THREE.Mesh(new THREE.CircleGeometry(8.5, 40), mats.dirt);
 camp.rotation.x = -Math.PI / 2; camp.position.y = 0.01; camp.receiveShadow = true; scene.add(camp);
+
+// 自動道路（作者 10/17 回饋第 4 項）：主路＋民房環狀路，每棟建築從門口鋪一段路接到最近的路；有變動就整組重鋪
+const roads = new THREE.Group(); scene.add(roads);
+const roadMat = new THREE.MeshLambertMaterial({ color: 0x8d939b, polygonOffset: true, polygonOffsetFactor: -1 });
+const roadGeo = new THREE.PlaneGeometry(1, 1), plazaGeo = new THREE.CircleGeometry(2.6, 24);
+let roadsDirty = true;
+function roadSeg(ax, az, bx, bz, w = 1.3) {
+  const len = Math.hypot(bx - ax, bz - az); if (len < 0.05) return;
+  const m = new THREE.Mesh(roadGeo, roadMat);
+  m.scale.set(w, len + w * 0.5, 1); m.rotation.set(-Math.PI / 2, 0, Math.atan2(bx - ax, bz - az), 'YXZ'); // 先在平面上轉向，再放平
+  m.position.set((ax + bx) / 2, 0.02, (az + bz) / 2); m.receiveShadow = true; roads.add(m);
+}
+function nearestOnSeg(x, z, [ax, az, bx, bz]) {
+  const dx = bx - ax, dz = bz - az, t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz)));
+  return [ax + dx * t, az + dz * t];
+}
+function rebuildRoads() {
+  roadsDirty = false;
+  roads.children.slice().forEach(m => roads.remove(m));
+  const main = [[0, -FENCE_R - 1.5, 0, FENCE_R + 0.5]];               // 南北主路：北門 → 營火 → 南門
+  if (save.east) main.push([0, 0, FENCE_R + 0.5, 0]);                 // 東路
+  [[1, 9.8], [2, 14.3]].forEach(([ring, r]) => {                      // 民房環狀路：只鋪有民房的那段弧，並接到主路（90°）
+    const angs = HOUSE_LOTS.slice(0, save.houses).filter(l => l.ring === ring).map(l => Math.atan2(l.z, l.x) * 180 / Math.PI);
+    if (!angs.length) return;
+    const a0 = Math.min(90, ...angs), a1 = Math.max(90, ...angs);
+    for (let a = a0; a < a1; a += 10) {
+      const b = Math.min(a + 10, a1) * Math.PI / 180, c = a * Math.PI / 180;
+      main.push([Math.cos(c) * r, Math.sin(c) * r, Math.cos(b) * r, Math.sin(b) * r]);
+    }
+  });
+  main.forEach(s => roadSeg(...s));
+  const plaza = new THREE.Mesh(plazaGeo, roadMat); plaza.rotation.x = -Math.PI / 2; plaza.position.set(0, 0.02, -3); roads.add(plaza); // 營火廣場
+  for (const b of buildings) {                                        // 每棟建築接一段路到最近的主路／環狀路
+    let best = null, bd = Infinity;
+    for (const s of main) { const p = nearestOnSeg(b.x, b.z, s), d = Math.hypot(p[0] - b.x, p[1] - b.z); if (d < bd) { bd = d; best = p; } }
+    if (best && bd > b.r) roadSeg(b.x, b.z, best[0], best[1], 1.1);
+  }
+}
 
 // 文字標籤（價格、名稱）
 function makeLabel(w = 256, h = 128) {
@@ -423,7 +461,7 @@ function addBuilding(key, g, r) {
   b.rubble = new THREE.Group();                       // 被拆掉後剩下的瓦礫
   for (let i = 0; i < 6; i++) { const c = box(rand(0.4, 0.9), rand(0.2, 0.5), rand(0.4, 0.9), i % 2 ? mats.wood : mats.trunk); c.position.set(rand(-r, r) * 0.6, 0.15, rand(-r, r) * 0.6); c.rotation.y = rand(0, 3); b.rubble.add(c); }
   b.rubble.position.set(b.x, 0, b.z); scene.add(b.rubble);
-  buildings.push(b); setBuildingState(b);
+  buildings.push(b); setBuildingState(b); roadsDirty = true;
   return b;
 }
 function setBuildingState(b) {
@@ -538,7 +576,7 @@ makeUnlock({ x: LOT.bag[0], z: LOT.bag[1], icon: '🎒', name: () => '背包擴�
   price: () => [12, 35, 90][save.bag], buy: () => { save.bag++; toast('背包容量 ' + CFG.capacity[save.bag] + '！'); } });
 makeUnlock({ x: LOT.axe[0], z: LOT.axe[1], icon: '🪓', name: () => '斧頭升級',
   price: () => [20, 60, 140][save.axe], buy: () => { save.axe++; toast('砍得更快了！'); } });
-function openEast() { scene.remove(iceWall); trees.forEach(t => { if (!t.coal) t.locked = false; }); }
+function openEast() { roadsDirty = true; scene.remove(iceWall); trees.forEach(t => { if (!t.coal) t.locked = false; }); }
 if (save.east) openEast();
 if (save.mill2) addMill2();
 
@@ -967,7 +1005,7 @@ function applyTerritory(init) {
   }
   for (const b of bears) if (!b.aggro && b.z > -FENCE_R - 2) { [b.x, b.z] = bearSpot(); }
   for (let i = piles.length - 1; i >= 0; i--) if (Math.abs(Math.hypot(piles[i].x, piles[i].z) - FENCE_R) < 1.3) { scene.remove(piles[i].m); piles.splice(i, 1); }
-  if (!init) resize();
+  roadsDirty = true; if (!init) resize();
 }
 function expandTerritory() {
   save.territory++; applyTerritory(); writeSave();
@@ -1544,6 +1582,7 @@ function step(dt) {
   updateGate(dt);
   updateColdWave(dt);
   updateSnow(dt);
+  if (roadsDirty) rebuildRoads();
   updateFurnace(dt);
   updateBuildings(dt);
   checkLevel();
