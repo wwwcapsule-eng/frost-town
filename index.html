@@ -51,7 +51,7 @@
   #planBar{position:fixed;left:0;right:0;bottom:0;padding:10px 10px calc(10px + env(safe-area-inset-bottom));background:rgba(30,40,60,.88);
     color:#fff;font-weight:700;display:none;z-index:6;text-align:center}
   #planTip{font-size:14px;margin-bottom:8px;min-height:20px}
-  #planBar .row{display:flex;gap:8px;justify-content:center}
+  #planBar .row{display:flex;gap:8px;justify-content:center;margin-top:8px}
   #planBar button{flex:1;max-width:120px;min-height:58px;border:0;border-radius:12px;font-size:15px;font-weight:900;background:#e8eef5;color:#333;padding:4px 2px;white-space:nowrap}
   #planBar button small{font-size:12px;font-weight:700}
   #planBar button.sel{background:#ffd34d;outline:3px solid #fff}
@@ -99,12 +99,15 @@
 <div id="planBar"><div id="planTip"></div><div class="row">
   <button data-k="house">🏠 民房<br><small id="pkHouse"></small></button>
   <button data-k="heater">🔥 暖氣塔<br><small id="pkHeater"></small></button>
+  <button data-k="mill" class="pro">🪚 鋸木機<br><small id="pkMill"></small></button>
+  <button data-k="grill" class="pro">🍖 烤肉攤<br><small id="pkGrill"></small></button>
+</div><div class="row">
   <button id="planGo" disabled>✅ 蓋這裡</button>
   <button id="planExit">✖ 離開</button>
 </div></div>
 <div id="menu"><div class="box"><div class="big">選擇關卡</div>
   <button data-mode="tutorial">📘 教學關<small>建築位置固定，跟著上方目標一步步蓋</small></button>
-  <button data-mode="build">🏗️ 正式關・自己蓋<small>用規劃模式自己選位置，民房只能蓋在南邊民房區</small></button>
+  <button data-mode="build">🏗️ 正式關・自己蓋<small>用規劃模式自己選位置，民房、加工建築各有自己的區</small></button>
   <button data-mode="auto">🤖 正式關・電腦託管<small>你只決定蓋什麼，電腦幫你挑位置</small></button>
   <button id="menuReset" style="background:#eee">🔄 這一關重新開始</button>
   <button id="menuClose" style="background:#eee">✖ 關閉</button>
@@ -116,7 +119,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 'use strict';
-const VERSION = '0.43';
+const VERSION = '0.46';
 
 // ===== 數值（之後平衡都改這裡） =====
 const CFG = {
@@ -146,7 +149,7 @@ const CFG = {
   terrPrice: [60, 150], terrNeedBuys: 3, // 營火升級（擴大領地）：Lv1 60 元（升級任意 3 個項目後出現）、Lv2 150 元（村莊＋開拓東邊後）
   minePrice: 100, coalHp: 4, coalPerRock: 2, coalRegrow: 20, fuelPerCoal: 20, // 煤礦（村莊解鎖）：價錢、敲幾下、掉幾塊、幾秒長回來；一塊煤 = 火爐 +20（木頭只有 +5）
   snowEvery: 7, snowMax: 10, snowHp: 3, snowSlow: 0.45, shovelPrice: 60, // 雪堆（村莊開始）：幾秒積一堆、最多幾堆、鏟幾下、踩到剩幾成速度、鏟雪工價錢
-  heaterPrice: 120, heaterR: 7, cell: 3, // 規劃模式：暖氣塔價錢、暖氣範圍半徑、格子大小
+  heaterPrice: 120, heaterR: 7, cell: 3, mill2Price: 80, grill2Price: 150, // 規劃模式：暖氣塔價錢、暖氣範圍半徑、格子大小；正式關：第二台鋸木機、第二座烤肉攤價錢
   coldFirst: 120, coldEvery: 150, coldLen: 30, coldBurn: 3, coldShrink: 0.75, coldReward: 30, // 寒潮（村莊開始）：第一次幾秒後、之後每幾秒、持續幾秒、火爐燒幾倍快、暖氣圈縮成幾成、撐過去的獎金 // 火爐升級（村莊解鎖）：暖氣圈最大半徑 +7
 };
 // 城市等級：人口到門檻就升級（藍圖見 docs/企劃評估.md 第 8 節）；houses＝這一級最多能蓋幾間民房
@@ -522,7 +525,14 @@ function makeMill(x, z, opt = {}) {
 }
 const mills = [makeMill(LOT.mill[0], LOT.mill[1], { inX: LOT.mill[0] - 1.3, inZ: LOT.mill[1] + 2.7, outX: LOT.mill[0] + 1.3, outZ: LOT.mill[1] + 2.7 })];
 function addMill2() { const [x, z] = LOT.mill2; mills.push(makeMill(x, z, { key: '第二台鋸木機', inX: x - 1.3, inZ: z + 2.7, outX: x + 1.3, outZ: z + 2.7 })); }
-mills.push(makeMill(LOT.bbq[0], LOT.bbq[1], { inX: -1.6, inZ: 3.4, name: '烤肉攤', accept: 'meat', value: CFG.meatValue, time: 0.8, roof: M(0xe07b22), customers: true }));
+const GRILL = { name: '烤肉攤', accept: 'meat', value: CFG.meatValue, time: 0.8, roof: M(0xe07b22), customers: true };
+mills.push(makeMill(LOT.bbq[0], LOT.bbq[1], Object.assign({ inX: -1.6, inZ: 3.4 }, GRILL)));
+// 正式關：規劃模式蓋的加工建築，付款格在門口前；第二座烤肉攤烤好的肉一樣送到村民排隊的櫃台
+function addProc(k, x, z) {
+  const m = makeMill(x, z, Object.assign({ key: k === 'mill' ? '第二台鋸木機' : '第二座烤肉攤', inX: x - 1.3, inZ: z + 2.7, outX: x + 1.3, outZ: z + 2.7 }, k === 'grill' ? GRILL : {}));
+  if (k === 'grill') m.outPad.visible = false; // 錢在櫃台收，這台不用綠框
+  mills.push(m);
+}
 
 // 鈔票落到站的綠色框
 function spawnBill(mill, from) {
@@ -542,7 +552,7 @@ bbq.outPad.position.set(-2.2, 0.03, 6.9); // 村民付的錢放在櫃台旁
 bbq.cookedMeshes = [];
 function addCooked(mill) {
   const m = new THREE.Mesh(logGeo, mats.meat); m.castShadow = true;
-  const i = mill.cookedMeshes.length; mill.cookedMeshes.push(m);
+  const i = bbq.cookedMeshes.length; bbq.cookedMeshes.push(m);
   fly(m, mill.g.position.clone().add(tmp.set(0, 1.5, 0)), () => new THREE.Vector3(CX, 0.92 + i * 0.24, CZ), 0.6, null, 1);
 }
 const QUEUE = i => new THREE.Vector3(CX, 0, CZ + 1 + i * 1.0); // 從櫃台往南邊出口排
@@ -610,7 +620,7 @@ makeUnlock({ x: LOT.axe[0], z: LOT.axe[1], icon: '🪓', name: () => '斧頭升�
   price: () => [20, 60, 140][save.axe], buy: () => { save.axe++; toast('砍得更快了！'); } });
 function openEast() { roadsDirty = true; scene.remove(iceWall); trees.forEach(t => { if (!t.coal) t.locked = false; }); }
 if (save.east) openEast();
-if (save.mill2) addMill2();
+if (save.mill2 && !PRO) addMill2(); // 正式關的第二台鋸木機在 save.plan 裡
 
 // ===== 弩砲塔：自動射北邊的熊，熊倒下的肉掉在地上，走過去撿 =====
 makeUnlock({ x: LOT.tower1[0], z: LOT.tower1[1], icon: '🏹', name: () => '弩砲塔',
@@ -899,15 +909,27 @@ function buildHeater(x, z, i) {
 
 // ===== 規劃模式（村莊開始）：鏡頭拉高、地上出現格子，點格子決定民房、暖氣塔蓋哪；規劃時遊戲暫停 =====
 save.plan = save.plan || [];
-save.plan.forEach((p, i) => p.k === 'house' ? buildHouseAt(p.x, p.z, '規劃民房' + i) : buildHeater(p.x, p.z, i));
+function buildPlanned(p, i) {
+  if (p.k === 'house') buildHouseAt(p.x, p.z, '規劃民房' + i);
+  else if (p.k === 'mill' || p.k === 'grill') addProc(p.k, p.x, p.z);
+  else buildHeater(p.x, p.z, i);
+}
+save.plan.forEach(buildPlanned);
 const plan = { on: false, kind: null, cell: null, cx: 0, cz: 2, down: null };
 const grid = new THREE.GridHelper(66, 22, 0x25415e, 0x25415e); // 深藍色，雪地上也看得到
 grid.material.transparent = true; grid.material.opacity = 0.3; grid.position.set(0, 0.06, 0); grid.visible = false; scene.add(grid);
 const cursor = new THREE.Mesh(new THREE.PlaneGeometry(CFG.cell * 0.94, CFG.cell * 0.94), new THREE.MeshBasicMaterial({ color: 0x5fd068, transparent: true, opacity: 0.5, depthWrite: false }));
 cursor.rotation.x = -Math.PI / 2; cursor.position.y = 0.07; cursor.visible = false; scene.add(cursor);
 const ghost = box(2.2, 1.4, 2, new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true, opacity: 0.55 })); ghost.visible = false; scene.add(ghost);
-const houseZone = new THREE.Mesh(new THREE.PlaneGeometry(56, 25), new THREE.MeshBasicMaterial({ color: 0x5fd068, transparent: true, opacity: 0.16, depthWrite: false }));
-houseZone.rotation.x = -Math.PI / 2; houseZone.position.set(0, 0.055, 15.5); houseZone.visible = false; scene.add(houseZone);
+// 分區（企劃 9.1，正式關）：民房區＝南邊 z > 3；工業區＝西邊煤礦那側 x < -7；其他是加工區（鋸木機、烤肉攤）
+const zoneOf = (x, z) => z > 3 ? 'house' : x < -7 ? 'ind' : 'work';
+const KIND_ZONE = { house: 'house', mill: 'work', grill: 'work' };  // 暖氣塔哪一區都能蓋；工業區留給之後的鐵匠鋪
+const ZONE_TXT = { house: '綠色的民房區', work: '橘色的加工區', ind: '紫色的工業區' };
+const zones = new THREE.Group(); zones.visible = false; scene.add(zones);
+[[56, 25, 0, 15.5, 0x5fd068], [35, 31, 10.5, -12.5, 0xffa53d], [21, 31, -17.5, -12.5, 0xa77be0]].forEach(([w, h, x, z, c]) => {
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 0.16, depthWrite: false }));
+  m.rotation.x = -Math.PI / 2; m.position.set(x, 0.055, z); zones.add(m);
+});
 // 電腦託管：從火爐往外找第一個能蓋的格子（越近越暖、越好走）
 function autoSpot(k) {
   const c = CFG.cell, cells = [];
@@ -915,19 +937,24 @@ function autoSpot(k) {
   cells.sort((a, b) => Math.hypot(a[0] - FX, a[1] - FZ) - Math.hypot(b[0] - FX, b[1] - FZ));
   return cells.find(([x, z]) => canBuild(x, z, k)) || null;
 }
-function planCost(k) { return k === 'house' ? housePrice() : CFG.heaterPrice; }
+function planCost(k) { return k === 'house' ? housePrice() : k === 'mill' ? CFG.mill2Price : k === 'grill' ? CFG.grill2Price : CFG.heaterPrice; }
+const planned = k => save.plan.some(p => p.k === k);
 function planLimit(k) {
   const lv = LEVELS[save.level];
+  if (k === 'mill') return PRO && save.east && !planned('mill');      // 跟教學關一樣：開拓東邊後才有
+  if (k === 'grill') return PRO && save.level >= 1 && !planned('grill');
   return k === 'house' ? houses.length < lv.houses : heaters.length < lv.heaters + (save.stove ? 1 : 0);
 }
-const inHouseZone = (x, z) => z > 3;                                // 正式關：民房只能蓋在南邊的民房區（同一區蓋同類建築）
+const wrongZone = (x, z, k) => PRO && KIND_ZONE[k] && zoneOf(x, z) !== KIND_ZONE[k]; // 正式關：同一區蓋同類建築
 function canBuild(x, z, k) {
-  if (PRO && k === 'house' && !inHouseZone(x, z)) return false;
+  if (wrongZone(x, z, k)) return false;
+  const big = k === 'mill' || k === 'grill';
+  if (big && !canBuild(x, z + 2.7, 'pad')) return false;                         // 門口前的付款格也要有空地
   const r = Math.hypot(x, z), d = (a, b) => Math.hypot(a - x, b - z);
   if (r > 27 || Math.abs(r - FENCE_R) < 1.8 || d(FX, FZ) < 2.6) return false;
   if (Math.abs(x - CX) < 1.8 && z > CZ - 1 && z < CZ + 17) return false;          // 村民排隊的路
   if (Math.abs(x) < 4.5 && z < -6 && z > -13) return false;                        // 北門前
-  if (buildings.some(b => d(b.x, b.z) < b.r + 1.6)) return false;
+  if (buildings.some(b => d(b.x, b.z) < b.r + (big ? 2.2 : 1.6))) return false;
   if (unlocks.some(u => !u.done && d(u.x, u.z) < 2.3)) return false;
   if (mills.some(m => d(m.inPad.position.x, m.inPad.position.z) < 2 || d(m.outPad.position.x, m.outPad.position.z) < 2)) return false;
   if (trees.some(t => !t.gone && d(t.x, t.z) < 1.7)) return false;
@@ -940,28 +967,31 @@ function canBuild(x, z, k) {
 function planUi() {
   const lv = LEVELS[save.level];
   $('pkHouse').textContent = planLimit('house') ? '💵 ' + planCost('house') : '已滿 ' + lv.houses + ' 間';
+  $('pkMill').textContent = planLimit('mill') ? '💵 ' + CFG.mill2Price : planned('mill') ? '已蓋' : '開拓東邊後';
+  $('pkGrill').textContent = planLimit('grill') ? '💵 ' + CFG.grill2Price : planned('grill') ? '已蓋' : '村莊解鎖';
   $('pkHeater').textContent = planLimit('heater') ? '💵 ' + planCost('heater') : lv.heaters ? '已滿 ' + (lv.heaters + (save.stove ? 1 : 0)) + ' 座' : '村莊解鎖';
   document.querySelectorAll('#planBar [data-k]').forEach(b => b.classList.toggle('sel', b.dataset.k === plan.kind));
   let tip = MODE === 'auto' ? '選一種建築，電腦會幫你挑位置（也可以自己點格子改）' : '先選一種建築，再點地上的格子（拖曳可以移動畫面）', ok = false;
   if (plan.kind && plan.cell) {
     const [x, z] = plan.cell, cost = planCost(plan.kind);
     if (!planLimit(plan.kind)) tip = '數量已達上限，城市升級後可以蓋更多';
-    else if (!canBuild(x, z, plan.kind)) tip = PRO && plan.kind === 'house' && !inHouseZone(x, z) ? '民房只能蓋在綠色的民房區' : '這格不能蓋（太靠近建築、圍欄、樹或路）';
+    else if (!canBuild(x, z, plan.kind)) tip = wrongZone(x, z, plan.kind) ? '這種建築只能蓋在' + ZONE_TXT[KIND_ZONE[plan.kind]] : '這格不能蓋（太靠近建築、圍欄、樹或路）';
     else if (save.cash < cost) tip = '錢不夠：需要 ' + cost + ' 元';
     else { tip = '按「✅ 蓋這裡」花 ' + cost + ' 元'; ok = true; }
     cursor.material.color.setHex(ok ? 0x5fd068 : 0xff5a4a);
   } else if (plan.kind) tip = MODE === 'auto' ? '附近沒有空位了，擴大領地或自己點格子試試' : '點地上的格子，選要蓋在哪';
   $('planTip').textContent = tip; $('planGo').disabled = !ok;
   ghost.visible = !!(plan.kind && plan.cell);
-  if (ghost.visible) { const hs = plan.kind === 'house'; ghost.position.set(plan.cell[0], hs ? 0.7 : 1.1, plan.cell[1]); ghost.scale.set(hs ? 1 : 0.45, hs ? 1 : 1.6, hs ? 1 : 0.45); }
+  if (ghost.visible) { const [sx, sy, sz] = { house: [1, 1, 1], mill: [1.4, 1.15, 1.2], grill: [1.4, 1.15, 1.2] }[plan.kind] || [0.45, 1.6, 0.45]; ghost.position.set(plan.cell[0], sy * 0.7, plan.cell[1]); ghost.scale.set(sx, sy, sz); }
 }
 function setPlan(on) {
   plan.on = on; plan.kind = null; plan.cell = null;
   if (on) { plan.cx = player.position.x; plan.cz = player.position.z; joy.active = false; joy.x = joy.y = 0; joyEl.style.display = 'none'; }
-  grid.visible = cursor.visible = on; ghost.visible = false; houseZone.visible = on && PRO; $('hint').style.visibility = on ? 'hidden' : ''; // 開場提示不要擋到規劃列
+  grid.visible = cursor.visible = on; ghost.visible = false; zones.visible = on && PRO; $('hint').style.visibility = on ? 'hidden' : ''; // 開場提示不要擋到規劃列
   $('planBar').style.display = on ? 'block' : 'none';
   if (on) planUi(); else clock.getDelta();
 }
+if (!PRO) document.querySelectorAll('#planBar .pro').forEach(b => b.style.display = 'none'); // 教學關沒有這兩顆
 document.getElementById('planBtn').onclick = () => setPlan(true);
 document.getElementById('planExit').onclick = () => setPlan(false);
 document.querySelectorAll('#planBar [data-k]').forEach(b => b.onclick = () => {
@@ -974,7 +1004,8 @@ document.getElementById('planGo').onclick = () => {
   const [x, z] = plan.cell, k = plan.kind, cost = planCost(k);
   if (!planLimit(k) || !canBuild(x, z, k) || save.cash < cost) return;
   save.cash -= cost; save.plan.push({ k, x, z });
-  if (k === 'house') buildHouseAt(x, z, '規劃民房' + (save.plan.length - 1)); else buildHeater(x, z, save.plan.length - 1);
+  buildPlanned(save.plan[save.plan.length - 1], save.plan.length - 1);
+  if (k === 'mill') { save.mill2 = true; toast('加工速度翻倍！'); } else if (k === 'grill') toast('第二座烤肉攤：肉烤得更快！');
   sfx.unlock(); sparkle(x, z); writeSave();
   plan.cell = null; if (MODE === 'auto') plan.kind = null; planUi();
 };
@@ -1017,8 +1048,8 @@ function levelUnlocks() {
     stoveUnlock.cool = CFG.buildCool;
   }
   if (!eastUnlock && !save.east && save.territory >= 1) eastUnlock = makeUnlock({ x: FENCE_R - 2.2, z: 0, icon: '🌲', name: () => '開拓東邊',
-    price: () => save.east ? null : 50, buy: () => { save.east = true; openEast(); buildDoorsAll(); toast('東邊開放了！現在可以蓋民房、第二台鋸木機'); } });
-  if (!mill2Unlock && !save.mill2 && save.east) mill2Unlock = makeUnlock({ x: LOT.mill2[0], z: LOT.mill2[1], icon: '🪚', name: () => '第二台鋸木機',
+    price: () => save.east ? null : 50, buy: () => { save.east = true; openEast(); buildDoorsAll(); toast('東邊開放了！現在可以蓋民房、第二台鋸木機' + (PRO ? '（用規劃模式蓋）' : '')); } });
+  if (!PRO && !mill2Unlock && !save.mill2 && save.east) mill2Unlock = makeUnlock({ x: LOT.mill2[0], z: LOT.mill2[1], icon: '🪚', name: () => '第二台鋸木機',
     price: () => save.mill2 ? null : 80, buy: () => { save.mill2 = true; addMill2(); toast('加工速度翻倍！'); } });
   if (!PRO && save.east && houseUnlock.done && houses.length < LEVELS[save.level].houses && houseLotOpen()) houseUnlock = addHouseUnlock();
   if (save.level >= 1 && !save.mine && !mineUnlock) mineUnlock = makeUnlock({ x: LOT.minePad[0], z: LOT.minePad[1], icon: '⛏️', name: () => '開採煤礦',
