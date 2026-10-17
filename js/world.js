@@ -311,6 +311,18 @@ function addBuilding(key, g, r) {
   buildings.push(b); setBuildingState(b); roadsDirty = true;
   return b;
 }
+// 建築碰撞（v0.59，作者第三次回饋第 3 點）：人物走進建築的圓圈就推回圈邊；拆掉的瓦礫可以走過去
+// slide＞0：順便往目標那一側滑一點，工人才會繞過建築而不是卡住；目的地本身在圈內（門口付款格）就不擋
+function pushOut(x, z, pad, slide = 0, tx = null, tz = null) {
+  for (const b of buildings) {
+    if (b.dead) continue;
+    const R = b.r + pad, dx = x - b.x, dz = z - b.z, d = Math.hypot(dx, dz);
+    if (d >= R || d === 0 || (tx !== null && Math.hypot(tx - b.x, tz - b.z) < R)) continue;
+    const ux = dx / d, uz = dz / d, s = slide * Math.sign(-uz * (tx - x) + ux * (tz - z) || 1);
+    x = b.x + ux * R - uz * s; z = b.z + uz * R + ux * s;
+  }
+  return [x, z];
+}
 function setBuildingState(b) {
   b.dead = b.hp <= 0; b.g.visible = !b.dead; b.rubble.visible = b.dead;
   const pct = Math.round(b.hp / CFG.buildHp * 100);

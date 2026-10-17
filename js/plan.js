@@ -345,7 +345,7 @@ function walkTo(w, x, z, dt) {
   const dx = x - w.g.position.x, dz = z - w.g.position.z, d = Math.hypot(dx, dz);
   if (d < 0.1) return true;
   const s = Math.min(d, CFG.workerSpeed * slowAt(w.g.position.x, w.g.position.z) * dt);
-  w.g.position.x += dx / d * s; w.g.position.z += dz / d * s;
+  [w.g.position.x, w.g.position.z] = pushOut(w.g.position.x + dx / d * s, w.g.position.z + dz / d * s, 0.35, s, x, z); // 繞過建築
   w.g.rotation.y = Math.atan2(dx, dz); w.walk += dt * 12; w.g.position.y = Math.abs(Math.sin(w.walk)) * 0.1;
   return false;
 }
