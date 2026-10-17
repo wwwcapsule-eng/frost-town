@@ -1,5 +1,5 @@
 'use strict';
-const VERSION = '0.63';
+const VERSION = '0.64';
 
 // ===== 數值（之後平衡都改這裡） =====
 const CFG = {
@@ -51,9 +51,10 @@ const P = cash => Math.ceil(cash * CFG.plankRate); // 建築用木材蓋（企�
 // 領地等級：營火升級一次，圍欄往外推（r＝圍欄半徑）、暖氣圈變大（heat）、鏡頭拉遠一點（cam）
 const TERR = [ { r: 10 * TS, heat: 0, cam: 1.15 }, { r: 14 * TS, heat: 3, cam: 1.28 }, { r: 18.5 * TS, heat: 7, cam: 1.42 } ];
 // 地塊配置（作者 10/17 第二次回饋：每個建築、付款格都有自己的位置，不互擋）
+// v0.64（作者 10/18）：升級格放在它升級的東西旁邊——營火升級貼著營火、雇伐木工在倉庫旁（木頭送倉庫）、雇鏟雪工在村民櫃台旁
 // 營火廣場在 (0,-3)；N-S 主路 x≈0；東路 z≈0；民房在南邊一圈圈的地塊上，門朝營火
 const LOT = {
-  bag: [-2.8, -5.6], axe: [2.8, -5.6], terr: [-3.2, 1.6], worker: [3.2, 1.6], shovel: [3.2, 4.4], store: [6.7, 3.1], tower1: [3.6, -7.4], tower2: [-3.6, -7.4],
+  bag: [-2.8, -5.6], axe: [2.8, -5.6], terr: [-1.9, -1.2], worker: [4.7, 5.1], shovel: [1.9, 6.4], store: [6.7, 3.1], tower1: [3.6, -7.4], tower2: [-3.6, -7.4],
   mill: [6.4, -4], mill2: [-6.4, -4], bbq: [-4.6, 3.8], minePad: [-8, 3], truckCash: [-8, 3], truckStore: [-8.6, -0.4],
 };
 for (const k in LOT) if (!/^tower/.test(k)) LOT[k] = LOT[k].map(v => +(v * TS).toFixed(2)); // 弩砲塔貼著北門（門寬不變），不放大

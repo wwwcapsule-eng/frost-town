@@ -318,6 +318,8 @@ function updateFurnace(dt) {
   f.r = f.fuel > 0 ? CFG.heat[0] + (rMax - CFG.heat[0]) * Math.min(1, pct / 50) : 0;
   if (coldWave.on > 0) f.r *= CFG.coldShrink; // 寒潮：暖氣圈縮小
   heatRing.scale.setScalar(Math.max(0.001, f.r)); heatFill.scale.setScalar(Math.max(0.001, f.r));
+  heatRing.visible = heatFill.visible = f.r < FENCE_R + 0.5;       // 作者 10/18：暖氣蓋得住整個領地就不畫，免得跟領地邊界看起來像兩個範圍；火變小縮進領地才出現
+
   flame.visible = f.fuel > 0; flame.scale.setScalar(0.4 + 0.6 * pct / 100); flame.scale.y *= 1 + Math.sin(guideT * 20) * 0.12;
   const hr = f.fuel > 0 ? CFG.heaterR * (coldWave.on > 0 ? CFG.coldShrink : 1) : 0; // 暖氣塔靠火爐供熱，火熄了也沒用
   for (const h of heaters) { const v = h.bld.dead ? 0.001 : Math.max(0.001, hr); h.ring.scale.setScalar(v); h.fill.scale.setScalar(v); }
