@@ -78,7 +78,7 @@ function planUi() {
   $('pkGrill').textContent = planLimit('grill') ? '💵 ' + CFG.grill2Price : planned('grill') ? '已蓋' : '村莊解鎖';
   $('pkHeater').textContent = planLimit('heater') ? '💵 ' + planCost('heater') : lv.heaters ? '已滿 ' + (lv.heaters + (save.stove ? 1 : 0)) + ' 座' : '村莊解鎖';
   document.querySelectorAll('#planBar [data-k]').forEach(b => b.classList.toggle('sel', b.dataset.k === plan.kind));
-  let tip = '選一種建築，電腦會先放在推薦位置；新民房會自動接上道路；按住自己蓋的建築可以搬家', ok = false;
+  let tip = '選一種建築，電腦會先放在推薦位置；新民房會自動接上道路；按住任何建築可以搬家', ok = false;
   if (plan.kind && plan.cell) {
     const [x, z] = plan.cell, cost = planCost(plan.kind);
     if (!planLimit(plan.kind)) tip = '數量已達上限，城市升級後可以蓋更多';
@@ -115,7 +115,7 @@ document.getElementById('planGo').onclick = () => {
   if (k === 'mill') { save.mill2 = true; toast('加工速度翻倍！'); } else if (k === 'grill') toast('第二座烤肉攤：肉烤得更快！');
   sfx.unlock(); sparkle(x, z); writeSave();
   plan.cell = null; if (MODE === 'auto') plan.kind = null; planUi();
-  if (save.plan.length === 1) setTimeout(() => toast('💡 在規劃畫面按住自己蓋的建築，可以搬到別的地方'), 1600);
+  if (save.plan.length === 1) setTimeout(() => toast('💡 在規劃畫面按住任何建築，可以搬到別的地方'), 1600);
 };
 const ray = new THREE.Raycaster(), groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 function planPointer(type, e) {
@@ -136,44 +136,54 @@ function planPointer(type, e) {
     plan.cell = [x, z]; cursor.position.x = x; cursor.position.z = z; planUi();
   }
 }
-// ===== 長按建築搬家（規劃模式裡，作者 10/17：像手機模擬建築遊戲）：按住自己蓋的建築 0.5 秒 → 上帝視角（規劃模式）→ 拖到新位置放開 =====
+// ===== 長按建築搬家（規劃模式裡，作者 10/17：像手機模擬建築遊戲）：按住任何建築 0.5 秒 → 上帝視角（規劃模式）→ 拖到新位置放開 =====
+// v0.58：付款格蓋的建築（鋸木廠、烤肉攤、民房、弩砲塔）也能搬，新位置記在 save.moved[建築名]；規劃蓋的照舊記在 save.plan
+save.moved = save.moved || {};
+const KIND_OF = { 鋸木廠: 'mill', 第二台鋸木機: 'mill', 烤肉攤: 'grill', 第二座烤肉攤: 'grill', 鐵匠鋪: 'smith' }; // 建築名 → 能蓋在哪一區、怎麼檢查空地
+function kindOf(b) {
+  const i = planBld.indexOf(b); if (i >= 0) return save.plan[i].k;
+  return KIND_OF[b.key] || (houses.includes(b) ? 'house' : towers.some(t => t.bld === b) ? 'tower' : 'heater');
+}
+function remember(b) {                                            // 搬過的建築把新位置存起來
+  const i = planBld.indexOf(b);
+  if (i >= 0) { save.plan[i].x = b.x; save.plan[i].z = b.z; } else if (b.userMoved) save.moved[b.key] = [b.x, b.z];
+}
 let lpTimer = 0;
 function longPress(e) { clearTimeout(lpTimer); { const { clientX: x, clientY: y, pointerId: id } = e; lpTimer = setTimeout(() => pickAt(x, y, id), 500); } }
 function groundAt(cx, cy) { ray.setFromCamera(new THREE.Vector2(cx / innerWidth * 2 - 1, -(cy / innerHeight) * 2 + 1), camera); return ray.ray.intersectPlane(groundPlane, new THREE.Vector3()); }
-function moveAll(i, x, z) {                                       // 建築連同付款格、暖氣圈一起搬
-  const b = planBld[i], dx = x - b.x, dz = z - b.z;
+function moveAll(b, x, z) {                                       // 建築連同付款格、暖氣圈一起搬
+  const dx = x - b.x, dz = z - b.z;
   moveBuilding(b, x, z);
   const m = mills.find(m => m.bld === b), h = heaters.find(h => h.bld === b);
-  if (m) [m.inPad, m.outPad, m.label, ...m.out].forEach(o => { o.position.x += dx; o.position.z += dz; });
+  if (m) [m.inPad, ...(m === bbq ? [] : [m.outPad, ...m.out]), m.label].forEach(o => { o.position.x += dx; o.position.z += dz; }); // 烤肉攤的收錢格在村民櫃台旁，不跟著搬
   if (h) { h.x = x; h.z = z; [h.ring, h.fill].forEach(o => o.position.set(x, o.position.y, z)); }
   roadsDirty = true;
 }
 function pickAt(cx, cy, id) {
   const p = groundAt(cx, cy); if (!p) return;
-  const i = planBld.findIndex(b => b && !b.dead && Math.hypot(b.x - p.x, b.z - p.z) < b.r + 0.6);
-  if (i < 0) return;
+  const b = buildings.find(b => !b.dead && Math.hypot(b.x - p.x, b.z - p.z) < b.r + 0.6);
+  if (!b) return;
   if (!plan.on) setPlan(true);
-  const b = planBld[i];
   plan.kind = null; plan.cell = null; plan.cx = b.x; plan.cz = b.z; ghost.visible = false;
-  plan.move = { i, ox: b.x, oz: b.z }; plan.down = { id, moved: true };
-  moveAll(i, 1e4, 1e4); b.g.position.set(plan.move.ox, 0.6, plan.move.oz);   // 抓起來浮在空中；暫時移開，才不會擋到自己
+  plan.move = { b, k: kindOf(b), ox: b.x, oz: b.z }; plan.down = { id, moved: true };
+  moveAll(b, 1e4, 1e4); b.g.position.set(plan.move.ox, 0.6, plan.move.oz);   // 抓起來浮在空中；暫時移開，才不會擋到自己
   cursor.position.x = plan.move.ox; cursor.position.z = plan.move.oz; cursor.material.color.setHex(0x5fd068);
   $('planTip').textContent = '拖到新位置放開（紅色＝不能放）'; sfx.coin(); if (navigator.vibrate) try { navigator.vibrate(30); } catch (_) {}
 }
 function dragMove(e) {
   const p = groundAt(e.clientX, e.clientY); if (!p) return;
-  const c = CFG.cell, x = (Math.floor(p.x / c) + 0.5) * c, z = (Math.floor(p.z / c) + 0.5) * c, k = save.plan[plan.move.i].k;
+  const c = CFG.cell, x = (Math.floor(p.x / c) + 0.5) * c, z = (Math.floor(p.z / c) + 0.5) * c, k = plan.move.k;
   plan.move.x = x; plan.move.z = z;
-  planBld[plan.move.i].g.position.set(x, 0.6, z); cursor.position.x = x; cursor.position.z = z;
+  plan.move.b.g.position.set(x, 0.6, z); cursor.position.x = x; cursor.position.z = z;
   const ok = canBuild(x, z, k);
   cursor.material.color.setHex(ok ? 0x5fd068 : 0xff5a4a);
   $('planTip').textContent = ok ? '放開就搬到這裡' : wrongZone(x, z, k) ? '這種建築只能放在' + ZONE_TXT[KIND_ZONE[k]] : '這格不能放（太靠近建築、圍欄、樹或路）';
 }
 function dropMove() {
-  const mv = plan.move, p = save.plan[mv.i]; plan.move = null; plan.down = null;
-  const ok = mv.x != null && (mv.x !== mv.ox || mv.z !== mv.oz) && canBuild(mv.x, mv.z, p.k);
-  moveAll(mv.i, ok ? mv.x : mv.ox, ok ? mv.z : mv.oz);
-  if (ok) { p.x = mv.x; p.z = mv.z; sparkle(p.x, p.z); sfx.unlock(); writeSave(); toast('搬好了！'); }
+  const mv = plan.move, b = mv.b; plan.move = null; plan.down = null;
+  const ok = mv.x != null && (mv.x !== mv.ox || mv.z !== mv.oz) && canBuild(mv.x, mv.z, mv.k);
+  moveAll(b, ok ? mv.x : mv.ox, ok ? mv.z : mv.oz);
+  if (ok) { b.userMoved = true; remember(b); sparkle(b.x, b.z); sfx.unlock(); writeSave(); toast('搬好了！'); }
   else if (mv.x != null && (mv.x !== mv.ox || mv.z !== mv.oz)) toast('這裡不能放，放回原位');
   planUi();
 }
@@ -270,14 +280,14 @@ function applyTerritory(init) {
   gateLabel.position.z = -FENCE_R - 0.2;
   repairPad.position.z = -FENCE_R + 2.1; repairLabel.position.z = -FENCE_R + 2.1;
   towers.forEach(t => {
-    if (!t.fixed) return moveBuilding(t.bld, t.g.position.x, towerZ(t.g.position.x));
-    const r = Math.hypot(t.bld.x, t.bld.z), i = planBld.indexOf(t.bld);   // 自己蓋的塔被新圍欄圈到：往外推到圍欄外
-    if (r < FENCE_R + 1.8) { const k = (FENCE_R + 2.4) / r; moveBuilding(t.bld, t.bld.x * k, t.bld.z * k); if (i >= 0) { save.plan[i].x = t.bld.x; save.plan[i].z = t.bld.z; } }
+    if (!t.fixed && !t.bld.userMoved) return moveBuilding(t.bld, t.g.position.x, towerZ(t.g.position.x));
+    const r = Math.hypot(t.bld.x, t.bld.z);                       // 自己蓋或搬過的塔被新圍欄圈到：往外推到圍欄外
+    if (r < FENCE_R + 1.8) { const k = (FENCE_R + 2.4) / r; moveBuilding(t.bld, t.bld.x * k, t.bld.z * k); remember(t.bld); }
   });
   houses.forEach(h => {                                            // 南門外的民房整排往外搬；自己規劃的碰到圍欄就往外推
     const m = /^民房(\d+)$/.exec(h.key);
-    if (m) { const [x, z] = houseSpot(+m[1]); moveBuilding(h, x, z); }
-    else { const r = Math.hypot(h.x, h.z); if (Math.abs(r - FENCE_R) < 2) moveBuilding(h, h.x / r * (FENCE_R + 2.2), h.z / r * (FENCE_R + 2.2)); }
+    if (m && !h.userMoved) { const [x, z] = houseSpot(+m[1]); moveBuilding(h, x, z); }
+    else { const r = Math.hypot(h.x, h.z); if (Math.abs(r - FENCE_R) < 2) { moveBuilding(h, h.x / r * (FENCE_R + 2.2), h.z / r * (FENCE_R + 2.2)); remember(h); } }
   });
   if (!houseUnlock.done) { [houseUnlock.x, houseUnlock.z] = houseSpot(save.houses); houseUnlock.pad.position.set(houseUnlock.x, 0.03, houseUnlock.z); houseUnlock.label.position.set(houseUnlock.x, 1.9, houseUnlock.z); }
   for (const u of unlocks) {                                       // 卡在圍欄上的付款格往內挪
@@ -304,6 +314,7 @@ function expandTerritory() {
   save.territory++; applyTerritory(); writeSave();
   toast('🔥 營火升級！領地擴大了'); sparkle(FX, FZ);
 }
+for (const b of buildings) { const p = save.moved[b.key]; if (p) { moveAll(b, p[0], p[1]); b.userMoved = true; } } // 讀檔：搬過的建築放回新位置
 applyTerritory(true);
 levelUnlocks();
 if (save.shovel) addShoveler();
