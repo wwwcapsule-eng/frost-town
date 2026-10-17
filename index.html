@@ -119,7 +119,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 'use strict';
-const VERSION = '0.53';
+const VERSION = '0.54';
 
 // ===== 數值（之後平衡都改這裡） =====
 const CFG = {
@@ -149,7 +149,7 @@ const CFG = {
   terrPrice: [60, 150], terrNeedBuys: 3, // 營火升級（擴大領地）：Lv1 60 元（升級任意 3 個項目後出現）、Lv2 150 元（村莊＋開拓東邊後）
   minePrice: 100, coalHp: 4, coalPerRock: 2, coalRegrow: 20, fuelPerCoal: 20, // 煤礦（村莊解鎖）：價錢、敲幾下、掉幾塊、幾秒長回來；一塊煤 = 火爐 +20（木頭只有 +5）
   snowEvery: 7, snowMax: 10, snowHp: 3, snowSlow: 0.45, shovelPrice: 60, // 雪堆（村莊開始）：幾秒積一堆、最多幾堆、鏟幾下、踩到剩幾成速度、鏟雪工價錢
-  heaterPrice: 120, heaterR: 7, cell: 3, mill2Price: 80, grill2Price: 150, smithPrice: 200, coalValue: 6, // 鐵匠鋪：價錢、一塊煤打成工具賣幾元； 規劃模式：暖氣塔價錢、暖氣範圍半徑、格子大小；正式關：第二台鋸木機、第二座烤肉攤價錢
+  heaterPrice: 120, heaterR: 7, cell: 3, mill2Price: 80, grill2Price: 150, smithPrice: 200, coalValue: 6, truckPrice: 150, truckEvery: 4, storeMax: 30, // 自動運輸：價錢、每幾秒送一趟、倉庫上限； // 鐵匠鋪：價錢、一塊煤打成工具賣幾元； 規劃模式：暖氣塔價錢、暖氣範圍半徑、格子大小；正式關：第二台鋸木機、第二座烤肉攤價錢
   coldFirst: 120, coldEvery: 150, coldLen: 30, coldBurn: 3, coldShrink: 0.75, coldReward: 30, // 寒潮（村莊開始）：第一次幾秒後、之後每幾秒、持續幾秒、火爐燒幾倍快、暖氣圈縮成幾成、撐過去的獎金 // 火爐升級（村莊解鎖）：暖氣圈最大半徑 +7
 };
 // 城市等級：人口到門檻就升級（藍圖見 docs/企劃評估.md 第 8 節）；houses＝這一級最多能蓋幾間民房
@@ -167,7 +167,7 @@ const TERR = [ { r: 10, heat: 0, cam: 1.05 }, { r: 14, heat: 3, cam: 1.15 }, { r
 // 營火廣場在 (0,-3)；N-S 主路 x≈0；東路 z≈0；民房在南邊一圈圈的地塊上，門朝營火
 const LOT = {
   bag: [-2.8, -5.6], axe: [2.8, -5.6], terr: [-3.2, 1.6], worker: [3.2, 1.6], shovel: [5.4, 4.2], tower1: [3.6, -7.4], tower2: [-3.6, -7.4],
-  mill: [6.4, -4], mill2: [-6.4, -4], bbq: [-4.6, 3.8], minePad: [-8, 3],
+  mill: [6.4, -4], mill2: [-6.4, -4], bbq: [-4.6, 3.8], minePad: [-8, 3], truckCash: [-8, 3], truckStore: [-8.6, -0.4],
 };
 const HOUSE_LOTS = [];                    // 第 1 圈 6 間（Lv1 領地），第 2 圈 10 間（Lv2 領地）
 [[11.6, [35, 50, 65, 115, 130, 145], 1], [16.2, [30, 41, 52, 63, 74, 106, 117, 128, 139, 150], 2]].forEach(([r, angs, ring]) =>
@@ -1093,10 +1093,50 @@ function planCamera(dt) {
 }
 
 // ===== 城市等級升級：人口到門檻 → 暫停、跳出「新解鎖」卡片、鏡頭拉遠、出現新付款格 =====
+let truckPads = null, truckT = 0, truckN = 0, storeT = 0, truckObj = null;
+save.store = save.store || { log: 0, coal: 0 };
+// ===== 自動運輸（作者 10/17 回饋第 2 項）：每隔幾秒運一趟木頭或煤；換錢＝直接賣掉，進倉庫＝自動補營火、修北門和建築 =====
+function buildTruck() {
+  const [x, z] = save.truck === 'cash' ? LOT.truckCash : LOT.truckStore, g = new THREE.Group();
+  const bed = box(1.8, 0.5, 1.2, mats.wood); bed.position.y = 0.45; g.add(bed);
+  const load = box(1.4, 0.5, 0.9, save.truck === 'cash' ? mats.cash : mats.trunk); load.position.y = 0.95; g.add(load);
+  g.position.set(x, 0, z); scene.add(g);
+  const label = makeLabel(); label.scale.set(3, 1.5, 1); label.position.set(x, 2.4, z); scene.add(label);
+  truckObj = { g, label };
+}
+function updateTransport(dt) {
+  if (!save.truck) return;
+  if (!truckObj) buildTruck();
+  const st = save.store;
+  truckT += dt;
+  if (truckT >= CFG.truckEvery) {
+    truckT = 0; const coal = save.mine && truckN++ % 2 === 1;      // 木頭、煤輪流運
+    if (save.truck === 'cash') { save.cash += coal ? (planned('smith') ? CFG.coalValue : 3) : 2; sfx.coin(); }
+    else if (coal) st.coal = Math.min(CFG.storeMax, st.coal + 1); else st.log = Math.min(CFG.storeMax, st.log + 1);
+  }
+  storeT += dt;
+  if (save.truck === 'store' && storeT >= 1) {                       // 倉庫每秒做一件事：先顧營火，再修北門，再修建築
+    storeT = 0; const f = furnace;
+    const hurt = buildings.find(b => !b.dead && b.hp < CFG.buildHp);
+    if (f.fuel < CFG.fuelMax * 0.7 && (st.coal || st.log)) { const c = st.coal > 0; if (c) st.coal--; else st.log--; f.fuel = Math.min(CFG.fuelMax, f.fuel + (c ? CFG.fuelPerCoal : CFG.fuelPerLog)); }
+    else if (gate.hp < CFG.gateHp && st.log) { st.log--; gate.hp = Math.min(CFG.gateHp, gate.hp + 10); }
+    else if (hurt && st.log) { st.log--; hurt.hp = Math.min(CFG.buildHp, hurt.hp + 10); }
+  }
+  truckObj.label.set(save.truck === 'cash' ? ['🚚 自動運輸', '換錢中'] : ['📦 倉庫', '🪵 ' + st.log + '  ⚫ ' + st.coal]);
+}
 let paused = false, stoveUnlock = null, terrUnlock = null, eastUnlock = null, mill2Unlock = null;
 // 營火升級＝擴大領地：Lv1 升級任意 3 個項目後出現；Lv2 要村莊等級＋已開拓東邊
 function terrReady() { return save.territory === 0 ? save.buys >= CFG.terrNeedBuys : save.territory === 1 && save.level >= 1 && save.east; }
 function levelUnlocks() {
+  if (!truckPads && save.mine && !save.truck) {                    // 自動運輸：換錢、進倉庫只能二選一，買了一個另一個就消失
+    const pick = (mode, msg) => () => { save.truck = mode; truckPads.forEach(u => u !== truckPads[mode === 'cash' ? 0 : 1] && (u.paid = 0, u.refresh())); buildTruck(); toast(msg); };
+    truckPads = [
+      makeUnlock({ x: LOT.truckCash[0], z: LOT.truckCash[1], icon: '🚚', name: () => '自動運輸：換錢', price: () => save.truck ? null : CFG.truckPrice,
+        buy: pick('cash', '🚚 運輸隊會把木頭、煤直接拿去換錢！') }),
+      makeUnlock({ x: LOT.truckStore[0], z: LOT.truckStore[1], icon: '📦', name: () => '自動運輸：進倉庫', price: () => save.truck ? null : CFG.truckPrice,
+        buy: pick('store', '📦 運輸隊把木頭、煤送進倉庫，倉庫會自動補營火、修北門和建築！') }),
+    ];
+  }
   if (terrUnlock && terrUnlock.done) terrUnlock = null;
   if (!terrUnlock && terrReady()) terrUnlock = makeUnlock({ x: LOT.terr[0], z: LOT.terr[1], icon: '🔥', name: () => '營火升級 Lv' + (save.territory + 1),
     price: () => terrUnlock && terrUnlock.waiting ? null : CFG.terrPrice[save.territory], buy: () => { expandTerritory(); terrUnlock.waiting = true; } });
@@ -1363,6 +1403,7 @@ function hud() {
   if (shownWood !== carried.length * 10000 + nMeat * 100 + nCoal) { $('wood').textContent = nLog; $('meat').textContent = nMeat; $('coal').textContent = nCoal; shownWood = carried.length * 10000 + nMeat * 100 + nCoal; }
   $('capW').textContent = '/' + capacity(); $('capM').textContent = '/' + capacity(); $('capC').textContent = '/' + capacity();
   $('pCoal').classList.toggle('full', countOf('coal') >= capacity());
+  if (!save.coalTip && countOf('coal') > 0) { save.coalTip = true; toast('⚫ 煤比木頭耐燒 4 倍！丟進火爐，或在🏗️規劃蓋🔨鐵匠鋪拿去賣'); }
   $('pWood').classList.toggle('full', countOf('log') >= capacity()); $('pMeat').classList.toggle('full', countOf('meat') >= capacity());
 }
 function bump(id) { const e = $(id); e.classList.remove('bump'); void e.offsetWidth; e.classList.add('bump'); }
@@ -1539,6 +1580,8 @@ const GOALS = PRO ? [ // 正式關：建築要自己用規劃模式選位置，�
   { t: () => '開拓東邊，打開新場地', done: () => !!save.east },
   { t: () => '蓋民房，人口到 20（' + population() + '/20）', done: () => save.level >= 1 },
   { t: () => '開採煤礦，煤很耐燒', done: () => !!save.mine },
+  { t: () => '用🏗️規劃蓋🔨鐵匠鋪，揹煤去賣', done: () => planned('smith') },
+  { t: () => '蓋🚚自動運輸（換錢或進倉庫，二選一）', done: () => !!save.truck },
   { t: () => '營火升級 Lv2，領地再擴大', done: () => save.territory >= 2 },
   { t: () => '用🏗️規劃模式蓋民房，人口到 80（' + population() + '/80）', done: () => save.level >= 2 },
   { t: () => '把營火進化成石爐（營火 Lv4）', done: () => save.stove >= 1 },
@@ -1754,7 +1797,7 @@ function step(dt) {
   updateGuide(dt);
   updateBears(dt);
   updateVillagers(dt);
-  updateTower(dt);
+  updateTower(dt); updateTransport(dt);
   updateWorkers(dt);
   updateGate(dt);
   updateColdWave(dt);
