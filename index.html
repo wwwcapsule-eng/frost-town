@@ -19,6 +19,7 @@
   .cap{font-size:13px;opacity:.75}
   .pill.full{background:rgba(200,120,20,.85)}
   .pill.danger{background:rgba(200,40,40,.85);animation:blink .8s infinite}
+  #frost{position:fixed;inset:0;pointer-events:none;box-shadow:inset 0 0 110px 40px rgba(150,210,255,.7);background:rgba(170,215,255,.12);opacity:0;transition:opacity 1s}
   #vignette{position:fixed;inset:0;pointer-events:none;box-shadow:inset 0 0 80px 20px rgba(220,30,30,.55);opacity:0;transition:opacity .4s}
   @keyframes bump{50%{transform:scale(1.15)}}
   #title{position:fixed;top:calc(10px + env(safe-area-inset-top));left:12px;color:#25415e;font-weight:900;font-size:20px;
@@ -28,6 +29,16 @@
     padding:6px 10px;background:rgba(30,40,60,.45);color:#fff}
   #mute{position:fixed;left:96px;bottom:calc(12px + env(safe-area-inset-bottom));font-size:12px;border:0;border-radius:10px;
     padding:6px 10px;background:rgba(30,40,60,.45);color:#fff}
+  #planBtn{position:fixed;right:12px;bottom:calc(14px + env(safe-area-inset-bottom));font-size:18px;font-weight:900;border:0;border-radius:14px;
+    padding:12px 16px;background:#ffd34d;color:#333;box-shadow:0 3px 0 rgba(0,0,0,.25);display:none;z-index:5}
+  #planBar{position:fixed;left:0;right:0;bottom:0;padding:10px 10px calc(10px + env(safe-area-inset-bottom));background:rgba(30,40,60,.88);
+    color:#fff;font-weight:700;display:none;z-index:6;text-align:center}
+  #planTip{font-size:14px;margin-bottom:8px;min-height:20px}
+  #planBar .row{display:flex;gap:8px;justify-content:center}
+  #planBar button{flex:1;max-width:120px;min-height:58px;border:0;border-radius:12px;font-size:15px;font-weight:900;background:#e8eef5;color:#333;padding:4px 2px;white-space:nowrap}
+  #planBar button small{font-size:12px;font-weight:700}
+  #planBar button.sel{background:#ffd34d;outline:3px solid #fff}
+  #planBar #planGo{background:#5fd068}#planBar #planGo:disabled{opacity:.4}
   #toast{position:fixed;left:50%;top:22%;transform:translateX(-50%);background:rgba(30,40,60,.8);color:#fff;font-weight:700;
     padding:8px 16px;border-radius:14px;font-size:16px;opacity:0;transition:opacity .25s;pointer-events:none;white-space:nowrap}
   #hint{position:fixed;left:50%;bottom:9%;transform:translateX(-50%);color:#25415e;font-weight:900;font-size:18px;
@@ -48,16 +59,26 @@
   <div class="pill" id="pPop">👥 <b id="pop">0</b><span class="cap" id="capP"></span></div>
   <div class="pill" id="pCash">💵 <b id="cash">0</b></div>
   <div class="pill" id="pMeat">🍖 <b id="meat">0</b><span class="cap" id="capM"></span></div>
+  <div class="pill" id="pCoal" style="display:none">⚫ <b id="coal">0</b><span class="cap" id="capC"></span></div>
   <div class="pill" id="pWood">🪵 <b id="wood">0</b><span class="cap" id="capW"></span></div>
+  <div class="pill" id="pCold" style="display:none">❄️ <b id="cold">--</b></div>
   <div class="pill" id="pFuel">🔥 <b id="fuel">100</b><span class="cap">%</span></div>
   <div class="pill" id="pHp">❤️ <b id="hp">100</b></div>
   <div class="pill" id="pRaid">🐻 <b id="raid">--</b></div>
 </div>
 <div id="vignette"></div>
+<div id="frost"></div>
 <div id="toast"></div>
 <div id="hint"></div>
 <div id="joy"><div id="knob"></div></div>
 <button id="reset">重新開始</button>
+<button id="planBtn">🏗️ 規劃</button>
+<div id="planBar"><div id="planTip"></div><div class="row">
+  <button data-k="house">🏠 民房<br><small id="pkHouse"></small></button>
+  <button data-k="heater">🔥 暖氣塔<br><small id="pkHeater"></small></button>
+  <button id="planGo" disabled>✅ 蓋這裡</button>
+  <button id="planExit">✖ 離開</button>
+</div></div>
 <div id="lose"><div class="box"><div class="big">🐻 營地失守了</div><div>所有建築都被熊拆掉了</div><button id="retry">重新開始</button></div></div>
 <div id="lvup"><div class="box"><div class="big" id="lvTitle"></div><div id="lvList"></div><button id="lvOk">太好了！</button></div></div>
 <button id="mute"></button>
@@ -65,7 +86,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 'use strict';
-const VERSION = '0.26';
+const VERSION = '0.30';
 
 // ===== 數值（之後平衡都改這裡） =====
 const CFG = {
@@ -90,14 +111,19 @@ const CFG = {
   popBase: 2,               // 一開始的人口（主角和夥伴），每個伐木工 +1
   housePop: 5, housePrice: [25, 15], // 每間民房住幾人；民房價錢：第一間 25，之後每間多 15
   fuelMax: 100, fuelBurn: 0.4, fuelPerLog: 5, heat: [10, 17], // 火爐：柴滿 100、每秒燒 0.4、一根木頭 +5；暖氣圈半徑（最小、最大）
-  heatUp: 7, furnaceUpPrice: 150, // 火爐升級（村莊解鎖）：暖氣圈最大半徑 +7
+  heatUp: 7, furnaceUpPrice: 150,
+  minePrice: 100, coalHp: 4, coalPerRock: 2, coalRegrow: 20, fuelPerCoal: 20, // 煤礦（村莊解鎖）：價錢、敲幾下、掉幾塊、幾秒長回來；一塊煤 = 火爐 +20（木頭只有 +5）
+  snowEvery: 7, snowMax: 10, snowHp: 3, snowSlow: 0.45, shovelPrice: 60, // 雪堆（村莊開始）：幾秒積一堆、最多幾堆、鏟幾下、踩到剩幾成速度、鏟雪工價錢
+  heaterPrice: 120, heaterR: 7, cell: 3, // 規劃模式：暖氣塔價錢、暖氣範圍半徑、格子大小
+  coldFirst: 120, coldEvery: 150, coldLen: 30, coldBurn: 3, coldShrink: 0.75, coldReward: 30, // 寒潮（村莊開始）：第一次幾秒後、之後每幾秒、持續幾秒、火爐燒幾倍快、暖氣圈縮成幾成、撐過去的獎金 // 火爐升級（村莊解鎖）：暖氣圈最大半徑 +7
 };
 // 城市等級：人口到門檻就升級（藍圖見 docs/企劃評估.md 第 8 節）；houses＝這一級最多能蓋幾間民房
 // cam＝鏡頭拉遠倍數；unlock＝升級卡片上列的新東西
 const LEVELS = [
-  { name: '營地', icon: '🏕️', need: 0, houses: 4, cam: 1 },
-  { name: '村莊', icon: '🏘️', need: 20, houses: 12, cam: 1.25, unlock: ['🏠 民房上限 4 → 12 間', '🔥 火爐升級：暖氣圈變大'] },
-  { name: '小鎮', icon: '🏙️', need: 80, houses: 12, cam: 1.45, unlock: ['🚧 小鎮的新玩法製作中，敬請期待'] },
+  { name: '營地', icon: '🏕️', need: 0, houses: 4, heaters: 0, cam: 1 },
+  { name: '村莊', icon: '🏘️', need: 20, houses: 20, heaters: 1, cam: 1.25, unlock: ['🏠 民房上限 4 → 20 間', '🔥 火爐升級：暖氣圈變大', '🏗️ 規劃模式：民房、暖氣塔自己決定蓋在哪', '⛏️ 煤礦、🧹 鏟雪工、❄️ 寒潮'] },
+  { name: '小鎮', icon: '🏙️', need: 80, houses: 40, heaters: 4, cam: 1.45, unlock: ['🏠 民房上限 20 → 40 間', '🔥 暖氣塔最多 4 座'] },
+  { name: '城市', icon: '🌆', need: 300, houses: 40, heaters: 4, cam: 1.6, unlock: ['🚧 城市的新玩法製作中，敬請期待'] },
 ];
 
 // ===== 存檔 =====
@@ -136,7 +162,7 @@ const mats = {
   snow: M(0xf4f8fc), dirt: M(0xc98c5a), trunk: M(0x7a4a2a), leaf: M(0x3f7f9a), leafSnow: M(0xe8f2fa),
   log: M(0xb06a35), meat: M(0xd9414a), fur: M(0xf2f0ea), cash: M(0x3fbf5a), wood: M(0x8a5a35), roof: M(0xb53a2e), player: M(0x2f8fd8),
   skin: M(0xffd6b0), ice: new THREE.MeshLambertMaterial({ color: 0xd6ecff, transparent: true, opacity: 0.85 }),
-  axe: M(0xdfe6ee),
+  axe: M(0xdfe6ee), coal: M(0x2a2c33), rock: M(0x6b7280),
 };
 function box(w, h, d, mat) { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.castShadow = m.receiveShadow = true; return m; }
 
@@ -427,12 +453,14 @@ function updateVillagers(dt) {
   villagers.forEach((v, i) => {
     const p = QUEUE(i), d = p.sub(v.g.position); d.y = 0;
     const len = d.length();
-    if (len > 0.05) { v.g.position.addScaledVector(d, Math.min(1, 3 * dt / len)); v.g.position.y = Math.abs(Math.sin(guideT * 10 + i)) * 0.08; }
+    if (len > 0.05) { v.g.position.addScaledVector(d, Math.min(1, 3 * slowAt(v.g.position.x, v.g.position.z) * dt / len)); v.g.position.y = Math.abs(Math.sin(guideT * 10 + i)) * 0.08; }
     else v.g.position.y = 0;
   });
   const front = villagers[0];
   const scared = bears.some(b => b.alive && b.aggro && Math.hypot(b.x, b.z) < 9); // 熊進營地，村民不敢買
-  if (front && !scared && bbq.cookedMeshes.length && front.g.position.distanceTo(QUEUE(0)) < 0.3) {
+  const blocked = piles.some(p => Math.hypot(p.x - CX, p.z - CZ - 1) < 1.6); // 雪堆擋在櫃台前，村民不買
+  blockWarn -= dt; if (blocked && bbq.cookedMeshes.length && blockWarn <= 0) { toast('❄️ 雪堆擋住櫃台了！快去鏟'); blockWarn = 8; }
+  if (front && !scared && !blocked && bbq.cookedMeshes.length && front.g.position.distanceTo(QUEUE(0)) < 0.3) {
     front.wait += dt;
     if (front.wait > 0.35) {
       const m = bbq.cookedMeshes.pop();
@@ -474,7 +502,7 @@ makeUnlock({ x: 10.5, z: 0, icon: '🌲', name: () => '開拓東邊',
 makeUnlock({ x: -6.3, z: 1.2, icon: '🪚', name: () => '第二台鋸木機',
   price: () => save.mill2 ? null : 80, buy: () => { save.mill2 = true; addMill2(); toast('加工速度翻倍！'); } });
 
-function openEast() { scene.remove(iceWall); trees.forEach(t => t.locked = false); }
+function openEast() { scene.remove(iceWall); trees.forEach(t => { if (!t.coal) t.locked = false; }); }
 if (save.east) openEast();
 if (save.mill2) addMill2();
 
@@ -559,21 +587,23 @@ for (let i = 0; i < save.workers; i++) addWorker();
 // ===== 民房：在南門外一間間往外蓋，每間 +5 人口；付款格蓋好後會移到下一塊空地 =====
 const houses = [];
 function houseSpot(i) { return [[-3.2, 3.2, -6.5, 6.5][i % 4], 12 + Math.floor(i / 4) * 3.5]; }
-function buildHouse(i) {
-  const [x, z] = houseSpot(i), g = new THREE.Group();
+function buildHouse(i) { const [x, z] = houseSpot(i); buildHouseAt(x, z, '民房' + i); }
+function buildHouseAt(x, z, key) {
+  const g = new THREE.Group();
   const wall = box(2.2, 1.4, 2, M(0xd8c3a0)); wall.position.y = 0.7; g.add(wall);
   const roof = new THREE.Mesh(new THREE.ConeGeometry(1.75, 1.1, 4), mats.roof); roof.position.y = 1.95; roof.rotation.y = Math.PI / 4; roof.castShadow = true; g.add(roof);
   const door = box(0.5, 0.8, 0.06, mats.trunk); door.position.set(0, 0.4, -1.02); g.add(door); // 門朝營地
   const win = box(0.45, 0.4, 0.06, M(0xffd36b)); win.position.set(0.65, 0.85, -1.02); g.add(win);
   const chimney = box(0.3, 0.7, 0.3, M(0x777777)); chimney.position.set(0.5, 2.2, 0.3); g.add(chimney);
   g.position.set(x, 0, z); scene.add(g);
-  houses.push(addBuilding('民房' + i, g, 1.3));
+  houses.push(addBuilding(key, g, 1.3));
 }
 for (let i = 0; i < save.houses; i++) buildHouse(i);
+function housePrice() { return CFG.housePrice[0] + houses.length * CFG.housePrice[1]; } // 南門外的和規劃模式蓋的一起算
 function addHouseUnlock() {
   const [x, z] = houseSpot(save.houses);
   const u = makeUnlock({ x, z, icon: '🏠', name: () => '蓋民房',
-    price: () => save.houses < LEVELS[save.level].houses ? CFG.housePrice[0] + save.houses * CFG.housePrice[1] : null,
+    price: () => houses.length < LEVELS[save.level].houses ? housePrice() : null,
     buy: () => {
       buildHouse(save.houses++); toast('蓋好民房，人口 +' + CFG.housePop + '！');
       [u.x, u.z] = houseSpot(save.houses); u.pad.position.set(u.x, 0.03, u.z); u.label.position.set(u.x, 1.9, u.z);
@@ -596,36 +626,235 @@ const furnaceLabel = makeLabel(); furnaceLabel.scale.set(2.6, 1.3, 1); furnaceLa
 let feedCd = 0;
 function updateFurnace(dt) {
   const f = furnace;
-  f.fuel = Math.max(0, f.fuel - CFG.fuelBurn * dt); save.fuel = Math.round(f.fuel * 10) / 10;
+  f.fuel = Math.max(0, f.fuel - CFG.fuelBurn * (coldWave.on > 0 ? CFG.coldBurn : 1) * dt); save.fuel = Math.round(f.fuel * 10) / 10;
   // 揹木頭站到火爐旁，一根根丟進去
   feedCd -= dt;
-  const k = carried.map(m => m.userData.type).lastIndexOf('log');
-  if (k >= 0 && feedCd <= 0 && f.fuel + f.pend * CFG.fuelPerLog < CFG.fuelMax && Math.hypot(player.position.x - FX, player.position.z - FZ) < 1.5) {
-    feedCd = 0.12; f.pend++;
+  const types = carried.map(m => m.userData.type), kc = types.lastIndexOf('coal'), k = kc >= 0 ? kc : types.lastIndexOf('log'); // 有煤先丟煤
+  const per = kc >= 0 ? CFG.fuelPerCoal : CFG.fuelPerLog;
+  if (k >= 0 && feedCd <= 0 && f.fuel + f.pend < CFG.fuelMax && Math.hypot(player.position.x - FX, player.position.z - FZ) < 1.5) {
+    feedCd = 0.12; f.pend += per; // pend：還在半空中、等一下會加進去的柴量
     const m = carried.splice(k, 1)[0]; const wp = m.getWorldPosition(new THREE.Vector3());
     stackRoot.remove(m); restack();
-    fly(m, wp, () => new THREE.Vector3(FX, 1.2, FZ), 0.3, () => { scene.remove(m); f.pend--; f.fuel = Math.min(CFG.fuelMax, f.fuel + CFG.fuelPerLog); });
+    fly(m, wp, () => new THREE.Vector3(FX, 1.2, FZ), 0.3, () => { scene.remove(m); f.pend -= per; f.fuel = Math.min(CFG.fuelMax, f.fuel + per); });
   }
   const pct = Math.round(f.fuel / CFG.fuelMax * 100);
   const rMax = CFG.heat[1] + (save.furnace ? CFG.heatUp : 0);
   f.r = f.fuel > 0 ? CFG.heat[0] + (rMax - CFG.heat[0]) * Math.min(1, pct / 50) : 0;
+  if (coldWave.on > 0) f.r *= CFG.coldShrink; // 寒潮：暖氣圈縮小
   heatRing.scale.setScalar(Math.max(0.001, f.r)); heatFill.scale.setScalar(Math.max(0.001, f.r));
   flame.visible = f.fuel > 0; flame.scale.setScalar(0.4 + 0.6 * pct / 100); flame.scale.y *= 1 + Math.sin(guideT * 20) * 0.12;
-  for (const b of buildings) b.cold = Math.hypot(b.x - FX, b.z - FZ) > f.r;
+  const hr = f.fuel > 0 ? CFG.heaterR * (coldWave.on > 0 ? CFG.coldShrink : 1) : 0; // 暖氣塔靠火爐供熱，火熄了也沒用
+  for (const h of heaters) { const v = h.bld.dead ? 0.001 : Math.max(0.001, hr); h.ring.scale.setScalar(v); h.fill.scale.setScalar(v); }
+  for (const b of buildings) b.cold = Math.hypot(b.x - FX, b.z - FZ) > f.r && !heaters.some(h => !h.bld.dead && Math.hypot(b.x - h.x, b.z - h.z) <= hr);
   if (f.fuel <= 0 && !f.out) { toast('🔥 火爐熄了！建築都凍住了，快加柴！'); beep(180, 0.4, 'sawtooth', 0.06, 0.6); }
   f.out = f.fuel <= 0;
-  furnaceLabel.set(['火爐 ' + pct + '%', pct < 50 ? '🪵 揹木頭來加柴' : '🔥 暖氣範圍'], pct > 50 ? '#ffd34d' : pct > 20 ? '#ffa040' : '#ff6a5a');
+  furnaceLabel.set(['火爐 ' + pct + '%', pct < 50 ? (save.mine ? '🪵⚫ 揹木頭或煤來加' : '🪵 揹木頭來加柴') : '🔥 暖氣範圍'], pct > 50 ? '#ffd34d' : pct > 20 ? '#ffa040' : '#ff6a5a');
   $('fuel').textContent = pct; $('pFuel').classList.toggle('danger', pct < 20);
+}
+
+// ===== 煤礦：營地西南邊的黑色礦石，買下後主角敲得到；煤丟進火爐很耐燒（伐木工不挖煤） =====
+const rocks = [];
+function addRock(x, z) {
+  const g = new THREE.Group();
+  const base = box(1.3, 0.8, 1.1, mats.rock); base.position.y = 0.4; base.rotation.y = rand(0, 3); g.add(base);
+  for (let i = 0; i < 3; i++) { const c = box(rand(0.35, 0.55), rand(0.3, 0.5), rand(0.35, 0.55), mats.coal); c.position.set(rand(-0.4, 0.4), 0.8 + rand(0, 0.15), rand(-0.3, 0.3)); c.rotation.set(rand(0, 1), rand(0, 3), 0); g.add(c); }
+  g.position.set(x, 0, z); g.visible = !!save.mine; scene.add(g);
+  const t = { g, x, z, hp: CFG.coalHp, alive: true, regrow: 0, sc: 1, shake: 0, locked: !save.mine, coal: true };
+  trees.push(t); rocks.push(t);
+}
+[[-12, 9], [-14.5, 10.5], [-17, 9], [-12.5, 12.5], [-15.5, 13.5], [-18, 12.5]].forEach(([x, z]) => addRock(x, z));
+let mineUnlock = null;
+function openMine() { rocks.forEach(t => { t.locked = false; t.g.visible = true; }); document.getElementById('pCoal').style.display = ''; }
+if (save.mine) openMine();
+
+// ===== 雪堆：村莊開始，路上會積雪；踩到走很慢，堆在櫃台前村民就不買；主角站旁邊自動鏟，也能雇鏟雪工 =====
+const piles = [], pileMat = new THREE.MeshLambertMaterial({ color: 0xcfe3f7, flatShading: true });
+let snowT = 3, blockWarn = 0;
+function spawnPile() {
+  let x, z;
+  for (let tries = 0; tries < 20; tries++) {
+    if (Math.random() < 0.5) { x = CX + rand(-0.7, 0.7); z = rand(CZ + 0.5, CZ + 11); } // 村民排隊的路上
+    else { const a = rand(0, 6.28), r = rand(2, 7.6); x = Math.cos(a) * r; z = Math.sin(a) * r; } // 營地裡
+    if (Math.hypot(x - FX, z - FZ) > 1.8 && piles.every(p => Math.hypot(p.x - x, p.z - z) > 1.6)) break;
+  }
+  const m = new THREE.Mesh(new THREE.SphereGeometry(0.9, 10, 6), pileMat); // 淡藍白色，雪地上也看得出來
+  m.scale.set(1, 0.001, 1); m.position.set(x, 0, z); m.castShadow = m.receiveShadow = true; scene.add(m);
+  piles.push({ m, x, z, hp: CFG.snowHp, grow: 0, shake: 0 });
+}
+function slowAt(x, z) { return piles.some(p => Math.hypot(p.x - x, p.z - z) < 0.95) ? CFG.snowSlow : 1; }
+function hitPile(p) {
+  p.hp--; p.shake = 0.2; burstChips(p.x, p.z, false);
+  if (p.hp <= 0) { scene.remove(p.m); piles.splice(piles.indexOf(p), 1); }
+}
+let shovelCd = 0;
+function updateSnow(dt) {
+  if (save.level < 1) return;
+  snowT -= dt * (coldWave.on > 0 ? 3 : 1);                      // 寒潮時積雪快 3 倍
+  if (snowT <= 0) { snowT = CFG.snowEvery; if (piles.length < CFG.snowMax) spawnPile(); }
+  shovelCd -= dt;
+  for (const p of piles) {
+    p.grow = Math.min(1, p.grow + dt * 1.5);
+    const k = p.hp / CFG.snowHp; p.m.scale.set(0.5 + 0.5 * k, (0.35 + 0.25 * k) * p.grow, 0.5 + 0.5 * k);
+    if (p.shake > 0) { p.shake -= dt; p.m.position.x = p.x + Math.sin(p.shake * 70) * 0.06; } else p.m.position.x = p.x;
+  }
+  const near = piles.find(p => Math.hypot(p.x - player.position.x, p.z - player.position.z) < 1.7);
+  if (near && shovelCd <= 0) { shovelCd = 0.3; hitPile(near); sfx.chop(); }
+  for (const s of shovelers) {                                   // 鏟雪工：找最近的雪堆去鏟
+    let t = null, best = 1e9;
+    for (const p of piles) { const d = Math.hypot(p.x - s.g.position.x, p.z - s.g.position.z); if (d < best) { best = d; t = p; } }
+    s.cd -= dt;
+    if (!t) { routeTo(s, 5.5, -2, dt); continue; }
+    if (best > 1.2) routeTo(s, t.x, t.z, dt); else if (s.cd <= 0) { s.cd = 0.5; hitPile(t); s.g.rotation.y += 0.6; }
+  }
+}
+const shovelers = [];
+function addShoveler() {
+  const g = new THREE.Group();
+  const b = box(0.6, 0.75, 0.45, M(0x4fb3e8)); b.position.y = 0.6; g.add(b);
+  const h = box(0.45, 0.42, 0.42, mats.skin); h.position.y = 1.2; g.add(h);
+  const hat = box(0.5, 0.18, 0.5, M(0xffffff)); hat.position.y = 1.5; g.add(hat);
+  const sh = box(0.12, 0.12, 0.9, mats.axe); sh.position.set(0.35, 0.6, 0.35); g.add(sh);   // 鏟子
+  g.position.set(5.5, 0, -2); scene.add(g);
+  shovelers.push({ g, cd: 0, walk: 0 });
+}
+let shovelUnlock = null;
+
+// ===== 寒潮：村莊開始，每隔一段時間氣溫驟降 30 秒，火爐燒得快、暖氣圈縮小；撐過去（火沒熄）有獎金 =====
+const coldWave = { t: save.coldT ?? CFG.coldFirst, on: 0, failed: false };
+function updateColdWave(dt) {
+  const active = save.level >= 1;
+  $('pCold').style.display = active ? '' : 'none';
+  if (!active) { $('frost').style.opacity = 0; return; }
+  const c = coldWave;
+  if (c.on > 0) {
+    c.on -= dt; if (furnace.out) c.failed = true;
+    if (c.on <= 0) {
+      c.t = CFG.coldEvery;
+      if (!c.failed) { save.cash += CFG.coldReward; sfx.unlock(); toast('撐過寒潮了！獎金 +' + CFG.coldReward + ' 元'); }
+      else toast('寒潮過去了…下次記得先把火爐加滿柴');
+    }
+  } else {
+    c.t -= dt;
+    if (c.t <= 0) { c.on = CFG.coldLen; c.failed = false; toast('❄️ 寒潮來了！火爐燒得更快，撐住 ' + CFG.coldLen + ' 秒！'); beep(300, 0.6, 'triangle', 0.06, 0.4); }
+    else if (Math.ceil(c.t) === 15 && Math.ceil(c.t + dt) > 15) toast('❄️ 15 秒後寒潮來襲，先把火爐加滿柴！');
+  }
+  save.coldT = Math.max(0, Math.round(c.t));
+  $('cold').textContent = c.on > 0 ? '寒潮中！' + Math.ceil(c.on) : Math.ceil(c.t) + ' 秒';
+  $('pCold').classList.toggle('danger', c.on > 0);
+  $('frost').style.opacity = c.on > 0 ? 1 : 0;
+}
+
+// ===== 暖氣塔：把火爐的熱送到遠一點的地方（規劃模式蓋） =====
+const heaters = [];
+function buildHeater(x, z, i) {
+  const g = new THREE.Group();
+  const p = box(0.9, 2.2, 0.9, M(0x8a8f99)); p.position.y = 1.1; g.add(p);
+  const top = box(1.2, 0.3, 1.2, mats.trunk); top.position.y = 2.3; g.add(top);
+  const fl = new THREE.Mesh(new THREE.ConeGeometry(0.4, 0.8, 6), new THREE.MeshBasicMaterial({ color: 0xff8a1f })); fl.position.y = 2.85; g.add(fl);
+  g.position.set(x, 0, z); scene.add(g);
+  const ring = new THREE.Mesh(heatRing.geometry, heatRing.material), fill = new THREE.Mesh(heatFill.geometry, heatFill.material);
+  [ring, fill].forEach(m => { m.rotation.x = -Math.PI / 2; m.position.set(x, 0.026, z); scene.add(m); });
+  heaters.push({ x, z, ring, fill, bld: addBuilding('暖氣塔' + i, g, 0.8) });
+}
+
+// ===== 規劃模式（村莊開始）：鏡頭拉高、地上出現格子，點格子決定民房、暖氣塔蓋哪；規劃時遊戲暫停 =====
+save.plan = save.plan || [];
+save.plan.forEach((p, i) => p.k === 'house' ? buildHouseAt(p.x, p.z, '規劃民房' + i) : buildHeater(p.x, p.z, i));
+const plan = { on: false, kind: null, cell: null, cx: 0, cz: 2, down: null };
+const grid = new THREE.GridHelper(66, 22, 0x25415e, 0x25415e); // 深藍色，雪地上也看得到
+grid.material.transparent = true; grid.material.opacity = 0.3; grid.position.set(0, 0.06, 0); grid.visible = false; scene.add(grid);
+const cursor = new THREE.Mesh(new THREE.PlaneGeometry(CFG.cell * 0.94, CFG.cell * 0.94), new THREE.MeshBasicMaterial({ color: 0x5fd068, transparent: true, opacity: 0.5, depthWrite: false }));
+cursor.rotation.x = -Math.PI / 2; cursor.position.y = 0.07; cursor.visible = false; scene.add(cursor);
+const ghost = box(2.2, 1.4, 2, new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true, opacity: 0.55 })); ghost.visible = false; scene.add(ghost);
+function planCost(k) { return k === 'house' ? housePrice() : CFG.heaterPrice; }
+function planLimit(k) {
+  const lv = LEVELS[save.level];
+  return k === 'house' ? houses.length < lv.houses : heaters.length < lv.heaters;
+}
+function canBuild(x, z) {
+  const r = Math.hypot(x, z), d = (a, b) => Math.hypot(a - x, b - z);
+  if (r > 27 || Math.abs(r - FENCE_R) < 1.8 || d(FX, FZ) < 2.6) return false;
+  if (Math.abs(x - CX) < 1.8 && z > CZ - 1 && z < CZ + 17) return false;          // 村民排隊的路
+  if (Math.abs(x) < 4.5 && z < -6 && z > -13) return false;                        // 北門前
+  if (buildings.some(b => d(b.x, b.z) < b.r + 1.6)) return false;
+  if (unlocks.some(u => !u.done && d(u.x, u.z) < 2.3)) return false;
+  if (mills.some(m => d(m.inPad.position.x, m.inPad.position.z) < 2 || d(m.outPad.position.x, m.outPad.position.z) < 2)) return false;
+  if (trees.some(t => d(t.x, t.z) < 1.7)) return false;
+  return true;
+}
+function planUi() {
+  const lv = LEVELS[save.level];
+  $('pkHouse').textContent = planLimit('house') ? '💵 ' + planCost('house') : '已滿 ' + lv.houses + ' 間';
+  $('pkHeater').textContent = planLimit('heater') ? '💵 ' + planCost('heater') : lv.heaters ? '已滿 ' + lv.heaters + ' 座' : '村莊解鎖';
+  document.querySelectorAll('#planBar [data-k]').forEach(b => b.classList.toggle('sel', b.dataset.k === plan.kind));
+  let tip = '先選一種建築，再點地上的格子（拖曳可以移動畫面）', ok = false;
+  if (plan.kind && plan.cell) {
+    const [x, z] = plan.cell, cost = planCost(plan.kind);
+    if (!planLimit(plan.kind)) tip = '數量已達上限，城市升級後可以蓋更多';
+    else if (!canBuild(x, z)) tip = '這格不能蓋（太靠近建築、圍欄、樹或路）';
+    else if (save.cash < cost) tip = '錢不夠：需要 ' + cost + ' 元';
+    else { tip = '按「✅ 蓋這裡」花 ' + cost + ' 元'; ok = true; }
+    cursor.material.color.setHex(ok ? 0x5fd068 : 0xff5a4a);
+  } else if (plan.kind) tip = '點地上的格子，選要蓋在哪';
+  $('planTip').textContent = tip; $('planGo').disabled = !ok;
+  ghost.visible = !!(plan.kind && plan.cell);
+  if (ghost.visible) { const hs = plan.kind === 'house'; ghost.position.set(plan.cell[0], hs ? 0.7 : 1.1, plan.cell[1]); ghost.scale.set(hs ? 1 : 0.45, hs ? 1 : 1.6, hs ? 1 : 0.45); }
+}
+function setPlan(on) {
+  plan.on = on; plan.kind = null; plan.cell = null;
+  if (on) { plan.cx = player.position.x; plan.cz = player.position.z; joy.active = false; joy.x = joy.y = 0; joyEl.style.display = 'none'; }
+  grid.visible = cursor.visible = on; ghost.visible = false;
+  $('planBar').style.display = on ? 'block' : 'none';
+  if (on) planUi(); else clock.getDelta();
+}
+document.getElementById('planBtn').onclick = () => setPlan(true);
+document.getElementById('planExit').onclick = () => setPlan(false);
+document.querySelectorAll('#planBar [data-k]').forEach(b => b.onclick = () => { plan.kind = b.dataset.k; planUi(); });
+document.getElementById('planGo').onclick = () => {
+  if (!plan.kind || !plan.cell) return;
+  const [x, z] = plan.cell, k = plan.kind, cost = planCost(k);
+  if (!planLimit(k) || !canBuild(x, z) || save.cash < cost) return;
+  save.cash -= cost; save.plan.push({ k, x, z });
+  if (k === 'house') buildHouseAt(x, z, '規劃民房' + (save.plan.length - 1)); else buildHeater(x, z, save.plan.length - 1);
+  sfx.unlock(); sparkle(x, z); writeSave();
+  plan.cell = null; planUi();
+};
+const ray = new THREE.Raycaster(), groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+function planPointer(type, e) {
+  if (type === 'down') { plan.down = { x: e.clientX, y: e.clientY, cx: plan.cx, cz: plan.cz, moved: false, id: e.pointerId }; return; }
+  const d = plan.down; if (!d || e.pointerId !== d.id) return;
+  const dx = e.clientX - d.x, dy = e.clientY - d.y;
+  if (Math.hypot(dx, dy) > 10) d.moved = true;
+  const k = 0.05 * LEVELS[save.level].cam;                       // 拖曳：移動畫面
+  if (d.moved) { plan.cx = Math.max(-28, Math.min(28, d.cx - dx * k)); plan.cz = Math.max(-28, Math.min(28, d.cz - dy * k)); }
+  if (type === 'up') {
+    plan.down = null;
+    if (d.moved) return;
+    ray.setFromCamera(new THREE.Vector2(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1), camera);
+    const p = ray.ray.intersectPlane(groundPlane, new THREE.Vector3()); if (!p) return;
+    const c = CFG.cell, x = (Math.floor(p.x / c) + 0.5) * c, z = (Math.floor(p.z / c) + 0.5) * c;
+    plan.cell = [x, z]; cursor.position.x = x; cursor.position.z = z; planUi();
+  }
+}
+function planCamera(dt) {
+  const h = 30 * LEVELS[save.level].cam * (innerWidth < innerHeight ? 1.25 : 1);
+  camera.position.lerp(tmp.set(plan.cx, h, plan.cz + h * 0.45), 1 - Math.exp(-dt * 6));
+  camera.lookAt(plan.cx, 0, plan.cz);
 }
 
 // ===== 城市等級升級：人口到門檻 → 暫停、跳出「新解鎖」卡片、鏡頭拉遠、出現新付款格 =====
 let paused = false, furnaceUnlock = null;
 function levelUnlocks() {
-  if (houseUnlock.done && save.houses < LEVELS[save.level].houses) houseUnlock = addHouseUnlock();
+  if (houseUnlock.done && houses.length < LEVELS[save.level].houses) houseUnlock = addHouseUnlock();
+  if (save.level >= 1 && !save.mine && !mineUnlock) mineUnlock = makeUnlock({ x: -10, z: 6, icon: '⛏️', name: () => '開採煤礦',
+    price: () => save.mine ? null : CFG.minePrice, buy: () => { save.mine = 1; openMine(); toast('煤礦開放了！煤丟進火爐很耐燒'); } });
+  if (save.level >= 1 && !save.shovel && !shovelUnlock) shovelUnlock = makeUnlock({ x: 6.6, z: -3, icon: '🧹', name: () => '雇用鏟雪工',
+    price: () => save.shovel ? null : CFG.shovelPrice, buy: () => { save.shovel = 1; addShoveler(); toast('鏟雪工會自己去鏟雪！'); } });
   if (save.level >= 1 && !save.furnace && !furnaceUnlock) furnaceUnlock = makeUnlock({ x: 2.2, z: -4, icon: '🔥', name: () => '火爐升級',
     price: () => save.furnace ? null : CFG.furnaceUpPrice, buy: () => { save.furnace = 1; toast('暖氣圈變大了！'); } });
 }
 levelUnlocks();
+if (save.shovel) addShoveler();
 function checkLevel() {
   const next = LEVELS[save.level + 1];
   if (!next || population() < next.need) return;
@@ -652,7 +881,7 @@ function routeTo(w, x, z, dt) {
 function walkTo(w, x, z, dt) {
   const dx = x - w.g.position.x, dz = z - w.g.position.z, d = Math.hypot(dx, dz);
   if (d < 0.1) return true;
-  const s = Math.min(d, CFG.workerSpeed * dt);
+  const s = Math.min(d, CFG.workerSpeed * slowAt(w.g.position.x, w.g.position.z) * dt);
   w.g.position.x += dx / d * s; w.g.position.z += dz / d * s;
   w.g.rotation.y = Math.atan2(dx, dz); w.walk += dt * 12; w.g.position.y = Math.abs(Math.sin(w.walk)) * 0.1;
   return false;
@@ -670,7 +899,7 @@ function updateWorkers(dt) {
     if (!w.tree || !w.tree.alive) {                  // 找最近、沒人在砍的樹
       let best = 1e9; w.tree = null;
       for (const t of trees) {
-        if (!t.alive || t.locked || workers.some(o => o !== w && o.tree === t)) continue;
+        if (!t.alive || t.locked || t.coal || workers.some(o => o !== w && o.tree === t)) continue;
         const d = (t.x - w.g.position.x) ** 2 + (t.z - w.g.position.z) ** 2;
         if (d < best) { best = d; w.tree = t; }
       }
@@ -809,9 +1038,10 @@ function hud() {
   $('pop').textContent = population(); $('capP').textContent = next ? '/' + next.need : '';
   $('ver').textContent = 'v' + VERSION + '　' + lv.icon + ' ' + lv.name;
   if (shownCash !== save.cash) { $('cash').textContent = save.cash; bump('pCash'); shownCash = save.cash; }
-  const nMeat = carried.filter(m => m.userData.type === 'meat').length, nLog = carried.length - nMeat;
-  if (shownWood !== carried.length * 1000 + nMeat) { $('wood').textContent = nLog; $('meat').textContent = nMeat; shownWood = carried.length * 1000 + nMeat; }
-  $('capW').textContent = '/' + capacity(); $('capM').textContent = '/' + capacity();
+  const nMeat = countOf('meat') - flies.filter(f => f.toBack === 'meat').length, nCoal = carried.filter(m => m.userData.type === 'coal').length, nLog = carried.length - nMeat - nCoal;
+  if (shownWood !== carried.length * 10000 + nMeat * 100 + nCoal) { $('wood').textContent = nLog; $('meat').textContent = nMeat; $('coal').textContent = nCoal; shownWood = carried.length * 10000 + nMeat * 100 + nCoal; }
+  $('capW').textContent = '/' + capacity(); $('capM').textContent = '/' + capacity(); $('capC').textContent = '/' + capacity();
+  $('pCoal').classList.toggle('full', countOf('coal') >= capacity());
   $('pWood').classList.toggle('full', countOf('log') >= capacity()); $('pMeat').classList.toggle('full', countOf('meat') >= capacity());
 }
 function bump(id) { const e = $(id); e.classList.remove('bump'); void e.offsetWidth; e.classList.add('bump'); }
@@ -849,12 +1079,15 @@ if (!hintOn) $('hint').style.display = 'none';
 const joy = { active: false, id: null, ox: 0, oy: 0, x: 0, y: 0 };
 const joyEl = $('joy'), knob = $('knob');
 addEventListener('pointerdown', e => {
-  if (e.target.id === 'reset' || e.target.id === 'mute' || joy.active) return;
+  if (e.target.id === 'reset' || e.target.id === 'mute' || e.target.closest('#planBar, #planBtn')) return;
+  if (plan.on) return planPointer('down', e);
+  if (joy.active) return;
   joy.active = true; joy.id = e.pointerId; joy.ox = e.clientX; joy.oy = e.clientY; joy.x = joy.y = 0;
   joyEl.style.left = e.clientX + 'px'; joyEl.style.top = e.clientY + 'px'; joyEl.style.display = 'block';
   knob.style.transform = '';
 });
 addEventListener('pointermove', e => {
+  if (plan.on) return planPointer('move', e);
   if (!joy.active || e.pointerId !== joy.id) return;
   let dx = e.clientX - joy.ox, dy = e.clientY - joy.oy;
   const len = Math.hypot(dx, dy), R = 50;
@@ -862,7 +1095,7 @@ addEventListener('pointermove', e => {
   joy.x = dx / R; joy.y = dy / R;
   knob.style.transform = `translate(${dx}px,${dy}px)`;
 });
-function joyEnd(e) { if (e.pointerId === joy.id) { joy.active = false; joy.x = joy.y = 0; joyEl.style.display = 'none'; } }
+function joyEnd(e) { if (plan.on) planPointer('up', e); if (e.pointerId === joy.id) { joy.active = false; joy.x = joy.y = 0; joyEl.style.display = 'none'; } }
 addEventListener('pointerup', joyEnd); addEventListener('pointercancel', joyEnd);
 const keys = {};
 addEventListener('keydown', e => keys[e.code] = true);
@@ -906,7 +1139,7 @@ function updateGuide(dt) {
   const out = mills.find(m => m.out.length);
   const aff = unlocks.find(u => !u.done && u.price() - u.paid <= save.cash);
   if (out) { x = out.outPad.position.x; z = out.outPad.position.z; }
-  else if (carried.length >= Math.min(capacity(), 9)) { const s = mills.find(m => m.accept === carried[carried.length - 1].userData.type); x = s.inPad.position.x; z = s.inPad.position.z; }
+  else if (carried.length >= Math.min(capacity(), 9)) { const s = mills.find(m => m.accept === carried[carried.length - 1].userData.type) || { inPad: fg }; x = s.inPad.position.x; z = s.inPad.position.z; }
   else if (aff && !carried.length) { x = aff.x; z = aff.z; h = 3.2; }
   else {
     let best = 1e9;
@@ -985,7 +1218,8 @@ function step(dt) {
   const moving = Math.hypot(mx, mz) > 0.05;
   if (moving) {
     if (hintOn) { hintOn = false; $('hint').style.display = 'none'; }
-    let nx = player.position.x + mx * CFG.speed * dt, nz = player.position.z + mz * CFG.speed * dt;
+    const sp = CFG.speed * slowAt(player.position.x, player.position.z) * dt; // 踩到雪堆走很慢
+    let nx = player.position.x + mx * sp, nz = player.position.z + mz * sp;
     if (!save.east && nx > 12.2) nx = 12.2;           // 冰牆擋住
     nx = Math.max(-40, Math.min(40, nx)); nz = Math.max(-40, Math.min(40, nz));
     for (const t of trees) {                          // 不要穿過樹幹
@@ -1019,9 +1253,9 @@ function step(dt) {
     if (Math.hypot(b.x - player.position.x, b.z - player.position.z) < CFG.chopRange + 0.4) { target = b; break; }
   }
   if (target) {
-    const kind = target.isBear ? 'meat' : 'log';
+    const kind = target.isBear ? 'meat' : target.coal ? 'coal' : 'log';
     if (countOf(kind) >= capacity()) {
-      fullWarn -= dt; if (fullWarn <= 0) { toast(kind === 'meat' ? '肉滿了！拿去烤肉攤' : '木頭滿了！拿去鋸木廠'); fullWarn = 3; }
+      fullWarn -= dt; if (fullWarn <= 0) { toast(kind === 'meat' ? '肉滿了！拿去烤肉攤' : kind === 'coal' ? '煤滿了！拿去火爐' : '木頭滿了！拿去鋸木廠'); fullWarn = 3; }
     } else {
       axeShow = 0.3;
       if (chopTimer <= 0) {
@@ -1030,13 +1264,13 @@ function step(dt) {
         burstChips(target.x, target.z, target.isBear); sfx.chop();
         if (target.hp <= 0) {
           target.alive = false;
-          if (target.isBear) target.respawn = CFG.bearRespawn; else target.regrow = CFG.treeRegrow;
-          const n = target.isBear ? CFG.meatPerBear : CFG.logsPerTree;
+          if (target.isBear) target.respawn = CFG.bearRespawn; else target.regrow = target.coal ? CFG.coalRegrow : CFG.treeRegrow;
+          const n = target.isBear ? CFG.meatPerBear : target.coal ? CFG.coalPerRock : CFG.logsPerTree;
           for (let i = 0; i < n; i++) {
             if (countOf(kind) >= capacity()) break;
             const idx = stackHeight();
-            const m = new THREE.Mesh(logGeo, target.isBear ? mats.meat : mats.log); m.castShadow = true;
-            m.userData.type = target.isBear ? 'meat' : 'log';
+            const m = new THREE.Mesh(logGeo, mats[kind === 'log' ? 'log' : kind]); m.castShadow = true;
+            m.userData.type = kind;
             const f = { toBack: kind };
             fly(m, tmp.set(target.x, 1 + i * 0.3, target.z), () => stackRoot.localToWorld(new THREE.Vector3(0, idx * 0.24, 0)), 0.35 + i * 0.08, () => {
               stackRoot.add(m); carried.push(m); restack();
@@ -1071,7 +1305,7 @@ function step(dt) {
     if (!t.alive) {
       t.g.scale.setScalar(Math.max(0.001, t.g.scale.x - dt * 4));
       t.regrow -= dt;
-      if (t.regrow <= 0) { t.alive = true; t.hp = CFG.treeHp; }
+      if (t.regrow <= 0) { t.alive = true; t.hp = t.coal ? CFG.coalHp : CFG.treeHp; }
     } else if (t.g.scale.x < t.sc) t.g.scale.setScalar(Math.min(t.sc, t.g.scale.x + dt * 1.5));
   }
 
@@ -1134,6 +1368,8 @@ function step(dt) {
   updateTower(dt);
   updateWorkers(dt);
   updateGate(dt);
+  updateColdWave(dt);
+  updateSnow(dt);
   updateFurnace(dt);
   updateBuildings(dt);
   checkLevel();
@@ -1151,7 +1387,7 @@ function step(dt) {
 
   // 下雪
   for (let i = 0; i < snowN; i++) {
-    snowPos[i * 3 + 1] -= dt * 1.5;
+    snowPos[i * 3 + 1] -= dt * (coldWave.on > 0 ? 5 : 1.5); // 寒潮時雪下得又快又急
     if (snowPos[i * 3 + 1] < 0) {
       snowPos[i * 3 + 1] = 18;
       snowPos[i * 3] = player.position.x + rand(-25, 25); snowPos[i * 3 + 2] = player.position.z + rand(-25, 25);
@@ -1173,12 +1409,14 @@ function step(dt) {
 camera.position.copy(player.position).add(camOffset);
 function loop() {
   requestAnimationFrame(loop);
-  step(Math.min(clock.getDelta(), 0.05));
+  const dt = Math.min(clock.getDelta(), 0.05);
+  if (plan.on) planCamera(dt); else step(dt);
+  document.getElementById('planBtn').style.display = save.level >= 1 && !plan.on && !gameOver ? 'block' : 'none';
   renderer.render(scene, camera);
 }
 loop();
 addEventListener('visibilitychange', () => { if (document.hidden) writeSave(); });
-window.__game = { hero, save, furnace, houses, player, carried, mills, unlocks, trees, bears, gate, buildings, towers, step, render: () => renderer.render(scene, camera) }; // 測試用
+window.__game = { plan, setPlan, planPointer, canBuild, heaters, piles, shovelers, spawnPile, rocks, coldWave, hero, save, furnace, houses, player, carried, mills, unlocks, trees, bears, gate, buildings, towers, step, render: () => renderer.render(scene, camera) }; // 測試用
 </script>
 </body>
 </html>
