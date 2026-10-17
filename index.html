@@ -118,7 +118,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 'use strict';
-const VERSION = '0.55';
+const VERSION = '0.56';
 
 // ===== 數值（之後平衡都改這裡） =====
 const CFG = {
@@ -133,6 +133,8 @@ const CFG = {
   logValue: 1,              // 一根木頭換幾元
   meatValue: 3,             // 一塊肉換幾元
   bearHp: 5, bearCount: 5, bearRespawn: 20, meatPerBear: 2,
+  lvBearHp: 0.3, lvBearDmg: 0.2, bearMax: 12, // 營火每升 1 級：熊血量 +30%、撞門／拆建築傷害 +20%；森林裡最多幾隻熊（企劃 10.1）
+  wolfHp: 1, wolfSpeed: 4.4, wolfLv: 4, // 冰狼：石爐時代（營火 Lv4）起跟熊群一起來，一次 4～6 隻、跑很快、血少
   towerRange: 11, towerInterval: 1.1, // 弩砲塔射程與射速
   buildCool: 2,             // 升級完要等幾秒才能再升級
   coldBase: 0.6, coldPerUnit: 0.25, coldMax: 4, // 野外寒冷：出了暖氣圈每秒掉 0.6 血，每遠 1 格多掉 0.25，最多每秒 4（寒潮時 ×1.5）
@@ -428,24 +430,41 @@ function updateDoors(dt) {
 // ===== 北極熊：在北邊森林閒晃，打倒掉肉，過一陣子重生 =====
 const bears = [];
 function bearSpot() { let x, z; do { x = rand(-12, 8); z = rand(-FENCE_R - 14, -FENCE_R - 2.3); } while (nearNorthDoors(x, z, 2)); return [x, z]; }
-for (let i = 0; i < CFG.bearCount; i++) {
+function makeMob(wolf) {
   const g = new THREE.Group();
-  const bd = box(1.5, 0.9, 0.95, mats.fur); bd.position.y = 0.75; g.add(bd);
-  const hd = box(0.6, 0.55, 0.6, mats.fur); hd.position.set(0, 0.95, 0.95); g.add(hd);
-  const nose = box(0.25, 0.2, 0.2, M(0x333333)); nose.position.set(0, 0.9, 1.3); g.add(nose);
-  [-0.2, 0.2].forEach(ex => { const e = box(0.14, 0.14, 0.1, mats.fur); e.position.set(ex, 1.28, 0.85); g.add(e); });
-  [[-0.5, -0.3], [0.5, -0.3], [-0.5, 0.3], [0.5, 0.3]].forEach(([lx, lz]) => { const l = box(0.3, 0.45, 0.3, mats.fur); l.position.set(lx * 0.8, 0.22, lz * 1.2); g.add(l); });
-  bd.rotation.y = Math.PI / 2; // 身體朝 +z
+  if (wolf) {                                                   // 冰狼：灰色、細長、比熊小
+    const fur = M(0x9aa3ad);
+    const bd = box(1.1, 0.5, 0.45, fur); bd.position.y = 0.6; bd.rotation.y = Math.PI / 2; g.add(bd);
+    const hd = box(0.38, 0.36, 0.5, fur); hd.position.set(0, 0.85, 0.7); g.add(hd);
+    const nose = box(0.14, 0.12, 0.14, M(0x333333)); nose.position.set(0, 0.8, 1); g.add(nose);
+    [-0.12, 0.12].forEach(ex => { const e = box(0.1, 0.18, 0.08, fur); e.position.set(ex, 1.1, 0.62); g.add(e); });
+    const tail = box(0.14, 0.14, 0.5, fur); tail.position.set(0, 0.7, -0.75); tail.rotation.x = 0.5; g.add(tail);
+    [[-0.15, -0.35], [0.15, -0.35], [-0.15, 0.35], [0.15, 0.35]].forEach(([lx, lz]) => { const l = box(0.14, 0.4, 0.14, fur); l.position.set(lx, 0.2, lz); g.add(l); });
+  } else {
+    const bd = box(1.5, 0.9, 0.95, mats.fur); bd.position.y = 0.75; g.add(bd);
+    const hd = box(0.6, 0.55, 0.6, mats.fur); hd.position.set(0, 0.95, 0.95); g.add(hd);
+    const nose = box(0.25, 0.2, 0.2, M(0x333333)); nose.position.set(0, 0.9, 1.3); g.add(nose);
+    [-0.2, 0.2].forEach(ex => { const e = box(0.14, 0.14, 0.1, mats.fur); e.position.set(ex, 1.28, 0.85); g.add(e); });
+    [[-0.5, -0.3], [0.5, -0.3], [-0.5, 0.3], [0.5, 0.3]].forEach(([lx, lz]) => { const l = box(0.3, 0.45, 0.3, mats.fur); l.position.set(lx * 0.8, 0.22, lz * 1.2); g.add(l); });
+    bd.rotation.y = Math.PI / 2; // 身體朝 +z
+  }
   const [x, z] = bearSpot();
   g.position.set(x, 0, z); scene.add(g);
-  bears.push({ g, x, z, isBear: true, hp: CFG.bearHp, alive: true, respawn: 0, dir: rand(0, 6.28), turn: 0, shake: 0, pop: 0 });
+  const b = { g, x, z, isBear: true, wolf, hp: wolf ? CFG.wolfHp : CFG.bearHp, alive: true, respawn: 0, dir: rand(0, 6.28), turn: 0, shake: 0, pop: 0 };
+  bears.push(b); return b;
 }
+for (let i = 0; i < CFG.bearCount; i++) makeMob(false);
+// 怪物跟著營火等級變強（企劃 10.1）：Lv1 是原本的熊，之後每級血量、傷害往上加
+const mobLv = () => fireLv() - 1;
+const mobHp = b => Math.round((b.wolf ? CFG.wolfHp : CFG.bearHp) * (1 + CFG.lvBearHp * mobLv()));
+const mobDmg = b => (1 + CFG.lvBearDmg * mobLv()) * (b.wolf ? 0.15 : 1); // 狼咬門比熊弱很多，威脅在數量多、跑得快
 function updateBears(dt) {
   for (const b of bears) {
     if (!b.alive) {
       b.g.scale.setScalar(Math.max(0.001, b.g.scale.x - dt * 4));
       b.respawn -= dt;
-      if (b.respawn <= 0) { [b.x, b.z] = bearSpot(); b.alive = true; b.hp = CFG.bearHp; b.aggro = false; }
+      if (b.wolf) continue;                         // 冰狼打倒就不重生，下次來襲再叫出來
+      if (b.respawn <= 0) { [b.x, b.z] = bearSpot(); b.alive = true; b.hp = mobHp(b); b.aggro = false; }
       b.g.position.set(b.x, 0, b.z);
       continue;
     }
@@ -463,9 +482,10 @@ function updateBears(dt) {
         if (bearIn !== preyIn && !inGateBand) { tx = Math.max(-2.5, Math.min(2.5, b.x)); tz = bearIn ? -FENCE_R + 1.7 : -FENCE_R - 1.3; reach = 0.3; prey = null; } // 進出營地都走北門
       }
       const dx = tx - b.x, dz = tz - b.z, d = Math.hypot(dx, dz);
-      if (d > reach) { b.dir = Math.atan2(dx, dz); b.x += dx / d * 2.2 * dt; b.z += dz / d * 2.2 * dt; }
-      else if (gate.hp > 0) { gate.hp -= CFG.bearDps * dt; gate.hit = 0.2; }
-      else if (prey) { b.dir = Math.atan2(dx, dz); prey.hp -= CFG.bearBuildDps * dt; prey.hit = 0.2; }
+      const sp = b.wolf ? CFG.wolfSpeed : 2.2;
+      if (d > reach) { b.dir = Math.atan2(dx, dz); b.x += dx / d * sp * dt; b.z += dz / d * sp * dt; }
+      else if (gate.hp > 0) { gate.hp -= CFG.bearDps * mobDmg(b) * dt; gate.hit = 0.2; }
+      else if (prey) { b.dir = Math.atan2(dx, dz); prey.hp -= CFG.bearBuildDps * mobDmg(b) * dt; prey.hit = 0.2; }
     } else if (b.shake <= 0 && huntable(b)) {     // 野外的熊：主角在營地外又靠太近，就追過去打
       const dx = player.position.x - b.x, dz = player.position.z - b.z, d = Math.hypot(dx, dz);
       b.dir = Math.atan2(dx, dz); b.hunting = true;
@@ -660,9 +680,15 @@ function updateGate(dt) {
   gate.raidT -= dt;
   if (gate.raidT <= 0) {
     gate.raidT = CFG.raidEvery;
-    const pool = bears.filter(b => b.alive && !b.aggro).sort((a, b) => b.z - a.z).slice(0, raidCount());
-    pool.forEach(b => b.aggro = true);
-    if (pool.length) { toast('🐻 熊群來襲！守住北門！'); beep(220, 0.4, 'sawtooth', 0.06, 0.6); }
+    const n = raidCount(), wild = () => bears.filter(b => !b.wolf && b.alive && !b.aggro);
+    while (wild().length < n && bears.filter(b => !b.wolf).length < CFG.bearMax) makeMob(false); // 熊不夠就從森林深處多來幾隻
+    const pool = wild().sort((a, b) => b.z - a.z).slice(0, n);
+    if (wolvesCome()) for (let i = 4 + Math.floor(rand(0, 3)); i > 0; i--) {   // 冰狼 4～6 隻，重用打倒的狼
+      const w = bears.find(b => b.wolf && !b.alive && !pool.includes(b)) || makeMob(true);
+      [w.x, w.z] = bearSpot(); w.alive = true; w.g.scale.setScalar(1); pool.push(w);
+    }
+    pool.forEach(b => { b.aggro = true; b.hp = Math.max(b.hp, mobHp(b)); });
+    if (pool.length) { toast(wolvesCome() ? '🐺 冰狼群跟熊一起來了！守住北門！' : '🐻 熊群來襲！守住北門！'); beep(220, 0.4, 'sawtooth', 0.06, 0.6); }
   }
   // 北門狀態
   gate.hp = Math.max(0, gate.hp);
@@ -762,7 +788,8 @@ const fireLight = new THREE.PointLight(0xff9a3c, 1.2, 14, 1.5); fireLight.positi
 const skyCol = new THREE.Color(0xcfe3f2), tmpCol = new THREE.Color();
 let fireStage = 0;
 function fireStageOf(pct) { return FIRE_STAGES.findIndex(st => pct >= st.min); }
-function raidCount() { return CFG.raidBears + FIRE_STAGES[fireStage].bears; }
+function raidCount() { return CFG.raidBears + Math.floor(mobLv() / 2) + FIRE_STAGES[fireStage].bears; } // 營火每升 2 級多來一隻熊
+const wolvesCome = () => fireLv() >= CFG.wolfLv;
 function updateFireLook(dt, pct) {
   const i = fireStageOf(pct), st = FIRE_STAGES[i];
   if (i > fireStage && st.msg) { toast(st.msg); beep(260, 0.3, 'triangle', 0.05, 0.6); }
@@ -1606,7 +1633,7 @@ function updateAlert() {
   if (gate.raiding) { t = '🐻 熊群來襲！守住北門'; }
   else if (save.level >= 1 && coldWave.on > 0) { t = '❄️ 寒潮中 ' + Math.ceil(coldWave.on) + ' 秒，顧好營火'; cls = 'cold'; }
   else if (hero.over > 0 && hero.hp < 60) { t = '🥶 好冷！回營火旁取暖'; cls = 'cold'; }
-  else if (gate.raidT <= 15) { t = '🐻 ' + raidCount() + ' 隻熊 ' + Math.ceil(gate.raidT) + ' 秒後來襲'; cls = 'warn'; }
+  else if (gate.raidT <= 15) { t = '🐻 ' + raidCount() + ' 隻熊' + (wolvesCome() ? '＋🐺 狼群' : '') + ' ' + Math.ceil(gate.raidT) + ' 秒後來襲'; cls = 'warn'; }
   else if (save.level >= 1 && coldWave.t <= 15) { t = '❄️ 寒潮 ' + Math.ceil(coldWave.t) + ' 秒後來，先加柴'; cls = 'cold'; }
   const key = t + cls; if (key === shownAlert) return; shownAlert = key;
   $('alert').textContent = t; $('alert').className = cls; $('alert').style.display = t ? 'block' : 'none';
