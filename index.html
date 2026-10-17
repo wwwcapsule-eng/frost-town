@@ -51,8 +51,8 @@
   #planBar{position:fixed;left:0;right:0;bottom:0;padding:10px 10px calc(10px + env(safe-area-inset-bottom));background:rgba(30,40,60,.88);
     color:#fff;font-weight:700;display:none;z-index:6;text-align:center}
   #planTip{font-size:14px;margin-bottom:8px;min-height:20px}
-  #planBar .row{display:flex;gap:8px;justify-content:center;margin-top:8px}
-  #planBar button{flex:1;max-width:120px;min-height:58px;border:0;border-radius:12px;font-size:14px;font-weight:900;background:#e8eef5;color:#333;padding:4px 1px;white-space:nowrap}
+  #planBar .row{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:8px}
+  #planBar button{flex:1 0 28%;max-width:120px;min-height:58px;border:0;border-radius:12px;font-size:14px;font-weight:900;background:#e8eef5;color:#333;padding:4px 1px;white-space:nowrap}
   #planBar button small{font-size:11px;font-weight:700}
   #planBar button.sel{background:#ffd34d;outline:3px solid #fff}
   #planBar #planGo{background:#5fd068}#planBar #planGo:disabled{opacity:.4}
@@ -101,6 +101,7 @@
   <button data-k="heater">🔥 暖氣塔<br><small id="pkHeater"></small></button>
   <button data-k="mill" class="pro">🪚 鋸木機<br><small id="pkMill"></small></button>
   <button data-k="grill" class="pro">🍖 烤肉攤<br><small id="pkGrill"></small></button>
+  <button data-k="tower" class="pro">🏹 弩砲塔<br><small id="pkTower"></small></button>
   <button data-k="smith" class="pro">🔨 鐵匠鋪<br><small id="pkSmith"></small></button>
 </div><div class="row">
   <button id="planGo" disabled>✅ 蓋這裡</button>
@@ -120,7 +121,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 'use strict';
-const VERSION = '0.48';
+const VERSION = '0.49';
 
 // ===== 數值（之後平衡都改這裡） =====
 const CFG = {
@@ -625,12 +626,12 @@ if (save.east) openEast();
 if (save.mill2 && !PRO) addMill2(); // 正式關的第二台鋸木機在 save.plan 裡
 
 // ===== 弩砲塔：自動射北邊的熊，熊倒下的肉掉在地上，走過去撿 =====
-makeUnlock({ x: LOT.tower1[0], z: LOT.tower1[1], icon: '🏹', name: () => '弩砲塔',
+if (!PRO) makeUnlock({ x: LOT.tower1[0], z: LOT.tower1[1], icon: '🏹', name: () => '弩砲塔',
   price: () => save.tower ? null : 40, buy: () => { save.tower = true; buildTower(); addTower2Unlock(); toast('弩砲塔會自動射熊！'); } });
 const towers = [];
 const towerZ = x => -Math.sqrt((FENCE_R + 1.8) ** 2 - x * x); // 弩砲塔站在圍欄外 1.8、北門門板旁邊，不跟圍欄或門板穿模
 const nearTower = (x, z) => towers.some(tw => Math.hypot(x - tw.g.position.x, z - tw.g.position.z) < 2.4);
-function buildTower(x = 6.4, z = towerZ(x)) {
+function buildTower(x = 6.4, z = towerZ(x), fixed = false) {
   const g = new THREE.Group();
   const base = box(1.6, 2.2, 1.6, mats.wood); base.position.y = 1.1; g.add(base);
   const deck = box(2, 0.25, 2, mats.trunk); deck.position.y = 2.3; g.add(deck);
@@ -638,7 +639,7 @@ function buildTower(x = 6.4, z = towerZ(x)) {
   const stock = box(0.25, 0.25, 1.4, M(0x5a3a22)); bow.add(stock);
   const arms = box(1.6, 0.14, 0.18, M(0x3c4a5a)); arms.position.z = 0.5; bow.add(arms);
   g.position.set(x, 0, z); scene.add(g);
-  towers.push({ g, bow, cd: 0, bld: addBuilding('弩砲塔' + towers.length, g, 1.0) });
+  towers.push({ g, bow, cd: 0, fixed, bld: addBuilding('弩砲塔' + towers.length, g, 1.0) });
   trees.forEach(t => { if (!t.gone && !t.coal && nearTower(t.x, t.z)) { t.gone = true; t.alive = false; t.regrow = Infinity; scene.remove(t.g); } }); // 塔旁邊的樹移走，不穿模
 }
 if (save.tower) buildTower();
@@ -914,6 +915,7 @@ save.plan = save.plan || [];
 const BIG = { mill: 1, grill: 1, smith: 1 }; // 有門口付款格的加工建築
 function buildPlanned(p, i) {
   if (p.k === 'house') buildHouseAt(p.x, p.z, '規劃民房' + i);
+  else if (p.k === 'tower') buildTower(p.x, p.z, true);
   else if (BIG[p.k]) addProc(p.k, p.x, p.z);
   else buildHeater(p.x, p.z, i);
 }
@@ -924,12 +926,12 @@ grid.material.transparent = true; grid.material.opacity = 0.3; grid.position.set
 const cursor = new THREE.Mesh(new THREE.PlaneGeometry(CFG.cell * 0.94, CFG.cell * 0.94), new THREE.MeshBasicMaterial({ color: 0x5fd068, transparent: true, opacity: 0.5, depthWrite: false }));
 cursor.rotation.x = -Math.PI / 2; cursor.position.y = 0.07; cursor.visible = false; scene.add(cursor);
 const ghost = box(2.2, 1.4, 2, new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true, opacity: 0.55 })); ghost.visible = false; scene.add(ghost);
-// 分區（企劃 9.1，正式關）：民房區＝南邊 z > 3；工業區＝西邊煤礦那側 x < -7；其他是加工區（鋸木機、烤肉攤）
-const zoneOf = (x, z) => z > 3 ? 'house' : x < -7 ? 'ind' : 'work';
-const KIND_ZONE = { house: 'house', mill: 'work', grill: 'work', smith: 'ind' };  // 暖氣塔哪一區都能蓋
-const ZONE_TXT = { house: '綠色的民房區', work: '橘色的加工區', ind: '紫色的工業區' };
+// 分區（企劃 9.1，正式關）：民房區＝南邊 z > 3；防禦區＝北邊熊來的方向 z < -12；工業區＝西邊煤礦那側 x < -7；其他是加工區（鋸木機、烤肉攤）
+const zoneOf = (x, z) => z > 3 ? 'house' : z < -12 ? 'def' : x < -7 ? 'ind' : 'work';
+const KIND_ZONE = { house: 'house', mill: 'work', grill: 'work', smith: 'ind', tower: 'def' };  // 暖氣塔哪一區都能蓋
+const ZONE_TXT = { house: '綠色的民房區', work: '橘色的加工區', ind: '紫色的工業區', def: '紅色的防禦區' };
 const zones = new THREE.Group(); zones.visible = false; scene.add(zones);
-[[56, 25, 0, 15.5, 0x5fd068], [35, 31, 10.5, -12.5, 0xffa53d], [21, 31, -17.5, -12.5, 0xa77be0]].forEach(([w, h, x, z, c]) => {
+[[56, 25, 0, 15.5, 0x5fd068], [35, 15, 10.5, -4.5, 0xffa53d], [21, 15, -17.5, -4.5, 0xa77be0], [56, 16, 0, -20, 0xe05a5a]].forEach(([w, h, x, z, c]) => {
   const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 0.16, depthWrite: false }));
   m.rotation.x = -Math.PI / 2; m.position.set(x, 0.055, z); zones.add(m);
 });
@@ -940,12 +942,14 @@ function autoSpot(k) {
   cells.sort((a, b) => Math.hypot(a[0] - FX, a[1] - FZ) - Math.hypot(b[0] - FX, b[1] - FZ));
   return cells.find(([x, z]) => canBuild(x, z, k)) || null;
 }
-function planCost(k) { return k === 'house' ? housePrice() : { mill: CFG.mill2Price, grill: CFG.grill2Price, smith: CFG.smithPrice }[k] || CFG.heaterPrice; }
+function planCost(k) { return k === 'house' ? housePrice() : { mill: CFG.mill2Price, grill: CFG.grill2Price, smith: CFG.smithPrice, tower: towerPrice() }[k] || CFG.heaterPrice; }
+const towerPrice = () => 40 + 50 * towers.length;  // 正式關弩砲塔：40、90、140…
 const planned = k => save.plan.some(p => p.k === k);
 function planLimit(k) {
   const lv = LEVELS[save.level];
   if (k === 'mill') return PRO && save.east && !planned('mill');      // 跟教學關一樣：開拓東邊後才有
   if (k === 'grill') return PRO && save.level >= 1 && !planned('grill');
+  if (k === 'tower') return PRO && towers.length < 2 + save.level; // 營地 2 座，每升一級多 1 座
   if (k === 'smith') return PRO && save.mine && !planned('smith');      // 開採煤礦後才有煤可以打
   return k === 'house' ? houses.length < lv.houses : heaters.length < lv.heaters + (save.stove ? 1 : 0);
 }
@@ -972,6 +976,7 @@ function planUi() {
   const lv = LEVELS[save.level];
   $('pkHouse').textContent = planLimit('house') ? '💵 ' + planCost('house') : '已滿 ' + lv.houses + ' 間';
   $('pkMill').textContent = planLimit('mill') ? '💵 ' + CFG.mill2Price : planned('mill') ? '已蓋' : '開拓東邊後';
+  $('pkTower').textContent = planLimit('tower') ? '💵 ' + towerPrice() : '已滿 ' + towers.length + ' 座';
   $('pkSmith').textContent = planLimit('smith') ? '💵 ' + CFG.smithPrice : planned('smith') ? '已蓋' : '開採煤礦後';
   $('pkGrill').textContent = planLimit('grill') ? '💵 ' + CFG.grill2Price : planned('grill') ? '已蓋' : '村莊解鎖';
   $('pkHeater').textContent = planLimit('heater') ? '💵 ' + planCost('heater') : lv.heaters ? '已滿 ' + (lv.heaters + (save.stove ? 1 : 0)) + ' 座' : '村莊解鎖';
@@ -1082,7 +1087,7 @@ function applyTerritory(init) {
   camp.scale.setScalar((FENCE_R - 0.2) / 8.5);
   gateLabel.position.z = -FENCE_R - 0.2;
   repairPad.position.z = -FENCE_R + 2.1; repairLabel.position.z = -FENCE_R + 2.1;
-  towers.forEach(t => moveBuilding(t.bld, t.g.position.x, towerZ(t.g.position.x)));
+  towers.forEach(t => !t.fixed && moveBuilding(t.bld, t.g.position.x, towerZ(t.g.position.x)));
   houses.forEach(h => {                                            // 南門外的民房整排往外搬；自己規劃的碰到圍欄就往外推
     const m = /^民房(\d+)$/.exec(h.key);
     if (m) { const [x, z] = houseSpot(+m[1]); moveBuilding(h, x, z); }
