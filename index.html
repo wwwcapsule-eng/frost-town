@@ -98,7 +98,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 'use strict';
-const VERSION = '0.32';
+const VERSION = '0.33';
 
 // ===== 數值（之後平衡都改這裡） =====
 const CFG = {
@@ -115,6 +115,7 @@ const CFG = {
   bearHp: 5, bearCount: 5, bearRespawn: 20, meatPerBear: 2,
   towerRange: 11, towerInterval: 1.1, // 弩砲塔射程與射速
   buildCool: 2,             // 升級完要等幾秒才能再升級
+  coldBase: 0.6, coldPerUnit: 0.25, coldMax: 4, // 野外寒冷：出了暖氣圈每秒掉 0.6 血，每遠 1 格多掉 0.25，最多每秒 4（寒潮時 ×1.5）
   playerHp: 100, bearHitDps: 14, bearChase: 6, heal: 20, // 主角血量、熊每秒打人多少、熊幾格內會追人、在營地裡每秒回血
   buildHp: 100, bearBuildDps: 2.5, // 建築血量、熊每秒對建築的傷害
   gateHp: 100, raidEvery: 60, raidFirst: 90, raidBears: 2, bearDps: 1.5, // 北門血量、熊群幾秒來一次、一次幾隻、每隻每秒傷害
@@ -1199,9 +1200,21 @@ function huntable(b) {
   return !b.aggro && hurtCd <= 0 && Math.hypot(player.position.x, player.position.z) > FENCE_R + 0.3 &&
     Math.hypot(player.position.x - b.x, player.position.z - b.z) < (b.hunting ? CFG.bearChase + 2 : CFG.bearChase);
 }
+// 離暖氣圈邊緣多遠（≤0 表示在暖氣裡）：火爐的圈和暖氣塔的圈取最近的那個
+function coldOver(x, z) {
+  let over = Math.hypot(x - FX, z - FZ) - furnace.r;
+  const hr = furnace.fuel > 0 ? CFG.heaterR * (coldWave.on > 0 ? CFG.coldShrink : 1) : 0;
+  for (const h of heaters) if (!h.bld.dead) over = Math.min(over, Math.hypot(x - h.x, z - h.z) - hr);
+  return over;
+}
 function updateHero(dt) {
   hurtCd -= dt;
-  if (Math.hypot(player.position.x, player.position.z) < FENCE_R) hero.hp = Math.min(CFG.playerHp, hero.hp + CFG.heal * dt);
+  hero.over = coldOver(player.position.x, player.position.z);
+  if (hero.over <= 0) hero.hp = Math.min(CFG.playerHp, hero.hp + CFG.heal * dt);   // 在暖氣裡回血
+  else {                                                                            // 野外會冷到掉血，離越遠掉越多
+    const dps = Math.min(CFG.coldMax, CFG.coldBase + hero.over * CFG.coldPerUnit) * (coldWave.on > 0 ? 1.5 : 1);
+    hero.hp -= dps * dt; if (hero.hp <= 0) hero.cause = 'cold';
+  }
   if (hero.hit > 0) { hero.hit -= dt; player.children[0].material.emissive?.setHex(0x661111); } else player.children[0].material.emissive?.setHex(0);
   if (hero.hp <= 0) {
     const lose = carried.splice(Math.ceil(carried.length / 2));  // 掉一半背包
@@ -1209,7 +1222,8 @@ function updateHero(dt) {
     player.position.set(0, 0, 2); camera.position.copy(player.position).add(camOffset);
     hero.hp = CFG.playerHp; hurtCd = 3;                         // 回營地，3 秒內熊不會再追
     bears.forEach(b => b.hunting = false);
-    toast(lose.length ? '被熊打倒了！掉了 ' + lose.length + ' 個東西' : '被熊打倒了！');
+    const why = hero.cause === 'cold' ? '凍昏了！' : '被熊打倒了！'; hero.cause = null;
+    toast(lose.length ? why + '掉了 ' + lose.length + ' 個東西' : why);
     beep(140, 0.5, 'sawtooth', 0.07, 0.5);
   }
   const v = Math.ceil(hero.hp); $('hp').textContent = v;
@@ -1223,6 +1237,7 @@ function updateAlert() {
   let t = '', cls = '';
   if (gate.raiding) { t = '🐻 熊群來襲！守住北門'; }
   else if (save.level >= 1 && coldWave.on > 0) { t = '❄️ 寒潮中 ' + Math.ceil(coldWave.on) + ' 秒，顧好營火'; cls = 'cold'; }
+  else if (hero.over > 0 && hero.hp < 60) { t = '🥶 好冷！回營火旁取暖'; cls = 'cold'; }
   else if (gate.raidT <= 15) { t = '🐻 ' + raidCount() + ' 隻熊 ' + Math.ceil(gate.raidT) + ' 秒後來襲'; cls = 'warn'; }
   else if (save.level >= 1 && coldWave.t <= 15) { t = '❄️ 寒潮 ' + Math.ceil(coldWave.t) + ' 秒後來，先加柴'; cls = 'cold'; }
   const key = t + cls; if (key === shownAlert) return; shownAlert = key;
@@ -1463,7 +1478,7 @@ function loop() {
 }
 loop();
 addEventListener('visibilitychange', () => { if (document.hidden) writeSave(); });
-window.__game = { fireStage: () => fireStage, raidCount, plan, setPlan, planPointer, canBuild, heaters, piles, shovelers, spawnPile, rocks, coldWave, hero, save, furnace, houses, player, carried, mills, unlocks, trees, bears, gate, buildings, towers, step, render: () => renderer.render(scene, camera) }; // 測試用
+window.__game = { coldOver, fireStage: () => fireStage, raidCount, plan, setPlan, planPointer, canBuild, heaters, piles, shovelers, spawnPile, rocks, coldWave, hero, save, furnace, houses, player, carried, mills, unlocks, trees, bears, gate, buildings, towers, step, render: () => renderer.render(scene, camera) }; // 測試用
 </script>
 </body>
 </html>
