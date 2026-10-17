@@ -1,0 +1,423 @@
+'use strict';
+// ===== 規劃模式（村莊開始）：鏡頭拉高、地上出現格子，點格子決定民房、暖氣塔蓋哪；規劃時遊戲暫停 =====
+save.plan = save.plan || [];
+const BIG = { mill: 1, grill: 1, smith: 1 }; // 有門口付款格的加工建築
+const planBld = []; // save.plan[i] 蓋出來的建築（長按搬家用）
+function buildPlanned(p, i) {
+  if (p.k === 'house') buildHouseAt(p.x, p.z, '規劃民房' + i);
+  else if (p.k === 'tower') buildTower(p.x, p.z, true);
+  else if (BIG[p.k]) addProc(p.k, p.x, p.z);
+  else buildHeater(p.x, p.z, i);
+  planBld[i] = buildings[buildings.length - 1];
+}
+save.plan.forEach(buildPlanned);
+const plan = { on: false, kind: null, cell: null, cx: 0, cz: 2, down: null };
+const grid = new THREE.GridHelper(66, 22, 0x25415e, 0x25415e); // 深藍色，雪地上也看得到
+grid.material.transparent = true; grid.material.opacity = 0.3; grid.position.set(0, 0.06, 0); grid.visible = false; scene.add(grid);
+const cursor = new THREE.Mesh(new THREE.PlaneGeometry(CFG.cell * 0.94, CFG.cell * 0.94), new THREE.MeshBasicMaterial({ color: 0x5fd068, transparent: true, opacity: 0.5, depthWrite: false }));
+cursor.rotation.x = -Math.PI / 2; cursor.position.y = 0.07; cursor.visible = false; scene.add(cursor);
+const ghost = box(2.2, 1.4, 2, new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true, opacity: 0.55 })); ghost.visible = false; scene.add(ghost);
+// 分區（企劃 9.1，正式關）：民房區＝南邊 z > 3；防禦區＝北邊熊來的方向 z < -12；工業區＝西邊煤礦那側 x < -7；其他是加工區（鋸木機、烤肉攤）
+const zoneOf = (x, z) => z > 3 ? 'house' : z < -12 ? 'def' : x < -7 ? 'ind' : 'work';
+const KIND_ZONE = { house: 'house', mill: 'work', grill: 'work', smith: 'ind', tower: 'def' };  // 暖氣塔哪一區都能蓋
+const ZONE_TXT = { house: '綠色的民房區', work: '橘色的加工區', ind: '紫色的工業區', def: '紅色的防禦區' };
+const zones = new THREE.Group(); zones.visible = false; scene.add(zones);
+[[56, 25, 0, 15.5, 0x5fd068], [35, 15, 10.5, -4.5, 0xffa53d], [21, 15, -17.5, -4.5, 0xa77be0], [56, 16, 0, -20, 0xe05a5a]].forEach(([w, h, x, z, c]) => {
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 0.16, depthWrite: false }));
+  m.rotation.x = -Math.PI / 2; m.position.set(x, 0.055, z); zones.add(m);
+});
+// 正式關推薦位置（自己蓋、託管都會先幫你放好）：從火爐往外找第一個能蓋的格子（越近越暖、越好走）
+function autoSpot(k) {
+  const c = CFG.cell, cells = [];
+  for (let i = -9; i < 9; i++) for (let j = -9; j < 9; j++) cells.push([(i + 0.5) * c, (j + 0.5) * c]);
+  const [ox, oz] = k === 'tower' ? [0, -FENCE_R - 3] : [FX, FZ];  // 弩砲塔：靠近北門外熊來的路；其他：靠近火爐比較暖
+  cells.sort((a, b) => Math.hypot(a[0] - ox, a[1] - oz) - Math.hypot(b[0] - ox, b[1] - oz));
+  return cells.find(([x, z]) => canBuild(x, z, k)) || null;
+}
+function planCost(k) { return k === 'house' ? housePrice() : { mill: CFG.mill2Price, grill: CFG.grill2Price, smith: CFG.smithPrice, tower: towerPrice() }[k] || CFG.heaterPrice; }
+const towerPrice = () => 40 + 50 * towers.length;  // 正式關弩砲塔：40、90、140…
+const planned = k => save.plan.some(p => p.k === k);
+function planLimit(k) {
+  const lv = LEVELS[save.level];
+  if (k === 'mill') return PRO && save.east && !planned('mill');      // 跟教學關一樣：開拓東邊後才有
+  if (k === 'grill') return PRO && save.level >= 1 && !planned('grill');
+  if (k === 'tower') return towers.length < 2 + save.level; // 營地 2 座，每升一級多 1 座
+  if (k === 'smith') return save.mine && !planned('smith');      // 開採煤礦後才有煤可以打
+  return k === 'house' ? houses.length < lv.houses : heaters.length < lv.heaters + (save.stove ? 1 : 0);
+}
+const wrongZone = (x, z, k) => PRO && KIND_ZONE[k] && zoneOf(x, z) !== KIND_ZONE[k]; // 正式關：同一區蓋同類建築
+function canBuild(x, z, k) {
+  if (wrongZone(x, z, k)) return false;
+  if (k === 'tower') {                                          // 弩砲塔：圍欄外 1～2 格，樹會自動移走所以不擋，熊也不擋
+    const r = Math.hypot(x, z), d = (a, b) => Math.hypot(a - x, b - z);
+    return r > FENCE_R + 1.6 && r < FENCE_R + 6.5 && Math.abs(x) > 3 && !(x > 0 && Math.abs(z) < 3) // 不擋北門、南門、東門的路
+      && !buildings.some(b => d(b.x, b.z) < b.r + 1.6) && !trees.some(t => t.coal && !t.gone && d(t.x, t.z) < 2);
+  }
+  const big = !!BIG[k];
+  if (big && !canBuild(x, z + 2.7, 'pad')) return false;                         // 門口前的付款格也要有空地
+  const r = Math.hypot(x, z), d = (a, b) => Math.hypot(a - x, b - z);
+  if (r > 27 || Math.abs(r - FENCE_R) < 1.8 || d(FX, FZ) < 2.6) return false;
+  if (Math.abs(x - CX) < 1.8 && z > CZ - 1 && z < CZ + 17) return false;          // 村民排隊的路
+  if (Math.abs(x) < 4.5 && z < -6 && z > -13) return false;                        // 北門前
+  if (buildings.some(b => d(b.x, b.z) < b.r + (big ? 2.2 : 1.6))) return false;
+  if (unlocks.some(u => !u.done && d(u.x, u.z) < 2.3)) return false;
+  if (mills.some(m => d(m.inPad.position.x, m.inPad.position.z) < 2 || d(m.outPad.position.x, m.outPad.position.z) < 2)) return false;
+  if (trees.some(t => !t.gone && d(t.x, t.z) < 1.7)) return false;
+  if (!PRO && HOUSE_LOTS.slice(save.houses).some(l => d(l.x, l.z) < 2.8)) return false; // 教學關：民房區保留給固定位置的民房
+  if (Object.values(LOT).some(([a, b]) => d(a, b) < 2.4)) return false;            // 付款格、建築的固定地塊
+  if (Math.abs(x) < 1.6 || (x > 0 && Math.abs(z) < 1.6)) return false;            // 南北主路、東路
+  if (!PRO && z > 0 && (Math.abs(r - 9.8) < 1.6 || Math.abs(r - 14.3) < 1.6)) return false; // 民房環狀路
+  return true;
+}
+function planUi() {
+  const lv = LEVELS[save.level];
+  $('pkHouse').textContent = planLimit('house') ? '💵 ' + planCost('house') : '已滿 ' + lv.houses + ' 間';
+  $('pkMill').textContent = planLimit('mill') ? '💵 ' + CFG.mill2Price : planned('mill') ? '已蓋' : '開拓東邊後';
+  $('pkTower').textContent = planLimit('tower') ? '💵 ' + towerPrice() : '已滿 ' + towers.length + ' 座';
+  $('pkSmith').textContent = planLimit('smith') ? '💵 ' + CFG.smithPrice : planned('smith') ? '已蓋' : '開採煤礦後';
+  $('pkGrill').textContent = planLimit('grill') ? '💵 ' + CFG.grill2Price : planned('grill') ? '已蓋' : '村莊解鎖';
+  $('pkHeater').textContent = planLimit('heater') ? '💵 ' + planCost('heater') : lv.heaters ? '已滿 ' + (lv.heaters + (save.stove ? 1 : 0)) + ' 座' : '村莊解鎖';
+  document.querySelectorAll('#planBar [data-k]').forEach(b => b.classList.toggle('sel', b.dataset.k === plan.kind));
+  let tip = '選一種建築，電腦會先放在推薦位置；新民房會自動接上道路；按住自己蓋的建築可以搬家', ok = false;
+  if (plan.kind && plan.cell) {
+    const [x, z] = plan.cell, cost = planCost(plan.kind);
+    if (!planLimit(plan.kind)) tip = '數量已達上限，城市升級後可以蓋更多';
+    else if (!canBuild(x, z, plan.kind)) tip = wrongZone(x, z, plan.kind) ? '這種建築只能蓋在' + ZONE_TXT[KIND_ZONE[plan.kind]] : '這格不能蓋（太靠近建築、圍欄、樹或路）';
+    else if (save.cash < cost) tip = '錢不夠：需要 ' + cost + ' 元';
+    else { tip = (plan.cell === plan.rec ? '⭐ 推薦位置：' : '') + '按「✅ 蓋這裡」花 ' + cost + ' 元'; ok = true; }
+    cursor.material.color.setHex(ok ? 0x5fd068 : 0xff5a4a);
+  } else if (plan.kind) tip = true ? '附近沒有空位了，擴大領地或自己點格子試試' : '點地上的格子，選要蓋在哪';
+  $('planTip').textContent = tip; $('planGo').disabled = !ok;
+  ghost.visible = !!(plan.kind && plan.cell);
+  if (ghost.visible) { const [sx, sy, sz] = (plan.kind === 'house' ? [1, 1, 1] : BIG[plan.kind] ? [1.4, 1.15, 1.2] : null) || [0.45, 1.6, 0.45]; ghost.position.set(plan.cell[0], sy * 0.7, plan.cell[1]); ghost.scale.set(sx, sy, sz); }
+}
+function setPlan(on) {
+  plan.on = on; plan.kind = null; plan.cell = null;
+  if (on) { plan.cx = player.position.x; plan.cz = player.position.z; joy.active = false; joy.x = joy.y = 0; joyEl.style.display = 'none'; }
+  grid.visible = cursor.visible = on; ghost.visible = false; zones.visible = on && PRO; $('hint').style.visibility = on ? 'hidden' : ''; // 開場提示不要擋到規劃列
+  $('planBar').style.display = on ? 'block' : 'none';
+  if (on) planUi(); else clock.getDelta();
+}
+if (!PRO) document.querySelectorAll('#planBar .pro').forEach(b => b.style.display = 'none'); // 教學關沒有這幾顆
+document.getElementById('planBtn').onclick = () => setPlan(true);
+document.getElementById('planExit').onclick = () => setPlan(false);
+document.querySelectorAll('#planBar [data-k]').forEach(b => b.onclick = () => {
+  plan.kind = b.dataset.k;
+  { plan.cell = plan.rec = autoSpot(plan.kind); if (plan.cell) { cursor.position.x = plan.cell[0]; cursor.position.z = plan.cell[1]; plan.cx = plan.cell[0]; plan.cz = plan.cell[1]; } }
+  planUi();
+});
+document.getElementById('planGo').onclick = () => {
+  if (!plan.kind || !plan.cell) return;
+  const [x, z] = plan.cell, k = plan.kind, cost = planCost(k);
+  if (!planLimit(k) || !canBuild(x, z, k) || save.cash < cost) return;
+  save.cash -= cost; save.plan.push({ k, x, z });
+  buildPlanned(save.plan[save.plan.length - 1], save.plan.length - 1);
+  if (k === 'mill') { save.mill2 = true; toast('加工速度翻倍！'); } else if (k === 'grill') toast('第二座烤肉攤：肉烤得更快！');
+  sfx.unlock(); sparkle(x, z); writeSave();
+  plan.cell = null; if (MODE === 'auto') plan.kind = null; planUi();
+  if (save.plan.length === 1) setTimeout(() => toast('💡 在規劃畫面按住自己蓋的建築，可以搬到別的地方'), 1600);
+};
+const ray = new THREE.Raycaster(), groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+function planPointer(type, e) {
+  if (type === 'down') { plan.down = { x: e.clientX, y: e.clientY, cx: plan.cx, cz: plan.cz, moved: false, id: e.pointerId }; longPress(e); return; }
+  const d = plan.down; if (!d || e.pointerId !== d.id) return;
+  if (plan.move) { if (type === 'up') dropMove(); else dragMove(e); return; }
+  const dx = e.clientX - d.x, dy = e.clientY - d.y;
+  if (Math.hypot(dx, dy) > 10) { d.moved = true; clearTimeout(lpTimer); }
+  if (type === 'up') clearTimeout(lpTimer);
+  const k = 0.05 * LEVELS[save.level].cam;                       // 拖曳：移動畫面
+  if (d.moved) { plan.cx = Math.max(-28, Math.min(28, d.cx - dx * k)); plan.cz = Math.max(-28, Math.min(28, d.cz - dy * k)); }
+  if (type === 'up') {
+    plan.down = null;
+    if (d.moved) return;
+    ray.setFromCamera(new THREE.Vector2(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1), camera);
+    const p = ray.ray.intersectPlane(groundPlane, new THREE.Vector3()); if (!p) return;
+    const c = CFG.cell, x = (Math.floor(p.x / c) + 0.5) * c, z = (Math.floor(p.z / c) + 0.5) * c;
+    plan.cell = [x, z]; cursor.position.x = x; cursor.position.z = z; planUi();
+  }
+}
+// ===== 長按建築搬家（規劃模式裡，作者 10/17：像手機模擬建築遊戲）：按住自己蓋的建築 0.5 秒 → 上帝視角（規劃模式）→ 拖到新位置放開 =====
+let lpTimer = 0;
+function longPress(e) { clearTimeout(lpTimer); { const { clientX: x, clientY: y, pointerId: id } = e; lpTimer = setTimeout(() => pickAt(x, y, id), 500); } }
+function groundAt(cx, cy) { ray.setFromCamera(new THREE.Vector2(cx / innerWidth * 2 - 1, -(cy / innerHeight) * 2 + 1), camera); return ray.ray.intersectPlane(groundPlane, new THREE.Vector3()); }
+function moveAll(i, x, z) {                                       // 建築連同付款格、暖氣圈一起搬
+  const b = planBld[i], dx = x - b.x, dz = z - b.z;
+  moveBuilding(b, x, z);
+  const m = mills.find(m => m.bld === b), h = heaters.find(h => h.bld === b);
+  if (m) [m.inPad, m.outPad, m.label, ...m.out].forEach(o => { o.position.x += dx; o.position.z += dz; });
+  if (h) { h.x = x; h.z = z; [h.ring, h.fill].forEach(o => o.position.set(x, o.position.y, z)); }
+  roadsDirty = true;
+}
+function pickAt(cx, cy, id) {
+  const p = groundAt(cx, cy); if (!p) return;
+  const i = planBld.findIndex(b => b && !b.dead && Math.hypot(b.x - p.x, b.z - p.z) < b.r + 0.6);
+  if (i < 0) return;
+  if (!plan.on) setPlan(true);
+  const b = planBld[i];
+  plan.kind = null; plan.cell = null; plan.cx = b.x; plan.cz = b.z; ghost.visible = false;
+  plan.move = { i, ox: b.x, oz: b.z }; plan.down = { id, moved: true };
+  moveAll(i, 1e4, 1e4); b.g.position.set(plan.move.ox, 0.6, plan.move.oz);   // 抓起來浮在空中；暫時移開，才不會擋到自己
+  cursor.position.x = plan.move.ox; cursor.position.z = plan.move.oz; cursor.material.color.setHex(0x5fd068);
+  $('planTip').textContent = '拖到新位置放開（紅色＝不能放）'; sfx.coin(); if (navigator.vibrate) try { navigator.vibrate(30); } catch (_) {}
+}
+function dragMove(e) {
+  const p = groundAt(e.clientX, e.clientY); if (!p) return;
+  const c = CFG.cell, x = (Math.floor(p.x / c) + 0.5) * c, z = (Math.floor(p.z / c) + 0.5) * c, k = save.plan[plan.move.i].k;
+  plan.move.x = x; plan.move.z = z;
+  planBld[plan.move.i].g.position.set(x, 0.6, z); cursor.position.x = x; cursor.position.z = z;
+  const ok = canBuild(x, z, k);
+  cursor.material.color.setHex(ok ? 0x5fd068 : 0xff5a4a);
+  $('planTip').textContent = ok ? '放開就搬到這裡' : wrongZone(x, z, k) ? '這種建築只能放在' + ZONE_TXT[KIND_ZONE[k]] : '這格不能放（太靠近建築、圍欄、樹或路）';
+}
+function dropMove() {
+  const mv = plan.move, p = save.plan[mv.i]; plan.move = null; plan.down = null;
+  const ok = mv.x != null && (mv.x !== mv.ox || mv.z !== mv.oz) && canBuild(mv.x, mv.z, p.k);
+  moveAll(mv.i, ok ? mv.x : mv.ox, ok ? mv.z : mv.oz);
+  if (ok) { p.x = mv.x; p.z = mv.z; sparkle(p.x, p.z); sfx.unlock(); writeSave(); toast('搬好了！'); }
+  else if (mv.x != null && (mv.x !== mv.ox || mv.z !== mv.oz)) toast('這裡不能放，放回原位');
+  planUi();
+}
+function planCamera(dt) {
+  const h = 30 * LEVELS[save.level].cam * (innerWidth < innerHeight ? 1.25 : 1);
+  camera.position.lerp(tmp.set(plan.cx, h, plan.cz + h * 0.45), 1 - Math.exp(-dt * 6));
+  camera.lookAt(plan.cx, 0, plan.cz);
+}
+
+// ===== 城市等級升級：人口到門檻 → 暫停、跳出「新解鎖」卡片、鏡頭拉遠、出現新付款格 =====
+let truckPads = null, truckT = 0, truckN = 0, storeT = 0, truckObj = null;
+save.store = save.store || { log: 0, coal: 0 };
+// ===== 自動運輸（作者 10/17 回饋第 2 項）：每隔幾秒運一趟木頭或煤；換錢＝直接賣掉，進倉庫＝自動補營火、修北門和建築 =====
+function buildTruck() {
+  const [x, z] = save.truck === 'cash' ? LOT.truckCash : LOT.truckStore, g = new THREE.Group();
+  const bed = box(1.8, 0.5, 1.2, mats.wood); bed.position.y = 0.45; g.add(bed);
+  const load = box(1.4, 0.5, 0.9, save.truck === 'cash' ? mats.cash : mats.trunk); load.position.y = 0.95; g.add(load);
+  g.position.set(x, 0, z); scene.add(g);
+  const label = makeLabel(); label.scale.set(3, 1.5, 1); label.position.set(x, 2.4, z); scene.add(label);
+  truckObj = { g, label };
+}
+function updateTransport(dt) {
+  if (!save.truck) return;
+  if (!truckObj) buildTruck();
+  const st = save.store;
+  truckT += dt;
+  if (truckT >= CFG.truckEvery) {
+    truckT = 0; const coal = save.mine && truckN++ % 2 === 1;      // 木頭、煤輪流運
+    if (save.truck === 'cash') { save.cash += coal ? (planned('smith') ? CFG.coalValue : 3) : 2; sfx.coin(); }
+    else if (coal) st.coal = Math.min(CFG.storeMax, st.coal + 1); else st.log = Math.min(CFG.storeMax, st.log + 1);
+  }
+  storeT += dt;
+  if (save.truck === 'store' && storeT >= 1) {                       // 倉庫每秒做一件事：先顧營火，再修北門，再修建築
+    storeT = 0; const f = furnace;
+    const hurt = buildings.find(b => !b.dead && b.hp < CFG.buildHp);
+    if (f.fuel < CFG.fuelMax * 0.7 && (st.coal || st.log)) { const c = st.coal > 0; if (c) st.coal--; else st.log--; f.fuel = Math.min(CFG.fuelMax, f.fuel + (c ? CFG.fuelPerCoal : CFG.fuelPerLog)); }
+    else if (gate.hp < CFG.gateHp && st.log) { st.log--; gate.hp = Math.min(CFG.gateHp, gate.hp + 10); }
+    else if (hurt && st.log) { st.log--; hurt.hp = Math.min(CFG.buildHp, hurt.hp + 10); }
+  }
+  truckObj.label.set(save.truck === 'cash' ? ['🚚 自動運輸', '換錢中'] : ['📦 倉庫', '🪵 ' + st.log + '  ⚫ ' + st.coal]);
+}
+let paused = false, stoveUnlock = null, terrUnlock = null, eastUnlock = null, mill2Unlock = null;
+// 營火升級＝擴大領地：Lv1 升級任意 3 個項目後出現；Lv2 要村莊等級＋已開拓東邊
+function terrReady() { return save.territory === 0 ? save.buys >= CFG.terrNeedBuys : save.territory === 1 && save.level >= 1 && save.east; }
+function levelUnlocks() {
+  if (!truckPads && save.mine && !save.truck) {                    // 自動運輸：換錢、進倉庫只能二選一，買了一個另一個就消失
+    const pick = (mode, msg) => () => { save.truck = mode; truckPads.forEach(u => u !== truckPads[mode === 'cash' ? 0 : 1] && (u.paid = 0, u.refresh())); buildTruck(); toast(msg); };
+    truckPads = [
+      makeUnlock({ x: LOT.truckCash[0], z: LOT.truckCash[1], icon: '🚚', name: () => '自動運輸：換錢', price: () => save.truck ? null : CFG.truckPrice,
+        buy: pick('cash', '🚚 運輸隊會把木頭、煤直接拿去換錢！') }),
+      makeUnlock({ x: LOT.truckStore[0], z: LOT.truckStore[1], icon: '📦', name: () => '自動運輸：進倉庫', price: () => save.truck ? null : CFG.truckPrice,
+        buy: pick('store', '📦 運輸隊把木頭、煤送進倉庫，倉庫會自動補營火、修北門和建築！') }),
+    ];
+  }
+  if (terrUnlock && terrUnlock.done) terrUnlock = null;
+  if (!terrUnlock && terrReady()) terrUnlock = makeUnlock({ x: LOT.terr[0], z: LOT.terr[1], icon: '🔥', name: () => '營火升級 Lv' + (save.territory + 1),
+    price: () => terrUnlock && terrUnlock.waiting ? null : CFG.terrPrice[save.territory], buy: () => { expandTerritory(); terrUnlock.waiting = true; } });
+  // 石爐：領地升到最大（營火 Lv3）＋有煤礦後，同一格繼續升 Lv4～6
+  if (!stoveUnlock && save.stove < 3 && save.territory >= 2 && save.mine && (!terrUnlock || terrUnlock.waiting)) {
+    stoveUnlock = makeUnlock({ x: LOT.terr[0], z: LOT.terr[1], icon: '🪨', name: () => (save.stove ? '石爐升級' : '蓋石爐') + ' Lv' + (fireLv() + 1),
+      price: () => CFG.stovePrice[save.stove] ?? null, buy: () => { save.stove++; updateStoveLook(); sparkle(FX, FZ);
+        toast(save.stove === 1 ? '🪨 營火進化成石爐！更耐燒、暖氣更大、暖氣塔 +1 座' : '🪨 石爐升級！更耐燒、暖氣更大'); } });
+    stoveUnlock.cool = CFG.buildCool;
+  }
+  if (!eastUnlock && !save.east && save.territory >= 1) eastUnlock = makeUnlock({ x: FENCE_R - 2.2, z: 0, icon: '🌲', name: () => '開拓東邊',
+    price: () => save.east ? null : 50, buy: () => { save.east = true; openEast(); buildDoorsAll(); toast('東邊開放了！現在可以蓋民房、第二台鋸木機' + (PRO ? '（用規劃模式蓋）' : '')); } });
+  if (!PRO && !mill2Unlock && !save.mill2 && save.east) mill2Unlock = makeUnlock({ x: LOT.mill2[0], z: LOT.mill2[1], icon: '🪚', name: () => '第二台鋸木機',
+    price: () => save.mill2 ? null : 80, buy: () => { save.mill2 = true; addMill2(); toast('加工速度翻倍！'); } });
+  if (!PRO && save.east && houseUnlock.done && houses.length < LEVELS[save.level].houses && houseLotOpen()) houseUnlock = addHouseUnlock();
+  if (save.level >= 1 && !save.mine && !mineUnlock) mineUnlock = makeUnlock({ x: LOT.minePad[0], z: LOT.minePad[1], icon: '⛏️', name: () => '開採煤礦',
+    price: () => save.mine ? null : CFG.minePrice, buy: () => { save.mine = 1; openMine(); toast('煤礦開放了！煤丟進火爐很耐燒'); } });
+  if (save.level >= 1 && !save.shovel && !shovelUnlock) shovelUnlock = makeUnlock({ x: LOT.shovel[0], z: LOT.shovel[1], icon: '🧹', name: () => '雇用鏟雪工',
+    price: () => save.shovel ? null : CFG.shovelPrice, buy: () => { save.shovel = 1; addShoveler(); toast('鏟雪工會自己去鏟雪！'); } });
+}
+
+// ===== 擴大領地：圍欄往外推，北門、弩砲塔、修門格、民房跟著搬，圈進來的樹移走、北邊森林往外補 =====
+function moveBuilding(b, x, z) {
+  b.x = x; b.z = z; b.g.position.set(x, 0, z); b.rubble.position.set(x, 0, z); b.label.position.x = x; b.label.position.z = z;
+}
+function buildDoorsAll() {
+  for (const d of doors) scene.remove(d.group);
+  doors.length = 0;
+  const vis = gate.posts.visible;
+  gate.posts = makeDoors(GATES[0], true).group; gate.posts.visible = vis;
+  southDoors = makeDoors(GATES[1], false); eastDoors = makeDoors(GATES[2], false);
+}
+function applyTerritory(init) {
+  FENCE_R = TERR[save.territory].r;
+  GATES.forEach(g => g.half = Math.asin(g.w / 2 / FENCE_R));
+  NG_PX = FENCE_R * Math.sin(GATES[0].half); NG_PZ = -FENCE_R * Math.cos(GATES[0].half); NG_LEN = NG_PX;
+  buildFence(); buildDoorsAll();
+  camp.scale.setScalar((FENCE_R - 0.2) / 8.5);
+  fireLight.distance = FENCE_R + 7;                                // 營火光跟著領地變大，蓋住整個營地
+  gateLabel.position.z = -FENCE_R - 0.2;
+  repairPad.position.z = -FENCE_R + 2.1; repairLabel.position.z = -FENCE_R + 2.1;
+  towers.forEach(t => {
+    if (!t.fixed) return moveBuilding(t.bld, t.g.position.x, towerZ(t.g.position.x));
+    const r = Math.hypot(t.bld.x, t.bld.z), i = planBld.indexOf(t.bld);   // 自己蓋的塔被新圍欄圈到：往外推到圍欄外
+    if (r < FENCE_R + 1.8) { const k = (FENCE_R + 2.4) / r; moveBuilding(t.bld, t.bld.x * k, t.bld.z * k); if (i >= 0) { save.plan[i].x = t.bld.x; save.plan[i].z = t.bld.z; } }
+  });
+  houses.forEach(h => {                                            // 南門外的民房整排往外搬；自己規劃的碰到圍欄就往外推
+    const m = /^民房(\d+)$/.exec(h.key);
+    if (m) { const [x, z] = houseSpot(+m[1]); moveBuilding(h, x, z); }
+    else { const r = Math.hypot(h.x, h.z); if (Math.abs(r - FENCE_R) < 2) moveBuilding(h, h.x / r * (FENCE_R + 2.2), h.z / r * (FENCE_R + 2.2)); }
+  });
+  if (!houseUnlock.done) { [houseUnlock.x, houseUnlock.z] = houseSpot(save.houses); houseUnlock.pad.position.set(houseUnlock.x, 0.03, houseUnlock.z); houseUnlock.label.position.set(houseUnlock.x, 1.9, houseUnlock.z); }
+  for (const u of unlocks) {                                       // 卡在圍欄上的付款格往內挪
+    if (u.done || u === houseUnlock) continue;
+    const r = Math.hypot(u.x, u.z);
+    if (Math.abs(r - FENCE_R) < 1.6) { const k = (FENCE_R - 1.8) / r; u.x *= k; u.z *= k; u.pad.position.set(u.x, 0.03, u.z); u.label.position.set(u.x, u.label.position.y, u.z); }
+  }
+  let moved = 0;
+  for (const t of trees) {                                         // 圈進領地的樹移走（煤礦往外推）
+    if (t.gone) continue;
+    const r = Math.hypot(t.x, t.z);
+    if (t.coal) continue;                                          // 煤礦石在固定地塊上，不移動
+    if (r < FENCE_R + 2.2 || nearTower(t.x, t.z)) { t.gone = true; t.alive = false; t.regrow = Infinity; scene.remove(t.g); if (!t.locked) moved++; }
+  }
+  for (let i = 0, tries = 0; i < moved && tries < 400; tries++) {  // 北邊森林往外補一樣多棵
+    const x = rand(-13, 9), z = rand(-FENCE_R - 14, -FENCE_R - 2.6);
+    if (!nearNorthDoors(x, z, 1.2) && !nearTower(x, z) && trees.every(t => t.gone || (t.x - x) ** 2 + (t.z - z) ** 2 > 2.6)) { addTree(x, z, false); i++; }
+  }
+  for (const b of bears) if (!b.aggro && b.z > -FENCE_R - 2) { [b.x, b.z] = bearSpot(); }
+  for (let i = piles.length - 1; i >= 0; i--) if (Math.abs(Math.hypot(piles[i].x, piles[i].z) - FENCE_R) < 1.3) { scene.remove(piles[i].m); piles.splice(i, 1); }
+  roadsDirty = true; if (!init) resize();
+}
+function expandTerritory() {
+  save.territory++; applyTerritory(); writeSave();
+  toast('🔥 營火升級！領地擴大了'); sparkle(FX, FZ);
+}
+applyTerritory(true);
+levelUnlocks();
+if (save.shovel) addShoveler();
+function checkLevel() {
+  const next = LEVELS[save.level + 1];
+  if (!next || population() < next.need) return;
+  save.level++; writeSave(); levelUnlocks(); resize();
+  $('lvTitle').textContent = '🎉 升級為' + next.name + '！';
+  $('lvList').innerHTML = '新解鎖：<br>' + next.unlock.join('<br>');
+  $('lvup').style.display = 'flex'; paused = true;
+  sfx.unlock(); sparkle(player.position.x, player.position.z);
+}
+document.getElementById('lvOk').onclick = () => { $('lvup').style.display = 'none'; paused = false; clock.getDelta(); };
+// 圍欄裡外要走門：先走到最近的門口，穿過門再走向目標
+function routeTo(w, x, z, dt) {
+  const px = w.g.position.x, pz = w.g.position.z, rIn = Math.hypot(px, pz) < FENCE_R, tIn = Math.hypot(x, z) < FENCE_R;
+  if (rIn === tIn) return walkTo(w, x, z, dt);
+  const ref = rIn ? Math.atan2(z, x) : Math.atan2(pz, px);
+  const g = GATES.filter(g => g !== GATES[2] || save.east).reduce((a, b) => angDiff(ref, a.a) < angDiff(ref, b.a) ? a : b);
+  const inBand = angDiff(Math.atan2(pz, px), g.a) < g.half - 0.1 && Math.abs(Math.hypot(px, pz) - FENCE_R) < 1.2;
+  // 還沒到門口 → 先走到門的這一側；已經在門口 → 穿過去到另一側
+  const goInside = rIn ? !inBand : inBand;
+  const [gx, gz] = gatePoint(g, goInside ? FENCE_R - 0.9 : FENCE_R + 1.0);
+  walkTo(w, gx, gz, dt);
+  return false;
+}
+function walkTo(w, x, z, dt) {
+  const dx = x - w.g.position.x, dz = z - w.g.position.z, d = Math.hypot(dx, dz);
+  if (d < 0.1) return true;
+  const s = Math.min(d, CFG.workerSpeed * slowAt(w.g.position.x, w.g.position.z) * dt);
+  w.g.position.x += dx / d * s; w.g.position.z += dz / d * s;
+  w.g.rotation.y = Math.atan2(dx, dz); w.walk += dt * 12; w.g.position.y = Math.abs(Math.sin(w.walk)) * 0.1;
+  return false;
+}
+function updateWorkers(dt) {
+  for (const w of workers) {
+    if (w.load >= CFG.workerLoad) {                 // 揹滿了：送去鋸木廠
+      const ip = mills[0].inPad.position;
+      if (routeTo(w, ip.x, ip.z, dt)) {
+        mills[0].queue += w.load; w.load = 0;
+        while (w.back.children.length) w.back.remove(w.back.children[0]);
+      }
+      continue;
+    }
+    if (!w.tree || !w.tree.alive) {                  // 找最近、沒人在砍的樹
+      let best = 1e9; w.tree = null;
+      for (const t of trees) {
+        if (!t.alive || t.locked || t.coal || workers.some(o => o !== w && o.tree === t)) continue;
+        const d = (t.x - w.g.position.x) ** 2 + (t.z - w.g.position.z) ** 2;
+        if (d < best) { best = d; w.tree = t; }
+      }
+      if (!w.tree) continue;
+    }
+    const t = w.tree;
+    const ang = Math.atan2(w.g.position.x - t.x, w.g.position.z - t.z);
+    if (routeTo(w, t.x + Math.sin(ang) * 1.1, t.z + Math.cos(ang) * 1.1, dt)) {
+      w.g.rotation.y = ang + Math.PI; w.g.position.y = 0;
+      w.cd -= dt;
+      if (w.cd <= 0) {
+        w.cd = CFG.workerChop;
+        t.hp--; t.shake = 0.25; t.pop = 0.15; burstChips(t.x, t.z);
+        if (t.hp <= 0) {
+          t.alive = false; t.regrow = CFG.treeRegrow; w.tree = null;
+          const n = Math.min(CFG.logsPerTree, CFG.workerLoad - w.load);
+          for (let i = 0; i < n; i++) { const m = new THREE.Mesh(logGeo, mats.log); m.scale.setScalar(0.7); m.position.y = (w.load + i) * 0.17; w.back.add(m); }
+          w.load += n;
+        }
+      }
+    }
+  }
+}
+const pickups = [];
+function dropMeat(x, z) {
+  for (let i = 0; i < CFG.meatPerBear; i++) {
+    const m = new THREE.Mesh(logGeo, mats.meat); m.castShadow = true;
+    const px = x + rand(-0.6, 0.6), pz = z + rand(-0.6, 0.6);
+    fly(m, new THREE.Vector3(x, 1, z), () => new THREE.Vector3(px, 0.12, pz), 0.4, () => pickups.push({ m, x: px, z: pz }), 1.2);
+  }
+}
+function updateTower(dt) {
+  for (const tower of towers) {
+    if (tower.bld.dead || tower.bld.cold) continue;
+    tower.cd -= dt;
+    let tgt = null, best = CFG.towerRange;
+    for (const b of bears) {
+      if (!b.alive) continue;
+      const d = Math.hypot(b.x - tower.g.position.x, b.z - tower.g.position.z);
+      if (d < best) { best = d; tgt = b; }
+    }
+    if (tgt) {
+      tower.bow.rotation.y = Math.atan2(tgt.x - tower.g.position.x, tgt.z - tower.g.position.z);
+      if (tower.cd <= 0) {
+        tower.cd = CFG.towerInterval;
+        const arrow = box(0.08, 0.08, 0.9, M(0x333333)); arrow.lookAt(tgt.x - tower.g.position.x, 0, tgt.z - tower.g.position.z);
+        fly(arrow, tower.g.position.clone().add(tmp.set(0, 2.8, 0)), () => new THREE.Vector3(tgt.x, 0.9, tgt.z), 0.3, () => {
+          scene.remove(arrow);
+          if (!tgt.alive) return;
+          tgt.hp--; tgt.shake = 0.25; tgt.pop = 0.15; burstChips(tgt.x, tgt.z, true);
+          if (tgt.hp <= 0) { tgt.alive = false; tgt.respawn = CFG.bearRespawn; dropMeat(tgt.x, tgt.z); }
+        }, 0.8);
+        flies[flies.length - 1].spin = false;
+      }
+    }
+  }
+  // 撿地上的肉
+  for (let i = pickups.length - 1; i >= 0; i--) {
+    const p = pickups[i];
+    if (Math.hypot(p.x - player.position.x, p.z - player.position.z) > 1.6) continue;
+    if (countOf('meat') >= capacity()) break;
+    const idx = stackHeight();
+    pickups.splice(i, 1);
+    const m = p.m; m.userData.type = 'meat';
+    fly(m, m.position.clone(), () => stackRoot.localToWorld(new THREE.Vector3(0, idx * 0.24, 0)), 0.3, () => { stackRoot.add(m); carried.push(m); restack(); });
+    flies[flies.length - 1].toBack = 'meat';
+  }
+}
+
