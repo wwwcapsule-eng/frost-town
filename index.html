@@ -11,7 +11,11 @@
     -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;
     font-family:"Noto Sans TC","Microsoft JhengHei",system-ui,sans-serif}
   canvas{display:block}
-  #hud{position:fixed;top:calc(10px + env(safe-area-inset-top));right:10px;display:flex;flex-direction:column;gap:6px;pointer-events:none}
+  /* 手機介面分區（v0.55）：左上＝錢、人口、城市等級；中上＝血量、營火、目標；右上＝選單；左下＝背包；右下＝規劃 */
+  #hud{position:fixed;top:calc(10px + env(safe-area-inset-top));left:10px;display:flex;flex-direction:column;align-items:flex-start;gap:5px;pointer-events:none}
+  #ver{font-size:12px;font-weight:900;color:#25415e;text-shadow:0 1px 0 #fff;padding-left:4px}
+  #bag{position:fixed;left:10px;bottom:calc(14px + env(safe-area-inset-bottom));display:flex;gap:6px;pointer-events:none}
+  #bag .pill{min-width:0;padding:3px 9px 3px 6px}
   .pill{background:rgba(30,40,60,.72);color:#fff;border-radius:16px;padding:4px 12px 4px 8px;font-weight:700;font-size:18px;
     display:flex;align-items:center;gap:6px;min-width:76px}
   .pill b{font-size:20px}
@@ -20,13 +24,13 @@
   .cap{font-size:13px;opacity:.75}
   .pill.full{background:rgba(200,120,20,.85)}
   .pill.danger{background:rgba(200,40,40,.85);animation:blink .8s infinite}
-  #bars{position:fixed;top:calc(10px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);width:min(150px, calc(100vw - 250px));display:flex;flex-direction:column;gap:5px;pointer-events:none}
+  #bars{position:fixed;top:calc(10px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);width:min(180px, calc(100vw - 220px));display:flex;flex-direction:column;gap:5px;pointer-events:none}
   .bar{position:relative;height:20px;border-radius:10px;background:rgba(30,40,60,.72);overflow:hidden;color:#fff;font-weight:900;font-size:13px}
   .bar i{position:absolute;left:0;top:0;bottom:0;border-radius:10px;transition:width .2s}
   .bar span{position:relative;display:block;text-align:center;line-height:20px;text-shadow:0 1px 2px rgba(0,0,0,.6)}
   #hpBar i{background:#e8474f}#fuelBar i{background:#ff9a2e}
   .bar.danger{animation:blink .8s infinite}
-  #goal{position:fixed;top:calc(62px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);width:min(240px, calc(100vw - 210px));box-sizing:border-box;
+  #goal{position:fixed;top:calc(102px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);width:min(340px, calc(100vw - 24px));box-sizing:border-box;
     background:rgba(255,255,255,.88);color:#25415e;font-weight:900;font-size:13px;line-height:1.35;padding:5px 10px;border-radius:12px;
     text-align:center;pointer-events:none;box-shadow:0 2px 0 rgba(0,0,0,.12)}
   #goal.done{background:#ffd34d;animation:bump .4s}
@@ -36,16 +40,9 @@
   #alert.warn{background:rgba(220,140,20,.9)}
   #frost{position:fixed;inset:0;pointer-events:none;box-shadow:inset 0 0 110px 40px rgba(150,210,255,.7);background:rgba(170,215,255,.12);opacity:0;transition:opacity 1s}
   #vignette{position:fixed;inset:0;pointer-events:none;box-shadow:inset 0 0 80px 20px rgba(220,30,30,.55);opacity:0;transition:opacity .4s}
-  @keyframes bump{50%{transform:scale(1.15)}}
-  #title{position:fixed;top:calc(10px + env(safe-area-inset-top));left:12px;color:#25415e;font-weight:900;font-size:20px;
-    text-shadow:0 2px 0 #fff;pointer-events:none}
-  #title small{display:block;font-size:12px;font-weight:700;opacity:.7}
-  #reset{position:fixed;left:12px;bottom:calc(12px + env(safe-area-inset-bottom));font-size:12px;border:0;border-radius:10px;
-    padding:6px 10px;background:rgba(30,40,60,.45);color:#fff}
-  #saveCode{position:fixed;left:180px;bottom:calc(12px + env(safe-area-inset-bottom));font-size:12px;border:0;border-radius:10px;
-    padding:6px 10px;background:rgba(30,40,60,.45);color:#fff}
-  #mute{position:fixed;left:96px;bottom:calc(12px + env(safe-area-inset-bottom));font-size:12px;border:0;border-radius:10px;
-    padding:6px 10px;background:rgba(30,40,60,.45);color:#fff}
+  @keyframes bump{50%{scale:1.15}}
+  #reset{position:fixed;right:10px;top:calc(10px + env(safe-area-inset-top));width:44px;height:44px;font-size:22px;font-weight:900;border:0;border-radius:50%;
+    background:rgba(30,40,60,.72);color:#fff;z-index:5}
   #planBtn{position:fixed;right:12px;bottom:calc(14px + env(safe-area-inset-bottom));font-size:18px;font-weight:900;border:0;border-radius:14px;
     padding:12px 16px;background:#ffd34d;color:#333;box-shadow:0 3px 0 rgba(0,0,0,.25);display:none;z-index:5}
   #planBar{position:fixed;left:0;right:0;bottom:0;padding:10px 10px calc(10px + env(safe-area-inset-bottom));background:rgba(30,40,60,.88);
@@ -74,10 +71,12 @@
 </style>
 </head>
 <body>
-<div id="title">寒霜小鎮<small id="ver"></small></div>
 <div id="hud">
-  <div class="pill" id="pPop">👥 <b id="pop">0</b><span class="cap" id="capP"></span></div>
   <div class="pill" id="pCash">💵 <b id="cash">0</b></div>
+  <div class="pill" id="pPop">👥 <b id="pop">0</b><span class="cap" id="capP"></span></div>
+  <div id="ver"></div>
+</div>
+<div id="bag">
   <div class="pill" id="pMeat">🍖 <b id="meat">0</b><span class="cap" id="capM"></span></div>
   <div class="pill" id="pCoal" style="display:none">⚫ <b id="coal">0</b><span class="cap" id="capC"></span></div>
   <div class="pill" id="pWood">🪵 <b id="wood">0</b><span class="cap" id="capW"></span></div>
@@ -93,8 +92,7 @@
 <div id="toast"></div>
 <div id="hint"></div>
 <div id="joy"><div id="knob"></div></div>
-<button id="reset">☰ 選單</button>
-<button id="saveCode">💾 存檔</button>
+<button id="reset" aria-label="選單">☰</button>
 <button id="planBtn">🏗️ 規劃</button>
 <div id="planBar"><div id="planTip"></div><div class="row">
   <button data-k="house">🏠 民房<br><small id="pkHouse"></small></button>
@@ -107,19 +105,20 @@
   <button id="planGo" disabled>✅ 蓋這裡</button>
   <button id="planExit">✖ 離開</button>
 </div></div>
-<div id="menu"><div class="box"><div class="big">選單</div>
-  <button data-mode="tutorial">📘 教學關<small>建築位置固定，跟著上方目標一步步蓋</small></button>
+<div id="menu"><div class="box"><div class="big">選單</div><div id="menuVer" style="font-size:12px;color:#888;margin-top:-6px"></div>
+  <button data-mode="tutorial">▶ 繼續玩<small>跟著上方目標一步步蓋，按右下「規劃」自己選位置</small></button>
+  <button id="mute" style="background:#eee"></button>
+  <button id="saveCode" style="background:#eee">💾 存檔碼（換手機用）</button>
   <button id="menuReset" style="background:#eee">🔄 這一關重新開始</button>
   <button id="menuClose" style="background:#eee">✖ 關閉</button>
 </div></div>
 <div id="lose"><div class="box"><div class="big">🐻 營地失守了</div><div>所有建築都被熊拆掉了</div><button id="retry">重新開始</button></div></div>
 <div id="lvup"><div class="box"><div class="big" id="lvTitle"></div><div id="lvList"></div><button id="lvOk">太好了！</button></div></div>
-<button id="mute"></button>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 'use strict';
-const VERSION = '0.54';
+const VERSION = '0.55';
 
 // ===== 數值（之後平衡都改這裡） =====
 const CFG = {
@@ -1397,7 +1396,7 @@ function population() { return CFG.popBase + save.workers + houses.filter(h => !
 function hud() {
   const lv = LEVELS[save.level], next = LEVELS[save.level + 1];
   $('pop').textContent = population(); $('capP').textContent = next ? '/' + next.need : '';
-  $('ver').textContent = 'v' + VERSION + '　' + lv.icon + ' ' + lv.name;
+  $('ver').textContent = lv.icon + ' ' + lv.name; $('menuVer').textContent = '寒霜小鎮 v' + VERSION;
   if (shownCash !== save.cash) { $('cash').textContent = save.cash; bump('pCash'); shownCash = save.cash; }
   const nMeat = countOf('meat') - flies.filter(f => f.toBack === 'meat').length, nCoal = carried.filter(m => m.userData.type === 'coal').length, nLog = carried.length - nMeat - nCoal;
   if (shownWood !== carried.length * 10000 + nMeat * 100 + nCoal) { $('wood').textContent = nLog; $('meat').textContent = nMeat; $('coal').textContent = nCoal; shownWood = carried.length * 10000 + nMeat * 100 + nCoal; }
@@ -1441,7 +1440,7 @@ if (!hintOn) $('hint').style.display = 'none';
 const joy = { active: false, id: null, ox: 0, oy: 0, x: 0, y: 0 };
 const joyEl = $('joy'), knob = $('knob');
 addEventListener('pointerdown', e => {
-  if (e.target.id === 'reset' || e.target.id === 'mute' || e.target.closest('#planBar, #planBtn')) return;
+  if (e.target.id === 'reset' || e.target.id === 'mute' || e.target.closest('#planBar, #planBtn, #menu')) return;
   if (plan.on) return planPointer('down', e);
   if (joy.active) return;
   joy.active = true; joy.id = e.pointerId; joy.ox = e.clientX; joy.oy = e.clientY; joy.x = joy.y = 0;
