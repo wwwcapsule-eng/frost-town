@@ -121,7 +121,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 'use strict';
-const VERSION = '0.50';
+const VERSION = '0.51';
 
 // ===== 數值（之後平衡都改這裡） =====
 const CFG = {
@@ -913,11 +913,13 @@ function buildHeater(x, z, i) {
 // ===== 規劃模式（村莊開始）：鏡頭拉高、地上出現格子，點格子決定民房、暖氣塔蓋哪；規劃時遊戲暫停 =====
 save.plan = save.plan || [];
 const BIG = { mill: 1, grill: 1, smith: 1 }; // 有門口付款格的加工建築
+const planBld = []; // save.plan[i] 蓋出來的建築（長按搬家用）
 function buildPlanned(p, i) {
   if (p.k === 'house') buildHouseAt(p.x, p.z, '規劃民房' + i);
   else if (p.k === 'tower') buildTower(p.x, p.z, true);
   else if (BIG[p.k]) addProc(p.k, p.x, p.z);
   else buildHeater(p.x, p.z, i);
+  planBld[i] = buildings[buildings.length - 1];
 }
 save.plan.forEach(buildPlanned);
 const plan = { on: false, kind: null, cell: null, cx: 0, cz: 2, down: null };
@@ -982,7 +984,7 @@ function planUi() {
   $('pkGrill').textContent = planLimit('grill') ? '💵 ' + CFG.grill2Price : planned('grill') ? '已蓋' : '村莊解鎖';
   $('pkHeater').textContent = planLimit('heater') ? '💵 ' + planCost('heater') : lv.heaters ? '已滿 ' + (lv.heaters + (save.stove ? 1 : 0)) + ' 座' : '村莊解鎖';
   document.querySelectorAll('#planBar [data-k]').forEach(b => b.classList.toggle('sel', b.dataset.k === plan.kind));
-  let tip = PRO ? '選一種建築，電腦會先放在推薦的位置（也可以自己點格子改）' : '先選一種建築，再點地上的格子（拖曳可以移動畫面）', ok = false;
+  let tip = PRO ? '選一種建築，電腦會先放在推薦位置；長按蓋好的建築可以搬家' : '先選一種建築，再點地上的格子（拖曳可以移動畫面）', ok = false;
   if (plan.kind && plan.cell) {
     const [x, z] = plan.cell, cost = planCost(plan.kind);
     if (!planLimit(plan.kind)) tip = '數量已達上限，城市升級後可以蓋更多';
@@ -1019,13 +1021,16 @@ document.getElementById('planGo').onclick = () => {
   if (k === 'mill') { save.mill2 = true; toast('加工速度翻倍！'); } else if (k === 'grill') toast('第二座烤肉攤：肉烤得更快！');
   sfx.unlock(); sparkle(x, z); writeSave();
   plan.cell = null; if (MODE === 'auto') plan.kind = null; planUi();
+  if (PRO && save.plan.length === 1) setTimeout(() => toast('💡 長按蓋好的建築，可以搬到別的地方'), 1600);
 };
 const ray = new THREE.Raycaster(), groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 function planPointer(type, e) {
-  if (type === 'down') { plan.down = { x: e.clientX, y: e.clientY, cx: plan.cx, cz: plan.cz, moved: false, id: e.pointerId }; return; }
+  if (type === 'down') { plan.down = { x: e.clientX, y: e.clientY, cx: plan.cx, cz: plan.cz, moved: false, id: e.pointerId }; longPress(e); return; }
   const d = plan.down; if (!d || e.pointerId !== d.id) return;
+  if (plan.move) { if (type === 'up') dropMove(); else dragMove(e); return; }
   const dx = e.clientX - d.x, dy = e.clientY - d.y;
-  if (Math.hypot(dx, dy) > 10) d.moved = true;
+  if (Math.hypot(dx, dy) > 10) { d.moved = true; clearTimeout(lpTimer); }
+  if (type === 'up') clearTimeout(lpTimer);
   const k = 0.05 * LEVELS[save.level].cam;                       // 拖曳：移動畫面
   if (d.moved) { plan.cx = Math.max(-28, Math.min(28, d.cx - dx * k)); plan.cz = Math.max(-28, Math.min(28, d.cz - dy * k)); }
   if (type === 'up') {
@@ -1036,6 +1041,47 @@ function planPointer(type, e) {
     const c = CFG.cell, x = (Math.floor(p.x / c) + 0.5) * c, z = (Math.floor(p.z / c) + 0.5) * c;
     plan.cell = [x, z]; cursor.position.x = x; cursor.position.z = z; planUi();
   }
+}
+// ===== 長按建築搬家（正式關，作者 10/17：像手機模擬建築遊戲）：按住自己蓋的建築 0.5 秒 → 上帝視角（規劃模式）→ 拖到新位置放開 =====
+let lpTimer = 0;
+function longPress(e) { clearTimeout(lpTimer); if (PRO) { const { clientX: x, clientY: y, pointerId: id } = e; lpTimer = setTimeout(() => pickAt(x, y, id), 500); } }
+function groundAt(cx, cy) { ray.setFromCamera(new THREE.Vector2(cx / innerWidth * 2 - 1, -(cy / innerHeight) * 2 + 1), camera); return ray.ray.intersectPlane(groundPlane, new THREE.Vector3()); }
+function moveAll(i, x, z) {                                       // 建築連同付款格、暖氣圈一起搬
+  const b = planBld[i], dx = x - b.x, dz = z - b.z;
+  moveBuilding(b, x, z);
+  const m = mills.find(m => m.bld === b), h = heaters.find(h => h.bld === b);
+  if (m) [m.inPad, m.outPad, m.label, ...m.out].forEach(o => { o.position.x += dx; o.position.z += dz; });
+  if (h) { h.x = x; h.z = z; [h.ring, h.fill].forEach(o => o.position.set(x, o.position.y, z)); }
+  roadsDirty = true;
+}
+function pickAt(cx, cy, id) {
+  const p = groundAt(cx, cy); if (!p) return;
+  const i = planBld.findIndex(b => b && !b.dead && Math.hypot(b.x - p.x, b.z - p.z) < b.r + 0.6);
+  if (i < 0) return;
+  if (!plan.on) setPlan(true);
+  const b = planBld[i];
+  plan.kind = null; plan.cell = null; plan.cx = b.x; plan.cz = b.z; ghost.visible = false;
+  plan.move = { i, ox: b.x, oz: b.z }; plan.down = { id, moved: true };
+  moveAll(i, 1e4, 1e4); b.g.position.set(plan.move.ox, 0.6, plan.move.oz);   // 抓起來浮在空中；暫時移開，才不會擋到自己
+  cursor.position.x = plan.move.ox; cursor.position.z = plan.move.oz; cursor.material.color.setHex(0x5fd068);
+  $('planTip').textContent = '拖到新位置放開（紅色＝不能放）'; sfx.coin(); if (navigator.vibrate) try { navigator.vibrate(30); } catch (_) {}
+}
+function dragMove(e) {
+  const p = groundAt(e.clientX, e.clientY); if (!p) return;
+  const c = CFG.cell, x = (Math.floor(p.x / c) + 0.5) * c, z = (Math.floor(p.z / c) + 0.5) * c, k = save.plan[plan.move.i].k;
+  plan.move.x = x; plan.move.z = z;
+  planBld[plan.move.i].g.position.set(x, 0.6, z); cursor.position.x = x; cursor.position.z = z;
+  const ok = canBuild(x, z, k);
+  cursor.material.color.setHex(ok ? 0x5fd068 : 0xff5a4a);
+  $('planTip').textContent = ok ? '放開就搬到這裡' : wrongZone(x, z, k) ? '這種建築只能放在' + ZONE_TXT[KIND_ZONE[k]] : '這格不能放（太靠近建築、圍欄、樹或路）';
+}
+function dropMove() {
+  const mv = plan.move, p = save.plan[mv.i]; plan.move = null; plan.down = null;
+  const ok = mv.x != null && (mv.x !== mv.ox || mv.z !== mv.oz) && canBuild(mv.x, mv.z, p.k);
+  moveAll(mv.i, ok ? mv.x : mv.ox, ok ? mv.z : mv.oz);
+  if (ok) { p.x = mv.x; p.z = mv.z; sparkle(p.x, p.z); sfx.unlock(); writeSave(); toast('搬好了！'); }
+  else if (mv.x != null && (mv.x !== mv.ox || mv.z !== mv.oz)) toast('這裡不能放，放回原位');
+  planUi();
 }
 function planCamera(dt) {
   const h = 30 * LEVELS[save.level].cam * (innerWidth < innerHeight ? 1.25 : 1);
@@ -1349,6 +1395,7 @@ addEventListener('pointerdown', e => {
   if (e.target.id === 'reset' || e.target.id === 'mute' || e.target.closest('#planBar, #planBtn')) return;
   if (plan.on) return planPointer('down', e);
   if (joy.active) return;
+  longPress(e);
   joy.active = true; joy.id = e.pointerId; joy.ox = e.clientX; joy.oy = e.clientY; joy.x = joy.y = 0;
   joyEl.style.left = e.clientX + 'px'; joyEl.style.top = e.clientY + 'px'; joyEl.style.display = 'block';
   knob.style.transform = '';
@@ -1358,11 +1405,12 @@ addEventListener('pointermove', e => {
   if (!joy.active || e.pointerId !== joy.id) return;
   let dx = e.clientX - joy.ox, dy = e.clientY - joy.oy;
   const len = Math.hypot(dx, dy), R = 50;
+  if (len > 10) clearTimeout(lpTimer);                          // 有拖動就是走路，不是長按
   if (len > R) { dx *= R / len; dy *= R / len; }
   joy.x = dx / R; joy.y = dy / R;
   knob.style.transform = `translate(${dx}px,${dy}px)`;
 });
-function joyEnd(e) { if (plan.on) planPointer('up', e); if (e.pointerId === joy.id) { joy.active = false; joy.x = joy.y = 0; joyEl.style.display = 'none'; } }
+function joyEnd(e) { if (!plan.on) clearTimeout(lpTimer); if (plan.on) planPointer('up', e); if (e.pointerId === joy.id) { joy.active = false; joy.x = joy.y = 0; joyEl.style.display = 'none'; } }
 addEventListener('pointerup', joyEnd); addEventListener('pointercancel', joyEnd);
 const keys = {};
 addEventListener('keydown', e => keys[e.code] = true);
