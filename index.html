@@ -120,7 +120,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 'use strict';
-const VERSION = '0.47';
+const VERSION = '0.48';
 
 // ===== 數值（之後平衡都改這裡） =====
 const CFG = {
@@ -1459,7 +1459,20 @@ function updateHero(dt) {
 }
 
 // 目標提示（作者 10/17 回饋第 2 項）：畫面上方告訴玩家下一步做什麼；完成一個給一點獎金
-const GOALS = [
+const GOALS = PRO ? [ // 正式關：建築要自己用規劃模式選位置，目標帶玩家認識三種分區
+  { t: () => '升級任意 3 個項目（' + Math.min(save.buys, 3) + '/3）', done: () => save.buys >= 3 },
+  { t: () => '升級營火，擴大領地', done: () => save.territory >= 1 },
+  { t: () => '開拓東邊，打開新場地', done: () => !!save.east },
+  { t: () => '用🏗️規劃在綠色民房區蓋民房，人口到 20（' + population() + '/20）', done: () => save.level >= 1 },
+  { t: () => '用🏗️規劃在橘色加工區蓋🪚鋸木機', done: () => planned('mill') },
+  { t: () => '開採煤礦，煤很耐燒', done: () => !!save.mine },
+  { t: () => '在紫色工業區蓋🔨鐵匠鋪，揹煤去賣', done: () => planned('smith') },
+  { t: () => '在加工區蓋第二座🍖烤肉攤', done: () => planned('grill') },
+  { t: () => '營火升級 Lv2，領地再擴大', done: () => save.territory >= 2 },
+  { t: () => '蓋更多民房，人口到 80（' + population() + '/80）', done: () => save.level >= 2 },
+  { t: () => '把營火進化成石爐（營火 Lv4）', done: () => save.stove >= 1 },
+  { t: () => '城市的新玩法製作中，繼續擴張吧！', done: () => false },
+] : [
   { t: () => '升級任意 3 個項目（' + Math.min(save.buys, 3) + '/3）', done: () => save.buys >= 3 },
   { t: () => '升級營火，擴大領地', done: () => save.territory >= 1 },
   { t: () => '開拓東邊，打開新場地', done: () => !!save.east },
