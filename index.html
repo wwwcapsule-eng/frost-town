@@ -121,7 +121,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 'use strict';
-const VERSION = '0.49';
+const VERSION = '0.50';
 
 // ===== 數值（之後平衡都改這裡） =====
 const CFG = {
@@ -935,11 +935,12 @@ const zones = new THREE.Group(); zones.visible = false; scene.add(zones);
   const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 0.16, depthWrite: false }));
   m.rotation.x = -Math.PI / 2; m.position.set(x, 0.055, z); zones.add(m);
 });
-// 電腦託管：從火爐往外找第一個能蓋的格子（越近越暖、越好走）
+// 正式關推薦位置（自己蓋、託管都會先幫你放好）：從火爐往外找第一個能蓋的格子（越近越暖、越好走）
 function autoSpot(k) {
   const c = CFG.cell, cells = [];
   for (let i = -9; i < 9; i++) for (let j = -9; j < 9; j++) cells.push([(i + 0.5) * c, (j + 0.5) * c]);
-  cells.sort((a, b) => Math.hypot(a[0] - FX, a[1] - FZ) - Math.hypot(b[0] - FX, b[1] - FZ));
+  const [ox, oz] = k === 'tower' ? [0, -FENCE_R - 3] : [FX, FZ];  // 弩砲塔：靠近北門外熊來的路；其他：靠近火爐比較暖
+  cells.sort((a, b) => Math.hypot(a[0] - ox, a[1] - oz) - Math.hypot(b[0] - ox, b[1] - oz));
   return cells.find(([x, z]) => canBuild(x, z, k)) || null;
 }
 function planCost(k) { return k === 'house' ? housePrice() : { mill: CFG.mill2Price, grill: CFG.grill2Price, smith: CFG.smithPrice, tower: towerPrice() }[k] || CFG.heaterPrice; }
@@ -981,15 +982,15 @@ function planUi() {
   $('pkGrill').textContent = planLimit('grill') ? '💵 ' + CFG.grill2Price : planned('grill') ? '已蓋' : '村莊解鎖';
   $('pkHeater').textContent = planLimit('heater') ? '💵 ' + planCost('heater') : lv.heaters ? '已滿 ' + (lv.heaters + (save.stove ? 1 : 0)) + ' 座' : '村莊解鎖';
   document.querySelectorAll('#planBar [data-k]').forEach(b => b.classList.toggle('sel', b.dataset.k === plan.kind));
-  let tip = MODE === 'auto' ? '選一種建築，電腦會幫你挑位置（也可以自己點格子改）' : '先選一種建築，再點地上的格子（拖曳可以移動畫面）', ok = false;
+  let tip = PRO ? '選一種建築，電腦會先放在推薦的位置（也可以自己點格子改）' : '先選一種建築，再點地上的格子（拖曳可以移動畫面）', ok = false;
   if (plan.kind && plan.cell) {
     const [x, z] = plan.cell, cost = planCost(plan.kind);
     if (!planLimit(plan.kind)) tip = '數量已達上限，城市升級後可以蓋更多';
     else if (!canBuild(x, z, plan.kind)) tip = wrongZone(x, z, plan.kind) ? '這種建築只能蓋在' + ZONE_TXT[KIND_ZONE[plan.kind]] : '這格不能蓋（太靠近建築、圍欄、樹或路）';
     else if (save.cash < cost) tip = '錢不夠：需要 ' + cost + ' 元';
-    else { tip = '按「✅ 蓋這裡」花 ' + cost + ' 元'; ok = true; }
+    else { tip = (PRO && plan.cell === plan.rec ? '⭐ 推薦位置：' : '') + '按「✅ 蓋這裡」花 ' + cost + ' 元'; ok = true; }
     cursor.material.color.setHex(ok ? 0x5fd068 : 0xff5a4a);
-  } else if (plan.kind) tip = MODE === 'auto' ? '附近沒有空位了，擴大領地或自己點格子試試' : '點地上的格子，選要蓋在哪';
+  } else if (plan.kind) tip = PRO ? '附近沒有空位了，擴大領地或自己點格子試試' : '點地上的格子，選要蓋在哪';
   $('planTip').textContent = tip; $('planGo').disabled = !ok;
   ghost.visible = !!(plan.kind && plan.cell);
   if (ghost.visible) { const [sx, sy, sz] = (plan.kind === 'house' ? [1, 1, 1] : BIG[plan.kind] ? [1.4, 1.15, 1.2] : null) || [0.45, 1.6, 0.45]; ghost.position.set(plan.cell[0], sy * 0.7, plan.cell[1]); ghost.scale.set(sx, sy, sz); }
@@ -1006,7 +1007,7 @@ document.getElementById('planBtn').onclick = () => setPlan(true);
 document.getElementById('planExit').onclick = () => setPlan(false);
 document.querySelectorAll('#planBar [data-k]').forEach(b => b.onclick = () => {
   plan.kind = b.dataset.k;
-  if (MODE === 'auto') { plan.cell = autoSpot(plan.kind); if (plan.cell) { cursor.position.x = plan.cell[0]; cursor.position.z = plan.cell[1]; plan.cx = plan.cell[0]; plan.cz = plan.cell[1]; } }
+  if (PRO) { plan.cell = plan.rec = autoSpot(plan.kind); if (plan.cell) { cursor.position.x = plan.cell[0]; cursor.position.z = plan.cell[1]; plan.cx = plan.cell[0]; plan.cz = plan.cell[1]; } }
   planUi();
 });
 document.getElementById('planGo').onclick = () => {
