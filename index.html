@@ -49,6 +49,7 @@
   <div class="pill" id="pPop">👥 <b id="pop">0</b><span class="cap" id="capP"></span></div>
   <div class="pill" id="pCash">💵 <b id="cash">0</b></div>
   <div class="pill" id="pMeat">🍖 <b id="meat">0</b><span class="cap" id="capM"></span></div>
+  <div class="pill" id="pCoal" style="display:none">⚫ <b id="coal">0</b><span class="cap" id="capC"></span></div>
   <div class="pill" id="pWood">🪵 <b id="wood">0</b><span class="cap" id="capW"></span></div>
   <div class="pill" id="pCold" style="display:none">❄️ <b id="cold">--</b></div>
   <div class="pill" id="pFuel">🔥 <b id="fuel">100</b><span class="cap">%</span></div>
@@ -68,7 +69,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 'use strict';
-const VERSION = '0.27';
+const VERSION = '0.28';
 
 // ===== 數值（之後平衡都改這裡） =====
 const CFG = {
@@ -94,6 +95,7 @@ const CFG = {
   housePop: 5, housePrice: [25, 15], // 每間民房住幾人；民房價錢：第一間 25，之後每間多 15
   fuelMax: 100, fuelBurn: 0.4, fuelPerLog: 5, heat: [10, 17], // 火爐：柴滿 100、每秒燒 0.4、一根木頭 +5；暖氣圈半徑（最小、最大）
   heatUp: 7, furnaceUpPrice: 150,
+  minePrice: 100, coalHp: 4, coalPerRock: 2, coalRegrow: 20, fuelPerCoal: 20, // 煤礦（村莊解鎖）：價錢、敲幾下、掉幾塊、幾秒長回來；一塊煤 = 火爐 +20（木頭只有 +5）
   coldFirst: 120, coldEvery: 150, coldLen: 30, coldBurn: 3, coldShrink: 0.75, coldReward: 30, // 寒潮（村莊開始）：第一次幾秒後、之後每幾秒、持續幾秒、火爐燒幾倍快、暖氣圈縮成幾成、撐過去的獎金 // 火爐升級（村莊解鎖）：暖氣圈最大半徑 +7
 };
 // 城市等級：人口到門檻就升級（藍圖見 docs/企劃評估.md 第 8 節）；houses＝這一級最多能蓋幾間民房
@@ -140,7 +142,7 @@ const mats = {
   snow: M(0xf4f8fc), dirt: M(0xc98c5a), trunk: M(0x7a4a2a), leaf: M(0x3f7f9a), leafSnow: M(0xe8f2fa),
   log: M(0xb06a35), meat: M(0xd9414a), fur: M(0xf2f0ea), cash: M(0x3fbf5a), wood: M(0x8a5a35), roof: M(0xb53a2e), player: M(0x2f8fd8),
   skin: M(0xffd6b0), ice: new THREE.MeshLambertMaterial({ color: 0xd6ecff, transparent: true, opacity: 0.85 }),
-  axe: M(0xdfe6ee),
+  axe: M(0xdfe6ee), coal: M(0x2a2c33), rock: M(0x6b7280),
 };
 function box(w, h, d, mat) { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.castShadow = m.receiveShadow = true; return m; }
 
@@ -478,7 +480,7 @@ makeUnlock({ x: 10.5, z: 0, icon: '🌲', name: () => '開拓東邊',
 makeUnlock({ x: -6.3, z: 1.2, icon: '🪚', name: () => '第二台鋸木機',
   price: () => save.mill2 ? null : 80, buy: () => { save.mill2 = true; addMill2(); toast('加工速度翻倍！'); } });
 
-function openEast() { scene.remove(iceWall); trees.forEach(t => t.locked = false); }
+function openEast() { scene.remove(iceWall); trees.forEach(t => { if (!t.coal) t.locked = false; }); }
 if (save.east) openEast();
 if (save.mill2) addMill2();
 
@@ -603,12 +605,13 @@ function updateFurnace(dt) {
   f.fuel = Math.max(0, f.fuel - CFG.fuelBurn * (coldWave.on > 0 ? CFG.coldBurn : 1) * dt); save.fuel = Math.round(f.fuel * 10) / 10;
   // 揹木頭站到火爐旁，一根根丟進去
   feedCd -= dt;
-  const k = carried.map(m => m.userData.type).lastIndexOf('log');
-  if (k >= 0 && feedCd <= 0 && f.fuel + f.pend * CFG.fuelPerLog < CFG.fuelMax && Math.hypot(player.position.x - FX, player.position.z - FZ) < 1.5) {
-    feedCd = 0.12; f.pend++;
+  const types = carried.map(m => m.userData.type), kc = types.lastIndexOf('coal'), k = kc >= 0 ? kc : types.lastIndexOf('log'); // 有煤先丟煤
+  const per = kc >= 0 ? CFG.fuelPerCoal : CFG.fuelPerLog;
+  if (k >= 0 && feedCd <= 0 && f.fuel + f.pend < CFG.fuelMax && Math.hypot(player.position.x - FX, player.position.z - FZ) < 1.5) {
+    feedCd = 0.12; f.pend += per; // pend：還在半空中、等一下會加進去的柴量
     const m = carried.splice(k, 1)[0]; const wp = m.getWorldPosition(new THREE.Vector3());
     stackRoot.remove(m); restack();
-    fly(m, wp, () => new THREE.Vector3(FX, 1.2, FZ), 0.3, () => { scene.remove(m); f.pend--; f.fuel = Math.min(CFG.fuelMax, f.fuel + CFG.fuelPerLog); });
+    fly(m, wp, () => new THREE.Vector3(FX, 1.2, FZ), 0.3, () => { scene.remove(m); f.pend -= per; f.fuel = Math.min(CFG.fuelMax, f.fuel + per); });
   }
   const pct = Math.round(f.fuel / CFG.fuelMax * 100);
   const rMax = CFG.heat[1] + (save.furnace ? CFG.heatUp : 0);
@@ -619,9 +622,24 @@ function updateFurnace(dt) {
   for (const b of buildings) b.cold = Math.hypot(b.x - FX, b.z - FZ) > f.r;
   if (f.fuel <= 0 && !f.out) { toast('🔥 火爐熄了！建築都凍住了，快加柴！'); beep(180, 0.4, 'sawtooth', 0.06, 0.6); }
   f.out = f.fuel <= 0;
-  furnaceLabel.set(['火爐 ' + pct + '%', pct < 50 ? '🪵 揹木頭來加柴' : '🔥 暖氣範圍'], pct > 50 ? '#ffd34d' : pct > 20 ? '#ffa040' : '#ff6a5a');
+  furnaceLabel.set(['火爐 ' + pct + '%', pct < 50 ? (save.mine ? '🪵⚫ 揹木頭或煤來加' : '🪵 揹木頭來加柴') : '🔥 暖氣範圍'], pct > 50 ? '#ffd34d' : pct > 20 ? '#ffa040' : '#ff6a5a');
   $('fuel').textContent = pct; $('pFuel').classList.toggle('danger', pct < 20);
 }
+
+// ===== 煤礦：營地西南邊的黑色礦石，買下後主角敲得到；煤丟進火爐很耐燒（伐木工不挖煤） =====
+const rocks = [];
+function addRock(x, z) {
+  const g = new THREE.Group();
+  const base = box(1.3, 0.8, 1.1, mats.rock); base.position.y = 0.4; base.rotation.y = rand(0, 3); g.add(base);
+  for (let i = 0; i < 3; i++) { const c = box(rand(0.35, 0.55), rand(0.3, 0.5), rand(0.35, 0.55), mats.coal); c.position.set(rand(-0.4, 0.4), 0.8 + rand(0, 0.15), rand(-0.3, 0.3)); c.rotation.set(rand(0, 1), rand(0, 3), 0); g.add(c); }
+  g.position.set(x, 0, z); g.visible = !!save.mine; scene.add(g);
+  const t = { g, x, z, hp: CFG.coalHp, alive: true, regrow: 0, sc: 1, shake: 0, locked: !save.mine, coal: true };
+  trees.push(t); rocks.push(t);
+}
+[[-12, 9], [-14.5, 10.5], [-17, 9], [-12.5, 12.5], [-15.5, 13.5], [-18, 12.5]].forEach(([x, z]) => addRock(x, z));
+let mineUnlock = null;
+function openMine() { rocks.forEach(t => { t.locked = false; t.g.visible = true; }); document.getElementById('pCoal').style.display = ''; }
+if (save.mine) openMine();
 
 // ===== 寒潮：村莊開始，每隔一段時間氣溫驟降 30 秒，火爐燒得快、暖氣圈縮小；撐過去（火沒熄）有獎金 =====
 const coldWave = { t: save.coldT ?? CFG.coldFirst, on: 0, failed: false };
@@ -652,6 +670,8 @@ function updateColdWave(dt) {
 let paused = false, furnaceUnlock = null;
 function levelUnlocks() {
   if (houseUnlock.done && save.houses < LEVELS[save.level].houses) houseUnlock = addHouseUnlock();
+  if (save.level >= 1 && !save.mine && !mineUnlock) mineUnlock = makeUnlock({ x: -10, z: 6, icon: '⛏️', name: () => '開採煤礦',
+    price: () => save.mine ? null : CFG.minePrice, buy: () => { save.mine = 1; openMine(); toast('煤礦開放了！煤丟進火爐很耐燒'); } });
   if (save.level >= 1 && !save.furnace && !furnaceUnlock) furnaceUnlock = makeUnlock({ x: 2.2, z: -4, icon: '🔥', name: () => '火爐升級',
     price: () => save.furnace ? null : CFG.furnaceUpPrice, buy: () => { save.furnace = 1; toast('暖氣圈變大了！'); } });
 }
@@ -700,7 +720,7 @@ function updateWorkers(dt) {
     if (!w.tree || !w.tree.alive) {                  // 找最近、沒人在砍的樹
       let best = 1e9; w.tree = null;
       for (const t of trees) {
-        if (!t.alive || t.locked || workers.some(o => o !== w && o.tree === t)) continue;
+        if (!t.alive || t.locked || t.coal || workers.some(o => o !== w && o.tree === t)) continue;
         const d = (t.x - w.g.position.x) ** 2 + (t.z - w.g.position.z) ** 2;
         if (d < best) { best = d; w.tree = t; }
       }
@@ -839,9 +859,10 @@ function hud() {
   $('pop').textContent = population(); $('capP').textContent = next ? '/' + next.need : '';
   $('ver').textContent = 'v' + VERSION + '　' + lv.icon + ' ' + lv.name;
   if (shownCash !== save.cash) { $('cash').textContent = save.cash; bump('pCash'); shownCash = save.cash; }
-  const nMeat = carried.filter(m => m.userData.type === 'meat').length, nLog = carried.length - nMeat;
-  if (shownWood !== carried.length * 1000 + nMeat) { $('wood').textContent = nLog; $('meat').textContent = nMeat; shownWood = carried.length * 1000 + nMeat; }
-  $('capW').textContent = '/' + capacity(); $('capM').textContent = '/' + capacity();
+  const nMeat = countOf('meat') - flies.filter(f => f.toBack === 'meat').length, nCoal = carried.filter(m => m.userData.type === 'coal').length, nLog = carried.length - nMeat - nCoal;
+  if (shownWood !== carried.length * 10000 + nMeat * 100 + nCoal) { $('wood').textContent = nLog; $('meat').textContent = nMeat; $('coal').textContent = nCoal; shownWood = carried.length * 10000 + nMeat * 100 + nCoal; }
+  $('capW').textContent = '/' + capacity(); $('capM').textContent = '/' + capacity(); $('capC').textContent = '/' + capacity();
+  $('pCoal').classList.toggle('full', countOf('coal') >= capacity());
   $('pWood').classList.toggle('full', countOf('log') >= capacity()); $('pMeat').classList.toggle('full', countOf('meat') >= capacity());
 }
 function bump(id) { const e = $(id); e.classList.remove('bump'); void e.offsetWidth; e.classList.add('bump'); }
@@ -936,7 +957,7 @@ function updateGuide(dt) {
   const out = mills.find(m => m.out.length);
   const aff = unlocks.find(u => !u.done && u.price() - u.paid <= save.cash);
   if (out) { x = out.outPad.position.x; z = out.outPad.position.z; }
-  else if (carried.length >= Math.min(capacity(), 9)) { const s = mills.find(m => m.accept === carried[carried.length - 1].userData.type); x = s.inPad.position.x; z = s.inPad.position.z; }
+  else if (carried.length >= Math.min(capacity(), 9)) { const s = mills.find(m => m.accept === carried[carried.length - 1].userData.type) || { inPad: fg }; x = s.inPad.position.x; z = s.inPad.position.z; }
   else if (aff && !carried.length) { x = aff.x; z = aff.z; h = 3.2; }
   else {
     let best = 1e9;
@@ -1049,9 +1070,9 @@ function step(dt) {
     if (Math.hypot(b.x - player.position.x, b.z - player.position.z) < CFG.chopRange + 0.4) { target = b; break; }
   }
   if (target) {
-    const kind = target.isBear ? 'meat' : 'log';
+    const kind = target.isBear ? 'meat' : target.coal ? 'coal' : 'log';
     if (countOf(kind) >= capacity()) {
-      fullWarn -= dt; if (fullWarn <= 0) { toast(kind === 'meat' ? '肉滿了！拿去烤肉攤' : '木頭滿了！拿去鋸木廠'); fullWarn = 3; }
+      fullWarn -= dt; if (fullWarn <= 0) { toast(kind === 'meat' ? '肉滿了！拿去烤肉攤' : kind === 'coal' ? '煤滿了！拿去火爐' : '木頭滿了！拿去鋸木廠'); fullWarn = 3; }
     } else {
       axeShow = 0.3;
       if (chopTimer <= 0) {
@@ -1060,13 +1081,13 @@ function step(dt) {
         burstChips(target.x, target.z, target.isBear); sfx.chop();
         if (target.hp <= 0) {
           target.alive = false;
-          if (target.isBear) target.respawn = CFG.bearRespawn; else target.regrow = CFG.treeRegrow;
-          const n = target.isBear ? CFG.meatPerBear : CFG.logsPerTree;
+          if (target.isBear) target.respawn = CFG.bearRespawn; else target.regrow = target.coal ? CFG.coalRegrow : CFG.treeRegrow;
+          const n = target.isBear ? CFG.meatPerBear : target.coal ? CFG.coalPerRock : CFG.logsPerTree;
           for (let i = 0; i < n; i++) {
             if (countOf(kind) >= capacity()) break;
             const idx = stackHeight();
-            const m = new THREE.Mesh(logGeo, target.isBear ? mats.meat : mats.log); m.castShadow = true;
-            m.userData.type = target.isBear ? 'meat' : 'log';
+            const m = new THREE.Mesh(logGeo, mats[kind === 'log' ? 'log' : kind]); m.castShadow = true;
+            m.userData.type = kind;
             const f = { toBack: kind };
             fly(m, tmp.set(target.x, 1 + i * 0.3, target.z), () => stackRoot.localToWorld(new THREE.Vector3(0, idx * 0.24, 0)), 0.35 + i * 0.08, () => {
               stackRoot.add(m); carried.push(m); restack();
@@ -1101,7 +1122,7 @@ function step(dt) {
     if (!t.alive) {
       t.g.scale.setScalar(Math.max(0.001, t.g.scale.x - dt * 4));
       t.regrow -= dt;
-      if (t.regrow <= 0) { t.alive = true; t.hp = CFG.treeHp; }
+      if (t.regrow <= 0) { t.alive = true; t.hp = t.coal ? CFG.coalHp : CFG.treeHp; }
     } else if (t.g.scale.x < t.sc) t.g.scale.setScalar(Math.min(t.sc, t.g.scale.x + dt * 1.5));
   }
 
@@ -1209,7 +1230,7 @@ function loop() {
 }
 loop();
 addEventListener('visibilitychange', () => { if (document.hidden) writeSave(); });
-window.__game = { coldWave, hero, save, furnace, houses, player, carried, mills, unlocks, trees, bears, gate, buildings, towers, step, render: () => renderer.render(scene, camera) }; // 測試用
+window.__game = { rocks, coldWave, hero, save, furnace, houses, player, carried, mills, unlocks, trees, bears, gate, buildings, towers, step, render: () => renderer.render(scene, camera) }; // 測試用
 </script>
 </body>
 </html>
