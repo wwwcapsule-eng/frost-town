@@ -34,7 +34,7 @@ function autoSpot(k) {
   cells.sort((a, b) => Math.hypot(a[0] - ox, a[1] - oz) - Math.hypot(b[0] - ox, b[1] - oz));
   return cells.find(([x, z]) => canBuild(x, z, k)) || null;
 }
-function planCost(k) { return P(k === 'house' ? housePrice() : { mill: CFG.mill2Price, grill: CFG.grill2Price, smith: CFG.smithPrice, tower: towerPrice() }[k] || CFG.heaterPrice); } // 用倉庫的🧱木材付
+function planCost(k) { if (k === 'gate') return P(CFG.gatePrice); return P(k === 'house' ? housePrice() : { mill: CFG.mill2Price, grill: CFG.grill2Price, smith: CFG.smithPrice, tower: towerPrice() }[k] || CFG.heaterPrice); } // 用倉庫的🧱木材付
 const towerPrice = () => 40 + 50 * towers.length;  // 正式關弩砲塔：40、90、140…
 const planned = k => save.plan.some(p => p.k === k);
 function planLimit(k) {
@@ -42,11 +42,25 @@ function planLimit(k) {
   if (k === 'mill') return PRO && save.east && !planned('mill');      // 跟教學關一樣：開拓東邊後才有
   if (k === 'grill') return PRO && save.level >= 1 && !planned('grill');
   if (k === 'tower') return towers.length < 2 + save.level; // 營地 2 座，每升一級多 1 座
-  if (k === 'smith') return save.mine && !planned('smith');      // 開採煤礦後才有煤可以打
+  if (k === 'smith') return save.mine && !planned('smith');
+  if (k === 'gate') return save.gates.length < CFG.gateMax;      // 開採煤礦後才有煤可以打
   return k === 'house' ? houses.length < lv.houses : heaters.length < lv.heaters + (save.stove ? 1 : 0);
 }
 const wrongZone = (x, z, k) => PRO && KIND_ZONE[k] && zoneOf(x, z) !== KIND_ZONE[k]; // 正式關：同一區蓋同類建築
+// 圍欄開口（v0.66）：點在圍欄上的格子 → 回傳開在哪一邊、哪個位置；角落、太靠近別的門、門口有建築都不行
+function gateSpot(x, z) {
+  for (const a of [0, Math.PI / 2, Math.PI, Math.PI * 1.5]) {
+    const l = gateLocal({ a }, x, z);
+    if (Math.abs(l.out - FENCE_R) > 1.6 || Math.abs(l.t) > FENCE_R - 3) continue;
+    const [gx, gz] = gatePoint({ a, off: l.t }, FENCE_R);
+    if (GATES.some(g => Math.abs(g.a - a) < 0.01 && Math.abs((g.off || 0) - l.t) < g.w / 2 + CFG.gateW / 2 + 0.6)) return null;
+    if (buildings.some(b => !b.dead && Math.hypot(b.x - gx, b.z - gz) < b.r + 1.5)) return null;
+    return { a, off: l.t };
+  }
+  return null;
+}
 function canBuild(x, z, k) {
+  if (k === 'gate') return !!gateSpot(x, z);
   if (wrongZone(x, z, k)) return false;
   if (k === 'tower') {                                          // 弩砲塔：圍欄外 1～2 格，樹會自動移走所以不擋，熊也不擋
     const r = fd(x, z), d = (a, b) => Math.hypot(a - x, b - z);
@@ -77,13 +91,14 @@ function planUi() {
   $('pkTower').textContent = planLimit('tower') ? '🧱 ' + planCost('tower') : '已滿 ' + towers.length + ' 座';
   $('pkSmith').textContent = planLimit('smith') ? '🧱 ' + planCost('smith') : planned('smith') ? '已蓋' : '開採煤礦後';
   $('pkGrill').textContent = planLimit('grill') ? '🧱 ' + planCost('grill') : planned('grill') ? '已蓋' : '村莊解鎖';
+  $('pkGate').textContent = planLimit('gate') ? '🧱 ' + planCost('gate') : '已滿 ' + CFG.gateMax + ' 個';
   $('pkHeater').textContent = planLimit('heater') ? '🧱 ' + planCost('heater') : lv.heaters ? '已滿 ' + (lv.heaters + (save.stove ? 1 : 0)) + ' 座' : '村莊解鎖';
   document.querySelectorAll('#planBar [data-k]').forEach(b => b.classList.toggle('sel', b.dataset.k === plan.kind));
   let tip = '選一種建築，電腦會先放在推薦位置；新民房會自動接上道路；按住任何建築可以搬家', ok = false;
   if (plan.kind && plan.cell) {
     const [x, z] = plan.cell, cost = planCost(plan.kind);
     if (!planLimit(plan.kind)) tip = '數量已達上限，城市升級後可以蓋更多';
-    else if (!canBuild(x, z, plan.kind)) tip = wrongZone(x, z, plan.kind) ? '這種建築只能蓋在' + ZONE_TXT[KIND_ZONE[plan.kind]] : '這格不能蓋（太靠近建築、圍欄、樹或路）';
+    else if (!canBuild(x, z, plan.kind)) tip = plan.kind === 'gate' ? '開口要點在圍欄上（不能在角落、太靠近別的門或建築）' : wrongZone(x, z, plan.kind) ? '這種建築只能蓋在' + ZONE_TXT[KIND_ZONE[plan.kind]] : '這格不能蓋（太靠近建築、圍欄、樹或路）';
     else if (!save.wh) tip = '先蓋📦倉庫，建築要用倉庫裡的🧱木材蓋';
     else if (save.store.plank < cost) tip = '木材不夠：需要 🧱 ' + cost + '（倉庫有 ' + save.store.plank + '）';
     else { tip = (plan.cell === plan.rec ? '⭐ 推薦位置：' : '') + '按「✅ 蓋這裡」用掉 🧱 ' + cost; ok = true; }
@@ -91,7 +106,7 @@ function planUi() {
   } else if (plan.kind) tip = true ? '附近沒有空位了，擴大領地或自己點格子試試' : '點地上的格子，選要蓋在哪';
   $('planTip').textContent = tip; $('planGo').disabled = !ok;
   ghost.visible = !!(plan.kind && plan.cell);
-  if (ghost.visible) { const [sx, sy, sz] = (plan.kind === 'house' ? [1, 1, 1] : BIG[plan.kind] ? [1.4, 1.15, 1.2] : null) || [0.45, 1.6, 0.45]; ghost.position.set(plan.cell[0], sy * 0.7, plan.cell[1]); ghost.scale.set(sx, sy, sz); }
+  if (ghost.visible) { const [sx, sy, sz] = (plan.kind === 'house' ? [1, 1, 1] : plan.kind === 'gate' ? [1.6, 0.6, 0.15] : BIG[plan.kind] ? [1.4, 1.15, 1.2] : null) || [0.45, 1.6, 0.45]; ghost.position.set(plan.cell[0], sy * 0.7, plan.cell[1]); ghost.scale.set(sx, sy, sz); }
 }
 function setPlan(on) {
   plan.on = on; plan.kind = null; plan.cell = null;
@@ -112,8 +127,11 @@ document.getElementById('planGo').onclick = () => {
   if (!plan.kind || !plan.cell) return;
   const [x, z] = plan.cell, k = plan.kind, cost = planCost(k);
   if (!planLimit(k) || !canBuild(x, z, k) || !save.wh || save.store.plank < cost) return;
-  save.store.plank -= cost; save.plan.push({ k, x, z });
-  buildPlanned(save.plan[save.plan.length - 1], save.plan.length - 1);
+  save.store.plank -= cost;
+  if (k === 'gate') {                                            // 圍欄開口：不是建築，記在 save.gates
+    const s = gateSpot(x, z); save.gates.push(s); GATES.push({ a: s.a, w: CFG.gateW, off: s.off, own: true });
+    buildFence(); buildDoorsAll(); toast('🚪 開好門了！人和工人會走最近的門');
+  } else { save.plan.push({ k, x, z }); buildPlanned(save.plan[save.plan.length - 1], save.plan.length - 1); }
   if (k === 'mill') { save.mill2 = true; toast('加工速度翻倍！'); } else if (k === 'grill') toast('第二座烤肉攤：肉烤得更快！');
   sfx.unlock(); sparkle(x, z); writeSave();
   plan.cell = null; if (MODE === 'auto') plan.kind = null; planUi();
@@ -294,6 +312,7 @@ function buildDoorsAll() {
   const vis = gate.posts.visible;
   gate.posts = makeDoors(GATES[0], true).group; gate.posts.visible = vis;
   southDoors = makeDoors(GATES[1], false); eastDoors = makeDoors(GATES[2], false);
+  GATES.filter(g => g.own).forEach(g => makeDoors(g, false));
 }
 function applyTerritory(init) {
   FENCE_R = TERR[save.territory].r;
@@ -356,8 +375,8 @@ document.getElementById('lvOk').onclick = () => { $('lvup').style.display = 'non
 function routeTo(w, x, z, dt) {
   const px = w.g.position.x, pz = w.g.position.z, rIn = fd(px, pz) < FENCE_R, tIn = fd(x, z) < FENCE_R;
   if (rIn === tIn) return walkTo(w, x, z, dt);
-  const ref = rIn ? Math.atan2(z, x) : Math.atan2(pz, px);
-  const g = GATES.filter(g => g !== GATES[2] || save.east).reduce((a, b) => angDiff(ref, a.a) < angDiff(ref, b.a) ? a : b);
+  const cost = g => { const [gx, gz] = gatePoint(g, FENCE_R); return Math.hypot(gx - px, gz - pz) + Math.hypot(gx - x, gz - z); }; // 走哪個門最近（包括自己開的門）
+  const g = GATES.filter(g => g !== GATES[2] || save.east).reduce((a, b) => cost(a) < cost(b) ? a : b);
   const l = gateLocal(g, px, pz), inBand = l.along < g.w / 2 - 0.5 && Math.abs(l.out - FENCE_R) < 1.2;
   // 還沒到門口 → 先走到門的這一側；已經在門口 → 穿過去到另一側
   const goInside = rIn ? !inBand : inBand;

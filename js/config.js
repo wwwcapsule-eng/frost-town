@@ -1,5 +1,5 @@
 'use strict';
-const VERSION = '0.65';
+const VERSION = '0.66';
 
 // ===== 數值（之後平衡都改這裡） =====
 const CFG = {
@@ -35,6 +35,7 @@ const CFG = {
   snowEvery: 7, snowMax: 10, snowHp: 3, snowSlow: 0.45, shovelPrice: 60, // 雪堆（村莊開始）：幾秒積一堆、最多幾堆、鏟幾下、踩到剩幾成速度、鏟雪工價錢
   heaterPrice: 120, heaterR: 7, cell: 3, mill2Price: 80, grill2Price: 150, smithPrice: 200, coalValue: 6, truckPrice: 150, truckEvery: 4, storeMax: 150, // 自動運輸：價錢、每幾秒送一趟、倉庫每樣最多存多少（木材存滿，鋸木廠多做的才換錢）； // 鐵匠鋪：價錢、一塊煤打成工具賣幾元； 規劃模式：暖氣塔價錢、暖氣範圍半徑、格子大小；正式關：第二台鋸木機、第二座烤肉攤價錢
   whLogs: 10, plankRate: 0.3, fuelKeep: 20, foodKeep: 20, whFood: 10, eatEvery: 90, // 倉庫（第 2 時代）：揹幾根木頭蓋；建築價錢換成🧱木材的比例（原本的錢 ×0.3）；倉庫留幾根木頭當柴（多的送鋸木廠）；存多少烤肉（多的才賣村民）；蓋好送幾份食物；工人幾秒吃一次
+  gatePrice: 30, gateW: 3.6, gateMax: 4, // 自己開的圍欄門：價錢（換成木材 ×0.3）、門寬、最多幾個
   coldFirst: 120, coldEvery: 150, coldLen: 30, coldBurn: 3, coldShrink: 0.75, coldReward: 30, // 寒潮（村莊開始）：第一次幾秒後、之後每幾秒、持續幾秒、火爐燒幾倍快、暖氣圈縮成幾成、撐過去的獎金 // 火爐升級（村莊解鎖）：暖氣圈最大半徑 +7
 };
 // 城市等級：人口到門檻就升級（藍圖見 docs/企劃評估.md 第 8 節）；houses＝這一級最多能蓋幾間民房

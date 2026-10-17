@@ -173,11 +173,14 @@ const GATES = [                      // a＝門在哪一邊（北、南、東）
   { a: Math.PI / 2, w: 5.1 },    // 南門（村民進出）
   { a: 0, w: 7.6 },              // 東門
 ];
+// 自己開的門（v0.66，作者 10/18）：規劃模式在圍欄上開口；off＝沿著那一邊離中間多遠
+save.gates = save.gates || [];
+save.gates.forEach(c => GATES.push({ a: c.a, w: CFG.gateW, off: c.off, own: true }));
 function angDiff(a, b) { let d = (a - b) % (Math.PI * 2); if (d > Math.PI) d -= Math.PI * 2; if (d < -Math.PI) d += Math.PI * 2; return Math.abs(d); }
 // 門的這一邊：沿著圍欄離門中心多遠（along）、往外多遠（out）
-function gateLocal(g, x, z) { const ux = Math.round(Math.cos(g.a)), uz = Math.round(Math.sin(g.a)); return { along: Math.abs(-uz * x + ux * z), out: ux * x + uz * z }; }
+function gateLocal(g, x, z) { const ux = Math.round(Math.cos(g.a)), uz = Math.round(Math.sin(g.a)), t = -uz * x + ux * z; return { t, along: Math.abs(t - (g.off || 0)), out: ux * x + uz * z }; }
 function inGate(x, z, m = 0.3) { return GATES.some(g => { const l = gateLocal(g, x, z); return l.along < g.w / 2 - m && l.out > FENCE_R - 2; }); }
-function gatePoint(g, r) { return [Math.round(Math.cos(g.a)) * r, Math.round(Math.sin(g.a)) * r]; }
+function gatePoint(g, r) { const ux = Math.round(Math.cos(g.a)), uz = Math.round(Math.sin(g.a)), o = g.off || 0; return [ux * r - uz * o, uz * r + ux * o]; }
 const fencePosts = new THREE.Group(); scene.add(fencePosts);
 function buildFence() {
   fencePosts.clear();
