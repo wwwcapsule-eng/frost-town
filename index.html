@@ -103,7 +103,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 'use strict';
-const VERSION = '0.35';
+const VERSION = '0.36';
 
 // ===== 數值（之後平衡都改這裡） =====
 const CFG = {
@@ -145,7 +145,17 @@ const LEVELS = [
 ];
 
 // 領地等級：營火升級一次，圍欄往外推（r＝圍欄半徑）、暖氣圈變大（heat）、鏡頭拉遠一點（cam）
-const TERR = [ { r: 8.7, heat: 0, cam: 1 }, { r: 11.5, heat: 3, cam: 1.12 }, { r: 14, heat: 7, cam: 1.22 } ];
+const TERR = [ { r: 10, heat: 0, cam: 1.05 }, { r: 14, heat: 3, cam: 1.15 }, { r: 18.5, heat: 7, cam: 1.28 } ];
+// 地塊配置（作者 10/17 第二次回饋：每個建築、付款格都有自己的位置，不互擋）
+// 營火廣場在 (0,-3)；N-S 主路 x≈0；東路 z≈0；民房在南邊一圈圈的地塊上，門朝營火
+const LOT = {
+  bag: [-2.8, -5.6], axe: [2.8, -5.6], terr: [-3.2, 1.6], worker: [3.2, 1.6], shovel: [5.4, 4.2], tower1: [3.6, -7.4], tower2: [-3.6, -7.4],
+  mill: [6.4, -4], mill2: [-6.4, -4], bbq: [-4.6, 3.8], minePad: [-8, 3],
+};
+const HOUSE_LOTS = [];                    // 第 1 圈 6 間（Lv1 領地），第 2 圈 10 間（Lv2 領地）
+[[11.6, [35, 50, 65, 115, 130, 145], 1], [16.2, [30, 41, 52, 63, 74, 106, 117, 128, 139, 150], 2]].forEach(([r, angs, ring]) =>
+  angs.forEach(a => HOUSE_LOTS.push({ x: +(Math.cos(a * Math.PI / 180) * r).toFixed(2), z: +(Math.sin(a * Math.PI / 180) * r).toFixed(2), ring })));
+const ROCK_LOTS = [[-11.2, -0.6], [-10.2, 2.2], [-11.6, -3.4], [-9.9, -6.2], [-12, 1]]; // 煤礦區（西邊，第 1 次擴大領地後圈進來）
 
 // ===== 存檔 =====
 const SAVE_KEY = 'frost-town-save-v1';
@@ -278,13 +288,13 @@ for (let i = 0; i < 70; i++) {
 }
 // 東邊森林（被冰牆擋住，要開拓）
 for (let i = 0; i < 60; i++) {
-  const x = rand(15, 30), z = rand(-12, 10);
+  const x = rand(17.5, 32), z = rand(-12, 10);
   if (trees.every(t => (t.x - x) ** 2 + (t.z - z) ** 2 > 2.6)) addTree(x, z, true);
 }
 // 冰牆
 const iceWall = new THREE.Group();
 for (let z = -14; z <= 12; z += 1.6) {
-  const b = box(1.4, rand(1.6, 2.6), 1.6, mats.ice); b.position.set(13 + rand(-0.2, 0.2), b.geometry.parameters.height / 2, z); iceWall.add(b);
+  const b = box(1.4, rand(1.6, 2.6), 1.6, mats.ice); b.position.set(16 + rand(-0.2, 0.2), b.geometry.parameters.height / 2, z); iceWall.add(b);
 }
 scene.add(iceWall);
 // ===== 營地圍欄：走不過去，只能從三個門進出；門有人靠近會自己打開 =====
@@ -434,15 +444,15 @@ function makeMill(x, z, opt = {}) {
   saw.rotation.x = Math.PI / 2; saw.position.set(0, 1.0, 1.25); g.add(saw);
   g.position.set(x, 0, z); scene.add(g);
   const inPad = makePad(o.inX ?? x - 2.6, o.inZ ?? z + 2.2, 1.8, 0xffffff, o.accept === 'meat' ? '🍖' : '🪵');
-  const outPad = makePad(x + 2.6, z + 2.2, 1.8, 0x3fbf5a, '💵');
+  const outPad = makePad(o.outX ?? x + 2.6, o.outZ ?? z + 2.2, 1.8, 0x3fbf5a, '💵');
   const label = makeLabel(); label.scale.set(3, 1.5, 1); label.position.set(x, 3, z); label.set([o.name]); scene.add(label);
   Object.assign(o, { g, saw, inPad, outPad, queue: 0, timer: 0, out: [], label });
   o.bld = addBuilding(o.key || o.name, g, 1.8);
   return o;
 }
-const mills = [makeMill(3.5, -1)];
-function addMill2() { mills.push(makeMill(-4.5, -1, { key: '第二台鋸木機' })); }
-mills.push(makeMill(-3.3, 4.3, { inX: -5.4, inZ: 5.7, name: '烤肉攤', accept: 'meat', value: CFG.meatValue, time: 0.8, roof: M(0xe07b22), customers: true }));
+const mills = [makeMill(LOT.mill[0], LOT.mill[1], { inX: LOT.mill[0] - 1.3, inZ: LOT.mill[1] + 2.7, outX: LOT.mill[0] + 1.3, outZ: LOT.mill[1] + 2.7 })];
+function addMill2() { const [x, z] = LOT.mill2; mills.push(makeMill(x, z, { key: '第二台鋸木機', inX: x - 1.3, inZ: z + 2.7, outX: x + 1.3, outZ: z + 2.7 })); }
+mills.push(makeMill(LOT.bbq[0], LOT.bbq[1], { inX: -1.6, inZ: 3.4, name: '烤肉攤', accept: 'meat', value: CFG.meatValue, time: 0.8, roof: M(0xe07b22), customers: true }));
 
 // 鈔票落到站的綠色框
 function spawnBill(mill, from) {
@@ -497,7 +507,7 @@ function updateVillagers(dt) {
       const wp = m.position.clone();
       fly(m, wp, () => front.g.position.clone().add(tmp.set(0, 1.4, 0)), 0.25, () => { front.g.add(m); m.position.set(0, 0.9, 0.35); }, 0.6);
       spawnBill(bbq, front.g.position.clone().add(tmp.set(0, 1.4, 0)));
-      villagers.shift(); leaving.push({ g: front.g, t: 3.5, dir: rand(-0.6, 0.6) });
+      villagers.shift(); leaving.push({ g: front.g, t: 3.5, dir: rand(-0.12, 0.12) });
     }
   }
   for (let i = leaving.length - 1; i >= 0; i--) {
@@ -517,22 +527,23 @@ function makeUnlock(def) {
   u.refresh = () => {
     const p = u.price();
     if (p == null) { scene.remove(pad); scene.remove(label); u.done = true; return; }
-    label.set([u.name(), '💵 ' + (p - u.paid)], '#ffe066', [36, 68]); // 錢放大，像參考影片
+    if (u.near) { label.set([u.name(), '💵 ' + (p - u.paid)], '#ffe066', [36, 68]); label.scale.set(3.2, 1.8, 1); label.position.y = 1.9; } // 錢放大，像參考影片
+    else { label.set(['💵 ' + (p - u.paid)], '#ffe066', [60]); label.scale.set(1.9, 1.05, 1); label.position.y = 0.9; } // 遠的只顯示小價錢，不會互相蓋住
     pad.fill.scale.y = Math.max(0.0001, u.paid / p);
   };
   u.refresh(); unlocks.push(u);
   return u;
 }
-makeUnlock({ x: -3.4, z: -5.6, icon: '🎒', name: () => '背包擴充',
+makeUnlock({ x: LOT.bag[0], z: LOT.bag[1], icon: '🎒', name: () => '背包擴充',
   price: () => [12, 35, 90][save.bag], buy: () => { save.bag++; toast('背包容量 ' + CFG.capacity[save.bag] + '！'); } });
-makeUnlock({ x: 1.5, z: 5.5, icon: '🪓', name: () => '斧頭升級',
+makeUnlock({ x: LOT.axe[0], z: LOT.axe[1], icon: '🪓', name: () => '斧頭升級',
   price: () => [20, 60, 140][save.axe], buy: () => { save.axe++; toast('砍得更快了！'); } });
 function openEast() { scene.remove(iceWall); trees.forEach(t => { if (!t.coal) t.locked = false; }); }
 if (save.east) openEast();
 if (save.mill2) addMill2();
 
 // ===== 弩砲塔：自動射北邊的熊，熊倒下的肉掉在地上，走過去撿 =====
-makeUnlock({ x: 4, z: -5.5, icon: '🏹', name: () => '弩砲塔',
+makeUnlock({ x: LOT.tower1[0], z: LOT.tower1[1], icon: '🏹', name: () => '弩砲塔',
   price: () => save.tower ? null : 40, buy: () => { save.tower = true; buildTower(); addTower2Unlock(); toast('弩砲塔會自動射熊！'); } });
 const towers = [];
 function buildTower(x = 5.2, z = -FENCE_R - 1.3) {
@@ -548,7 +559,7 @@ function buildTower(x = 5.2, z = -FENCE_R - 1.3) {
 if (save.tower) buildTower();
 // 第二座弩砲塔：要先有第一座才會出現
 function addTower2Unlock() {
-  makeUnlock({ x: -5.8, z: -6, icon: '🏹', name: () => '第二座弩砲塔',
+  makeUnlock({ x: LOT.tower2[0], z: LOT.tower2[1], icon: '🏹', name: () => '第二座弩砲塔',
   price: () => save.tower2 ? null : 90, buy: () => { save.tower2 = true; buildTower(-5.4); toast('北門兩側都有弩砲塔了！'); } });
 }
 if (save.tower && !save.tower2) addTower2Unlock();
@@ -594,7 +605,7 @@ function updateGate(dt) {
 }
 
 // ===== 伐木工：自己找樹砍、揹滿就送鋸木廠，一直循環 =====
-makeUnlock({ x: 5.5, z: 4.5, icon: '👷', name: () => '雇用伐木工',
+makeUnlock({ x: LOT.worker[0], z: LOT.worker[1], icon: '👷', name: () => '雇用伐木工',
   price: () => [60, 120, 200][save.workers], buy: () => { save.workers++; addWorker(); toast('伐木工上工了！'); } });
 const workers = [];
 function addWorker() {
@@ -609,8 +620,9 @@ function addWorker() {
 for (let i = 0; i < save.workers; i++) addWorker();
 
 // ===== 民房：在南門外一間間往外蓋，每間 +5 人口；付款格蓋好後會移到下一塊空地 =====
-const houses = [];
-function houseSpot(i) { return [[-3.2, 3.2, -6.5, 6.5][i % 4], FENCE_R + 3.3 + Math.floor(i / 4) * 3.5]; } // 南門外一排排往外蓋
+const houses = [], FX0 = 0, FZ0 = -3; // 營火位置（跟下面的 FX, FZ 一樣）
+function houseSpot(i) { const l = HOUSE_LOTS[Math.min(i, HOUSE_LOTS.length - 1)]; return [l.x, l.z]; }
+function houseLotOpen() { const l = HOUSE_LOTS[save.houses]; return !!l && l.ring <= save.territory; } // 下一塊民房地塊在領地裡了嗎
 function buildHouse(i) { const [x, z] = houseSpot(i); buildHouseAt(x, z, '民房' + i); }
 function buildHouseAt(x, z, key) {
   const g = new THREE.Group();
@@ -619,7 +631,7 @@ function buildHouseAt(x, z, key) {
   const door = box(0.5, 0.8, 0.06, mats.trunk); door.position.set(0, 0.4, -1.02); g.add(door); // 門朝營地
   const win = box(0.45, 0.4, 0.06, M(0xffd36b)); win.position.set(0.65, 0.85, -1.02); g.add(win);
   const chimney = box(0.3, 0.7, 0.3, M(0x777777)); chimney.position.set(0.5, 2.2, 0.3); g.add(chimney);
-  g.position.set(x, 0, z); scene.add(g);
+  g.position.set(x, 0, z); g.rotation.y = Math.atan2(x - FX0, z - FZ0); scene.add(g); // 門朝營火
   houses.push(addBuilding(key, g, 1.3));
 }
 for (let i = 0; i < save.houses; i++) buildHouse(i);
@@ -627,7 +639,7 @@ function housePrice() { return CFG.housePrice[0] + houses.length * CFG.housePric
 function addHouseUnlock() {
   const [x, z] = houseSpot(save.houses);
   const u = makeUnlock({ x, z, icon: '🏠', name: () => '蓋民房',
-    price: () => houses.length < LEVELS[save.level].houses ? housePrice() : null,
+    price: () => houses.length < LEVELS[save.level].houses && houseLotOpen() ? housePrice() : null,
     buy: () => {
       buildHouse(save.houses++); toast('蓋好民房，人口 +' + CFG.housePop + '！');
       [u.x, u.z] = houseSpot(save.houses); u.pad.position.set(u.x, 0.03, u.z); u.label.position.set(u.x, 1.9, u.z);
@@ -697,6 +709,7 @@ function updateFurnace(dt) {
   for (const b of buildings) b.cold = Math.hypot(b.x - FX, b.z - FZ) > f.r && !heaters.some(h => !h.bld.dead && Math.hypot(b.x - h.x, b.z - h.z) <= hr);
   if (f.fuel <= 0 && !f.out) { toast('🔥 火爐熄了！建築都凍住了，快加柴！'); beep(180, 0.4, 'sawtooth', 0.06, 0.6); }
   f.out = f.fuel <= 0;
+  furnaceLabel.visible = pct < 50 || Math.hypot(player.position.x - FX, player.position.z - FZ) < 5;
   furnaceLabel.set(['火爐 ' + pct + '%', pct < 50 ? (save.mine ? '🪵⚫ 揹木頭或煤來加' : '🪵 揹木頭來加柴') : '🔥 暖氣範圍'], pct > 50 ? '#ffd34d' : pct > 20 ? '#ffa040' : '#ff6a5a');
   updateFireLook(dt, pct);
   $('fuel').textContent = pct; $('fuelBar').firstElementChild.style.width = pct + '%'; $('fuelBar').classList.toggle('danger', pct < 20);
@@ -712,7 +725,7 @@ function addRock(x, z) {
   const t = { g, x, z, hp: CFG.coalHp, alive: true, regrow: 0, sc: 1, shake: 0, locked: !save.mine, coal: true };
   trees.push(t); rocks.push(t);
 }
-[[-12, 9], [-14.5, 10.5], [-17, 9], [-12.5, 12.5], [-15.5, 13.5], [-18, 12.5]].forEach(([x, z]) => addRock(x, z));
+ROCK_LOTS.forEach(([x, z]) => addRock(x, z));
 let mineUnlock = null;
 function openMine() { rocks.forEach(t => { t.locked = false; t.g.visible = true; }); document.getElementById('pCoal').style.display = ''; }
 if (save.mine) openMine();
@@ -753,7 +766,7 @@ function updateSnow(dt) {
     let t = null, best = 1e9;
     for (const p of piles) { const d = Math.hypot(p.x - s.g.position.x, p.z - s.g.position.z); if (d < best) { best = d; t = p; } }
     s.cd -= dt;
-    if (!t) { routeTo(s, 5.5, -2, dt); continue; }
+    if (!t) { routeTo(s, LOT.shovel[0] - 1.4, LOT.shovel[1] - 1.2, dt); continue; }
     if (best > 1.2) routeTo(s, t.x, t.z, dt); else if (s.cd <= 0) { s.cd = 0.5; hitPile(t); s.g.rotation.y += 0.6; }
   }
 }
@@ -764,7 +777,7 @@ function addShoveler() {
   const h = box(0.45, 0.42, 0.42, mats.skin); h.position.y = 1.2; g.add(h);
   const hat = box(0.5, 0.18, 0.5, M(0xffffff)); hat.position.y = 1.5; g.add(hat);
   const sh = box(0.12, 0.12, 0.9, mats.axe); sh.position.set(0.35, 0.6, 0.35); g.add(sh);   // 鏟子
-  g.position.set(5.5, 0, -2); scene.add(g);
+  g.position.set(LOT.shovel[0] - 1.4, 0, LOT.shovel[1] - 1.2); scene.add(g);
   shovelers.push({ g, cd: 0, walk: 0 });
 }
 let shovelUnlock = null;
@@ -826,6 +839,9 @@ function canBuild(x, z) {
   if (unlocks.some(u => !u.done && d(u.x, u.z) < 2.3)) return false;
   if (mills.some(m => d(m.inPad.position.x, m.inPad.position.z) < 2 || d(m.outPad.position.x, m.outPad.position.z) < 2)) return false;
   if (trees.some(t => !t.gone && d(t.x, t.z) < 1.7)) return false;
+  if (HOUSE_LOTS.slice(save.houses).some(l => d(l.x, l.z) < 2.8)) return false;    // 民房區保留給南門外的民房
+  if (Object.values(LOT).some(([a, b]) => d(a, b) < 2.4)) return false;            // 付款格、建築的固定地塊
+  if (Math.abs(x) < 1.6 || (x > 0 && Math.abs(z) < 1.6)) return false;            // 南北主路、東路
   return true;
 }
 function planUi() {
@@ -894,16 +910,16 @@ let paused = false, terrUnlock = null, eastUnlock = null, mill2Unlock = null;
 function terrReady() { return save.territory === 0 ? save.buys >= CFG.terrNeedBuys : save.territory === 1 && save.level >= 1 && save.east; }
 function levelUnlocks() {
   if (terrUnlock && terrUnlock.done) terrUnlock = null;
-  if (!terrUnlock && terrReady()) terrUnlock = makeUnlock({ x: -1.4, z: -0.2, icon: '🔥', name: () => '營火升級 Lv' + (save.territory + 1),
+  if (!terrUnlock && terrReady()) terrUnlock = makeUnlock({ x: LOT.terr[0], z: LOT.terr[1], icon: '🔥', name: () => '營火升級 Lv' + (save.territory + 1),
     price: () => terrUnlock && terrUnlock.waiting ? null : CFG.terrPrice[save.territory], buy: () => { expandTerritory(); terrUnlock.waiting = true; } });
-  if (!eastUnlock && !save.east && save.territory >= 1) eastUnlock = makeUnlock({ x: FENCE_R - 1.6, z: 0, icon: '🌲', name: () => '開拓東邊',
+  if (!eastUnlock && !save.east && save.territory >= 1) eastUnlock = makeUnlock({ x: FENCE_R - 2.2, z: 0, icon: '🌲', name: () => '開拓東邊',
     price: () => save.east ? null : 50, buy: () => { save.east = true; openEast(); buildDoorsAll(); toast('東邊開放了！現在可以蓋民房、第二台鋸木機'); } });
-  if (!mill2Unlock && !save.mill2 && save.east) mill2Unlock = makeUnlock({ x: -6.3, z: 1.2, icon: '🪚', name: () => '第二台鋸木機',
+  if (!mill2Unlock && !save.mill2 && save.east) mill2Unlock = makeUnlock({ x: LOT.mill2[0], z: LOT.mill2[1], icon: '🪚', name: () => '第二台鋸木機',
     price: () => save.mill2 ? null : 80, buy: () => { save.mill2 = true; addMill2(); toast('加工速度翻倍！'); } });
-  if (save.east && houseUnlock.done && houses.length < LEVELS[save.level].houses) houseUnlock = addHouseUnlock();
-  if (save.level >= 1 && !save.mine && !mineUnlock) mineUnlock = makeUnlock({ x: -FENCE_R - 3, z: 6, icon: '⛏️', name: () => '開採煤礦',
+  if (save.east && houseUnlock.done && houses.length < LEVELS[save.level].houses && houseLotOpen()) houseUnlock = addHouseUnlock();
+  if (save.level >= 1 && !save.mine && !mineUnlock) mineUnlock = makeUnlock({ x: LOT.minePad[0], z: LOT.minePad[1], icon: '⛏️', name: () => '開採煤礦',
     price: () => save.mine ? null : CFG.minePrice, buy: () => { save.mine = 1; openMine(); toast('煤礦開放了！煤丟進火爐很耐燒'); } });
-  if (save.level >= 1 && !save.shovel && !shovelUnlock) shovelUnlock = makeUnlock({ x: 6.6, z: -3, icon: '🧹', name: () => '雇用鏟雪工',
+  if (save.level >= 1 && !save.shovel && !shovelUnlock) shovelUnlock = makeUnlock({ x: LOT.shovel[0], z: LOT.shovel[1], icon: '🧹', name: () => '雇用鏟雪工',
     price: () => save.shovel ? null : CFG.shovelPrice, buy: () => { save.shovel = 1; addShoveler(); toast('鏟雪工會自己去鏟雪！'); } });
 }
 
@@ -942,7 +958,7 @@ function applyTerritory(init) {
   for (const t of trees) {                                         // 圈進領地的樹移走（煤礦往外推）
     if (t.gone) continue;
     const r = Math.hypot(t.x, t.z);
-    if (t.coal) { if (r < FENCE_R + 2) { const k = (FENCE_R + 2.2) / r; t.x *= k; t.z *= k; t.g.position.set(t.x, 0, t.z); } continue; }
+    if (t.coal) continue;                                          // 煤礦石在固定地塊上，不移動
     if (r < FENCE_R + 2.2) { t.gone = true; t.alive = false; t.regrow = Infinity; scene.remove(t.g); if (!t.locked) moved++; }
   }
   for (let i = 0, tries = 0; i < moved && tries < 400; tries++) {  // 北邊森林往外補一樣多棵
@@ -1376,10 +1392,10 @@ function step(dt) {
     if (hintOn) { hintOn = false; $('hint').style.display = 'none'; }
     const sp = CFG.speed * slowAt(player.position.x, player.position.z) * dt; // 踩到雪堆走很慢
     let nx = player.position.x + mx * sp, nz = player.position.z + mz * sp;
-    if (!save.east && nx > 12.2) nx = 12.2;           // 冰牆擋住
+    if (!save.east && nx > 15.2) nx = 15.2;           // 冰牆擋住
     nx = Math.max(-40, Math.min(40, nx)); nz = Math.max(-40, Math.min(40, nz));
     for (const t of trees) {                          // 不要穿過樹幹
-      if (!t.alive) continue;
+      if (!t.alive || (t.coal && t.locked)) continue;
       const dx = nx - t.x, dz = nz - t.z, d = Math.hypot(dx, dz);
       if (d < 0.7 && d > 0) { nx = t.x + dx / d * 0.7; nz = t.z + dz / d * 0.7; }
     }
@@ -1503,7 +1519,8 @@ function step(dt) {
     if (u.done) continue;
     if (u.cool > 0) { u.cool -= dt; u.pad.visible = u.label.visible = u.cool <= 0; continue; } // 剛升級完：閃亮後要等一下才能再升級
     const p = u.price();
-    const on = Math.hypot(player.position.x - u.x, player.position.z - u.z) < 1.2;
+    const dist = Math.hypot(player.position.x - u.x, player.position.z - u.z), on = dist < 1.2;
+    const near = dist < 6; if (near !== u.near) { u.near = near; u.refresh(); }
     u.stand = on ? (u.stand || 0) + dt : 0;                     // 站穩 0.6 秒才開始付錢，路過不會誤買
     if (on && u.stand > CFG.padDelay && save.cash > 0 && u.paid < p) {
       u.payAcc += dt * p / CFG.payRate;
