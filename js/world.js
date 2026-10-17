@@ -54,7 +54,8 @@ function rebuildRoads() {
   roads.children.slice().forEach(m => roads.remove(m));
   const main = [[0, -FENCE_R - 1.5, 0, FENCE_R + 0.5]];               // 南北主路：北門 → 營火 → 南門
   if (save.east) main.push([0, 0, FENCE_R + 0.5, 0]);                 // 東路
-  [[1, 9.8], [2, 14.3]].forEach(([ring, r]) => {                      // 民房環狀路：只鋪有民房的那段弧，並接到主路（90°）
+  if (save.mine) main.push([-FENCE_R - 0.5, 0, 0, 0]);                // 西路：通到煤礦區（v0.60 道路網）
+  [[1, 9.8 * TS], [2, 14.3 * TS]].forEach(([ring, r]) => {                      // 民房環狀路：只鋪有民房的那段弧，並接到主路（90°）
     const angs = HOUSE_LOTS.slice(0, save.houses).filter(l => l.ring === ring).map(l => Math.atan2(l.z, l.x) * 180 / Math.PI);
     if (!angs.length) return;
     const a0 = Math.min(90, ...angs), a1 = Math.max(90, ...angs);
@@ -64,7 +65,7 @@ function rebuildRoads() {
     }
   });
   main.forEach(s => roadSeg(...s));
-  const plaza = new THREE.Mesh(plazaGeo, roadMat); plaza.rotation.x = -Math.PI / 2; plaza.position.set(0, 0.02, -3); roads.add(plaza); // 營火廣場
+  const plaza = new THREE.Mesh(plazaGeo, roadMat); plaza.rotation.x = -Math.PI / 2; plaza.position.set(0, 0.02, -3 * TS); roads.add(plaza); // 營火廣場
   for (const b of buildings) {                                        // 每棟建築接一段路到最近的主路／環狀路
     let best = null, bd = Infinity;
     for (const s of main) { const p = nearestOnSeg(b.x, b.z, s), d = Math.hypot(p[0] - b.x, p[1] - b.z); if (d < bd) { bd = d; best = p; } }
@@ -149,19 +150,19 @@ function rand(a, b) { return a + Math.random() * (b - a); }
 let NG_PX = 8.7 * Math.sin(0.5), NG_PZ = -8.7 * Math.cos(0.5), NG_LEN = NG_PX; // 領地擴大時重算
 function nearNorthDoors(x, z, pad) { return z < NG_PZ + 0.5 && (Math.hypot(x - NG_PX, z - NG_PZ) < NG_LEN + pad || Math.hypot(x + NG_PX, z - NG_PZ) < NG_LEN + pad); }
 // 北邊森林（一開始就能砍）；門板擺動範圍內不長樹
-for (let i = 0; i < 70; i++) {
-  const x = rand(-13, 9), z = rand(-22, -9);
+for (let i = 0; i < 95; i++) {                   // 森林變大，樹也多一點
+  const x = rand(-13, 9) * TS, z = rand(-22, -9) * TS;
   if (!nearNorthDoors(x, z, 1.2) && trees.every(t => (t.x - x) ** 2 + (t.z - z) ** 2 > 2.6)) addTree(x, z, false);
 }
 // 東邊森林（被冰牆擋住，要開拓）
 for (let i = 0; i < 60; i++) {
-  const x = rand(17.5, 32), z = rand(-12, 10);
+  const x = rand(17.5, 32) * TS, z = rand(-12, 10) * TS;
   if (trees.every(t => (t.x - x) ** 2 + (t.z - z) ** 2 > 2.6)) addTree(x, z, true);
 }
 // 冰牆
 const iceWall = new THREE.Group();
-for (let z = -14; z <= 12; z += 1.6) {
-  const b = box(1.4, rand(1.6, 2.6), 1.6, mats.ice); b.position.set(16 + rand(-0.2, 0.2), b.geometry.parameters.height / 2, z); iceWall.add(b);
+for (let z = -14 * TS; z <= 12 * TS; z += 1.6) {
+  const b = box(1.4, rand(1.6, 2.6), 1.6, mats.ice); b.position.set(16 * TS + rand(-0.2, 0.2), b.geometry.parameters.height / 2, z); iceWall.add(b);
 }
 scene.add(iceWall);
 // ===== 營地圍欄：走不過去，只能從三個門進出；門有人靠近會自己打開 =====
@@ -222,7 +223,7 @@ function updateDoors(dt) {
 
 // ===== 北極熊：在北邊森林閒晃，打倒掉肉，過一陣子重生 =====
 const bears = [];
-function bearSpot() { let x, z; do { x = rand(-12, 8); z = rand(-FENCE_R - 14, -FENCE_R - 2.3); } while (nearNorthDoors(x, z, 2)); return [x, z]; }
+function bearSpot() { let x, z; do { x = rand(-12, 8) * TS; z = rand(-FENCE_R - 14 * TS, -FENCE_R - 2.3); } while (nearNorthDoors(x, z, 2)); return [x, z]; }
 function makeMob(wolf) {
   const g = new THREE.Group();
   if (wolf) {                                                   // 冰狼：灰色、細長、比熊小
@@ -287,7 +288,7 @@ function updateBears(dt) {
     } else if (!b.idle && b.shake <= 0) {
       b.hunting = false;
       b.x += Math.sin(b.dir) * 1.2 * dt; b.z += Math.cos(b.dir) * 1.2 * dt;
-      if (b.x < -13 || b.x > 9 || b.z < -FENCE_R - 15 || b.z > -FENCE_R - 1.3) { b.dir = Math.atan2(-2 - b.x, -FENCE_R - 8 - b.z); b.x += Math.sin(b.dir) * 1.5 * dt; b.z += Math.cos(b.dir) * 1.5 * dt; } // 追完人慢慢走回森林
+      if (b.x < -13 * TS || b.x > 9 * TS || b.z < -FENCE_R - 15 * TS || b.z > -FENCE_R - 1.3) { b.dir = Math.atan2(-2 - b.x, -FENCE_R - 8 - b.z); b.x += Math.sin(b.dir) * 1.5 * dt; b.z += Math.cos(b.dir) * 1.5 * dt; } // 追完人慢慢走回森林
     }
     if (!b.aggro && !b.hunting && nearNorthDoors(b.x, b.z, 1.6)) {  // 平常閒晃的熊不靠近北門，碰到就往北走開
       b.z -= 2.5 * dt; b.dir = Math.PI + rand(-0.6, 0.6); b.idle = false;
