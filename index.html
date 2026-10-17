@@ -26,6 +26,10 @@
   .bar span{position:relative;display:block;text-align:center;line-height:20px;text-shadow:0 1px 2px rgba(0,0,0,.6)}
   #hpBar i{background:#e8474f}#fuelBar i{background:#ff9a2e}
   .bar.danger{animation:blink .8s infinite}
+  #goal{position:fixed;top:calc(62px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);width:min(240px, calc(100vw - 210px));box-sizing:border-box;
+    background:rgba(255,255,255,.88);color:#25415e;font-weight:900;font-size:13px;line-height:1.35;padding:5px 10px;border-radius:12px;
+    text-align:center;pointer-events:none;box-shadow:0 2px 0 rgba(0,0,0,.12)}
+  #goal.done{background:#ffd34d;animation:bump .4s}
   #alert{position:fixed;bottom:calc(70px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);background:rgba(200,40,40,.88);color:#fff;
     font-weight:900;font-size:16px;padding:6px 14px;border-radius:14px;white-space:nowrap;pointer-events:none;display:none}
   #alert.cold{background:rgba(40,120,200,.88)}
@@ -77,6 +81,7 @@
   <div class="bar" id="hpBar"><i></i><span>❤️ <b id="hp">100</b></span></div>
   <div class="bar" id="fuelBar"><i></i><span>🔥 營火 <b id="fuel">100</b>%</span></div>
 </div>
+<div id="goal"></div>
 <div id="alert"></div>
 <div id="vignette"></div>
 <div id="frost"></div>
@@ -98,7 +103,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 'use strict';
-const VERSION = '0.34';
+const VERSION = '0.35';
 
 // ===== 數值（之後平衡都改這裡） =====
 const CFG = {
@@ -518,7 +523,7 @@ function makeUnlock(def) {
   u.refresh(); unlocks.push(u);
   return u;
 }
-makeUnlock({ x: -2.6, z: -4.6, icon: '🎒', name: () => '背包擴充',
+makeUnlock({ x: -3.4, z: -5.6, icon: '🎒', name: () => '背包擴充',
   price: () => [12, 35, 90][save.bag], buy: () => { save.bag++; toast('背包容量 ' + CFG.capacity[save.bag] + '！'); } });
 makeUnlock({ x: 1.5, z: 5.5, icon: '🪓', name: () => '斧頭升級',
   price: () => [20, 60, 140][save.axe], buy: () => { save.axe++; toast('砍得更快了！'); } });
@@ -889,7 +894,7 @@ let paused = false, terrUnlock = null, eastUnlock = null, mill2Unlock = null;
 function terrReady() { return save.territory === 0 ? save.buys >= CFG.terrNeedBuys : save.territory === 1 && save.level >= 1 && save.east; }
 function levelUnlocks() {
   if (terrUnlock && terrUnlock.done) terrUnlock = null;
-  if (!terrUnlock && terrReady()) terrUnlock = makeUnlock({ x: 2.2, z: -4.6, icon: '🔥', name: () => '營火升級 Lv' + (save.territory + 1),
+  if (!terrUnlock && terrReady()) terrUnlock = makeUnlock({ x: -1.4, z: -0.2, icon: '🔥', name: () => '營火升級 Lv' + (save.territory + 1),
     price: () => terrUnlock && terrUnlock.waiting ? null : CFG.terrPrice[save.territory], buy: () => { expandTerritory(); terrUnlock.waiting = true; } });
   if (!eastUnlock && !save.east && save.territory >= 1) eastUnlock = makeUnlock({ x: FENCE_R - 1.6, z: 0, icon: '🌲', name: () => '開拓東邊',
     price: () => save.east ? null : 50, buy: () => { save.east = true; openEast(); buildDoorsAll(); toast('東邊開放了！現在可以蓋民房、第二台鋸木機'); } });
@@ -1297,6 +1302,30 @@ function updateHero(dt) {
   updateAlert();
 }
 
+// 目標提示（作者 10/17 回饋第 2 項）：畫面上方告訴玩家下一步做什麼；完成一個給一點獎金
+const GOALS = [
+  { t: () => '升級任意 3 個項目（' + Math.min(save.buys, 3) + '/3）', done: () => save.buys >= 3 },
+  { t: () => '升級營火，擴大領地', done: () => save.territory >= 1 },
+  { t: () => '開拓東邊，打開新場地', done: () => !!save.east },
+  { t: () => '蓋民房，人口到 20（' + population() + '/20）', done: () => save.level >= 1 },
+  { t: () => '開採煤礦，煤很耐燒', done: () => !!save.mine },
+  { t: () => '營火升級 Lv2，領地再擴大', done: () => save.territory >= 2 },
+  { t: () => '用🏗️規劃模式蓋民房，人口到 80（' + population() + '/80）', done: () => save.level >= 2 },
+  { t: () => '城市的新玩法製作中，繼續擴張吧！', done: () => false },
+];
+save.goal = save.goal || 0;
+let shownGoal = '', goalFlash = 0;
+function updateGoal(dt) {
+  while (save.goal < GOALS.length - 1 && GOALS[save.goal].done()) {
+    const reward = 10 * (save.goal + 1); save.goal++; save.cash += reward; goalFlash = 1.5;
+    toast('🎯 目標完成！獎金 +' + reward + ' 元'); sfx.coin();
+  }
+  goalFlash -= dt;
+  const t = '🎯 ' + GOALS[save.goal].t();
+  if (t !== shownGoal) { $('goal').textContent = t; shownGoal = t; }
+  $('goal').classList.toggle('done', goalFlash > 0);
+}
+
 // 畫面上方的事件提醒：熊群、寒潮快來（15 秒內）或正在發生時才出現，平常不讀秒
 let shownAlert = '';
 function updateAlert() {
@@ -1502,6 +1531,7 @@ function step(dt) {
   updateBuildings(dt);
   checkLevel();
   updateHero(dt);
+  updateGoal(dt);
   updateDoors(dt);
   // 飛行動畫
   for (let i = flies.length - 1; i >= 0; i--) {
