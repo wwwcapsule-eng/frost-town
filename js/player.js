@@ -67,10 +67,17 @@ function toBack(kind, x, y, z, delay) {                           // 一塊東�
 // ===== HUD =====
 const $ = id => document.getElementById(id);
 let shownCash = -1, shownWood = -1;
-function population() { return CFG.popBase + save.workers + houses.filter(h => !h.dead && !h.cold).length * CFG.housePop; }
+// 人口（v0.76，作者 10/18）：人口＝真的留下來的居民 save.res；流民吃到烤肉、而且有空床才會留下；工人都從居民裡雇
+const employed = () => save.workers + (save.porters || 0) + (save.shovel ? 1 : 0);
+const beds = () => CFG.tentBeds + houses.filter(h => !h.dead && !h.cold).length * CFG.housePop;
+if (save.res == null) save.res = Math.max(employed(), Math.min(beds(), CFG.popBase + save.workers + houses.length * CFG.housePop)); // 舊存檔：民房當作住滿
+function population() { return save.res; }
+const idle = () => save.res - employed();
+const mealSize = () => Math.ceil(save.res * CFG.eatRate);         // 一餐吃幾份烤肉
+const needHand = () => idle() > 0 ? null : '👥 沒有空閒的居民'; // 雇人的付款格：要有沒工作的居民
 function hud() {
   const lv = LEVELS[save.level], next = LEVELS[save.level + 1];
-  $('pop').textContent = population(); $('capP').textContent = next ? '/' + next.need : '';
+  $('pop').textContent = population(); $('capP').textContent = next ? '/' + next.need : ''; $('beds').textContent = ' 🛏️' + Math.max(0, beds() - save.res);
   $('ver').textContent = lv.icon + ' ' + lv.name; $('menuVer').textContent = '寒霜小鎮 v' + VERSION;
   if (shownCash !== save.cash) { $('cash').textContent = save.cash; bump('pCash'); shownCash = save.cash; }
   const nMeat = countOf('meat') - flies.filter(f => f.toBack === 'meat').length, nCoal = carried.filter(m => m.userData.type === 'coal').length, nLog = carried.length - nMeat - nCoal;

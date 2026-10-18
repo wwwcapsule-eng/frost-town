@@ -62,12 +62,12 @@ const GOALS = PRO ? [ // 正式關：建築要自己用規劃模式選位置，�
   { t: () => '揹 ' + CFG.whLogs + ' 根木頭蓋📦倉庫（建築要用倉庫的🧱木材蓋）', done: () => !!save.wh },
   { t: () => '升級營火，擴大領地', done: () => save.territory >= 1 },
   { t: () => '開拓東邊，打開新場地', done: () => !!save.east },
-  { t: () => '蓋民房，人口到 20（' + population() + '/20）', done: () => save.level >= 1 },
+  { t: () => '蓋民房、給流民烤肉留人，居民到 20（' + population() + '/20）', done: () => save.level >= 1 },
   { t: () => '開採煤礦，煤很耐燒', done: () => !!save.mine },
   { t: () => '用🏗️規劃蓋🔨鐵匠鋪，揹煤去賣', done: () => planned('smith') },
   { t: () => '蓋🚚自動運輸，木頭、煤自動換錢', done: () => !!save.truck },
   { t: () => '營火升級 Lv2，領地再擴大', done: () => save.territory >= 2 },
-  { t: () => '用🏗️規劃模式蓋民房，人口到 80（' + population() + '/80）', done: () => save.level >= 2 },
+  { t: () => '蓋民房、留住流民，居民到 80（' + population() + '/80）', done: () => save.level >= 2 },
   { t: () => '把營火進化成石爐（營火 Lv4）', done: () => save.stove >= 1 },
   { t: () => '城市的新玩法製作中，繼續擴張吧！', done: () => false },
 ];
@@ -242,7 +242,7 @@ function step(dt) {
       if (mill.timer >= mill.time) {
         mill.timer = 0; mill.queue--;
         const st = save.store;                    // 有倉庫：木頭做成🧱木材、烤肉先存給工人吃，存滿了多的才換錢
-        if (mill.customers) { if (save.wh && st.food < CFG.foodKeep) toStore('food', mill); else addCooked(mill); }
+        if (mill.customers) { if (save.wh && st.food < Math.max(6, mealSize() * CFG.meals)) toStore('food', mill); else addCooked(mill); }
         else if (save.wh && mill.accept === 'log' && st.plank < CFG.storeMax) toStore('plank', mill);
         else spawnBill(mill, mill.g.position.clone().add(tmp.set(1.2, 1, 1)));
       }
@@ -268,7 +268,9 @@ function step(dt) {
     if (u.cool > 0) { u.cool -= dt; u.pad.visible = u.label.visible = u.cool <= 0; continue; } // 剛升級完：閃亮後要等一下才能再升級
     const p = u.price();
     const dist = Math.hypot(player.position.x - u.x, player.position.z - u.z), on = dist < 1.2;
-    const near = u === nearest; if (near !== u.near) { u.near = near; u.refresh(); }
+    const near = u === nearest, blk = u.need ? u.need() : null;
+    if (near !== u.near || blk !== u.blk) { u.near = near; u.blk = blk; u.refresh(); }
+    if (blk) { u.payAcc = 0; continue; }
     u.stand = on ? (u.stand || 0) + dt : 0;                     // 站穩 0.6 秒才開始付錢，路過不會誤買
     // 付什麼：錢、倉庫的🧱木材（mat: 'plank'）、背上的木頭（mat: 'log'）
     const have = u.mat === 'plank' ? (save.wh ? save.store.plank : 0) : u.mat === 'log' ? carried.filter(m => m.userData.type === 'log').length : save.cash;

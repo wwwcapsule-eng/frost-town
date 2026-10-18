@@ -263,12 +263,16 @@ function updateStore(dt) {
     else if (hurt && st.plank) { st.plank--; hurt.hp = Math.min(CFG.buildHp, hurt.hp + 10); }
     if (st.log > CFG.fuelKeep && mill.queue < 3 && !mill.bld.dead) { st.log--; mill.queue++; }
   }
-  const eaters = workers.length + shovelers.length;
+  const meal = mealSize();                                        // v0.76：所有居民都要吃，人越多吃越多
   wh.eatT += dt;
   if (wh.eatT >= CFG.eatEvery) {
     wh.eatT = 0;
-    if (st.food >= eaters) st.food -= eaters;
-    else { st.food = 0; wh.hungry = true; toast('🍖 倉庫沒食物了，工人罷工！烤肉會先送進倉庫'); }
+    if (st.food >= meal) st.food -= meal;
+    else {
+      st.food = 0; wh.hungry = true;
+      if (idle() > 0) { save.res--; toast('😢 沒東西吃，1 位居民離開了！工人罷工，烤肉會先送進倉庫'); }
+      else toast('🍖 倉庫沒食物了，工人罷工！烤肉會先送進倉庫');
+    }
   }
   if (wh.hungry && st.food > 0) { st.food--; wh.hungry = false; toast('😋 工人吃飽，復工了！'); }
   wh.label.set(wh.hungry ? ['📦 倉庫', '😩 沒食物，工人罷工'] : ['📦 倉庫', '🧱' + st.plank + ' 🔥' + (st.log + st.coal) + ' 🍖' + st.food], wh.hungry ? '#ff6a5a' : '#fff');
@@ -336,7 +340,7 @@ function levelUnlocks() {
     price: () => save.mine ? null : CFG.minePrice, buy: () => { save.mine = 1; openMine(); sparkle(MINE_FX, MINE.z); toast('⛏️ 西邊的礦坑打開了！到坑口挖煤，煤丟進火爐很耐燒'); } });
   if (save.mine && !save.cart && !cartUnlock) cartUnlock = makeUnlock({ x: LOT.cart[0], z: LOT.cart[1], icon: '🛤️', name: () => '雇礦工＋木軌礦車', mat: 'plank',
     price: () => save.cart ? null : P(CFG.cartPrice), buy: () => { save.cart = 1; buildCart(); sparkle(MINE_BIN[0], MINE_BIN[1]); toast('🛤️ 礦工在坑裡挖，礦車會把煤推出來倒在煤堆！'); } });
-  if (save.level >= 1 && !save.shovel && !shovelUnlock) shovelUnlock = makeUnlock({ x: LOT.shovel[0], z: LOT.shovel[1], icon: '🧹', name: () => '雇用鏟雪工',
+  if (save.level >= 1 && !save.shovel && !shovelUnlock) shovelUnlock = makeUnlock({ x: LOT.shovel[0], z: LOT.shovel[1], icon: '🧹', name: () => '雇用鏟雪工', need: () => needHand(),
     price: () => save.shovel ? null : CFG.shovelPrice, buy: () => { save.shovel = 1; addShoveler(); toast('鏟雪工會自己去鏟雪！'); } });
 }
 

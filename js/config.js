@@ -1,5 +1,5 @@
 'use strict';
-const VERSION = '0.75';
+const VERSION = '0.76';
 
 // ===== 數值（之後平衡都改這裡） =====
 const CFG = {
@@ -24,7 +24,10 @@ const CFG = {
   gateHp: 100, raidEvery: 60, raidFirst: 90, raidBears: 2, bearDps: 1.5, // 北門血量、熊群幾秒來一次、一次幾隻、每隻每秒傷害
   workerSpeed: 3.6, workerChop: 0.6, workerLoad: 6, // 伐木工：速度約主角 60%、出手間隔、一次揹幾根
   payRate: 1.1, padDelay: 0.6, // padDelay：站在付款格上幾秒後才開始付錢             // 付款格：幾秒內付完整筆
-  popBase: 2,               // 一開始的人口（主角和夥伴），每個伐木工 +1
+  popBase: 2,               // 新遊戲一開始的居民（主角的夥伴）
+  tentBeds: 4,              // 營地帳篷的床位：還沒蓋民房前最多留幾個人
+  refEvery: 9, refCold: 3, refMax: 12, refLeave: 6, // 流民（v0.76）：平常每 9 秒來一個、寒潮時每 3 秒（逃難的變多）、隊伍最多 12 人、營火變弱時每 6 秒走掉一個
+  eatRate: 0.15, meals: 3, leaveEvery: 15, // 居民每餐每人吃 0.15 份（無條件進位）；倉庫留幾餐的烤肉給居民，多的才給流民；床不夠時每 15 秒走掉一位沒工作的居民
   housePop: 5, housePrice: [25, 15], // 每間民房住幾人；民房價錢：第一間 25，之後每間多 15
   fuelMax: 100, fuelBurn: 0.4, fuelPerLog: 5, heat: [10, 17], // 火爐：柴滿 100、每秒燒 0.4、一根木頭 +5；暖氣圈半徑（最小、最大）
   stovePrice: [250, 400, 600], stoveBurn: 0.8, stoveHeat: 2, // 石爐 Lv4～6（領地 Lv3＋煤礦後）：價錢、每級燒柴變成幾成、每級暖氣圈 +2
@@ -32,7 +35,7 @@ const CFG = {
   minePrice: 100, coalHp: 4, coalPerRock: 2, coalRegrow: 4, fuelPerCoal: 20, // 煤礦坑（村莊＋領地 Lv1 解鎖）：價錢、敲幾下、掉幾塊、坑口煤層幾秒再露出來；一塊煤 = 火爐 +20（木頭只有 +5）
   snowEvery: 7, snowMax: 10, snowHp: 3, snowSlow: 0.45, shovelPrice: 60, // 雪堆（村莊開始）：幾秒積一堆、最多幾堆、鏟幾下、踩到剩幾成速度、鏟雪工價錢
   heaterPrice: 120, heaterR: 7, cell: 3, mill2Price: 80, grill2Price: 150, smithPrice: 200, coalValue: 6, truckPrice: 150, truckEvery: 4, storeMax: 150, // 自動運輸：價錢、每幾秒送一趟、倉庫每樣最多存多少（木材存滿，鋸木廠多做的才換錢）； // 鐵匠鋪：價錢、一塊煤打成工具賣幾元； 規劃模式：暖氣塔價錢、暖氣範圍半徑、格子大小；正式關：第二台鋸木機、第二座烤肉攤價錢
-  whLogs: 10, plankRate: 0.3, fuelKeep: 20, foodKeep: 20, whFood: 10, eatEvery: 90, // 倉庫（第 2 時代）：揹幾根木頭蓋；建築價錢換成🧱木材的比例（原本的錢 ×0.3）；倉庫留幾根木頭當柴（多的送鋸木廠）；存多少烤肉（多的才賣村民）；蓋好送幾份食物；工人幾秒吃一次
+  whLogs: 10, plankRate: 0.3, fuelKeep: 20, whFood: 10, eatEvery: 60, // 倉庫（第 2 時代）：揹幾根木頭蓋；建築價錢換成🧱木材的比例（原本的錢 ×0.3）；倉庫留幾根木頭當柴（多的送鋸木廠）；蓋好送幾份食物；居民幾秒吃一餐
   cartPrice: 120, cartEvery: 6, cartLoad: 2, binMax: 20, // 雇礦工＋木軌礦車：價錢（換成木材）、幾秒推出來一車、一車幾塊煤、煤堆最多幾塊
   gatePrice: 30, gateW: 3.6, gateMax: 4, // 自己開的圍欄門：價錢（換成木材 ×0.3）、門寬、最多幾個
   coldFirst: 120, coldEvery: 150, coldLen: 30, coldBurn: 3, coldShrink: 0.75, coldReward: 30, // 寒潮（村莊開始）：第一次幾秒後、之後每幾秒、持續幾秒、火爐燒幾倍快、暖氣圈縮成幾成、撐過去的獎金 // 火爐升級（村莊解鎖）：暖氣圈最大半徑 +7

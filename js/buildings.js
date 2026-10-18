@@ -60,9 +60,23 @@ function makeVillager(i) {
   scene.add(g);
   return { g, wait: 0 };
 }
+// 流民（v0.76，作者 10/18）：排隊的不是固定村民，是逃難來的流民。平常慢慢來，寒潮時來得多；營火變弱（天冷）就有人放棄離開
+// 排第一個的拿到烤肉：有空床 → 留下來當居民（不付錢）；沒空床 → 付錢走人
+let refT = 0, refGoT = CFG.refLeave, coldMsgT = 0, crowdT = CFG.leaveEvery;
+for (let i = 0; i < 4; i++) villagers.push(makeVillager(i));
+function refLeave(v, stay) { leaving.push({ g: v.g, t: stay ? 2.2 : 3.5, dir: stay ? Math.PI + rand(-0.3, 0.3) : rand(-0.12, 0.12) }); }
 function updateVillagers(dt) {
-  // 排隊的村民跟著人口變多（最多 16 個，手機效能）
-  while (villagers.length < Math.min(16, 4 + Math.floor(population() / 3))) villagers.push(makeVillager(villagers.length));
+  refT -= dt * (save.level >= 1 && coldWave.on > 0 ? CFG.refEvery / CFG.refCold : 1);
+  if (refT <= 0) { refT = CFG.refEvery; if (villagers.length < CFG.refMax) villagers.push(makeVillager(villagers.length)); }
+  refGoT -= dt; coldMsgT -= dt; crowdT -= dt;
+  if (crowdT <= 0) { crowdT = CFG.leaveEvery; if (save.res > beds() && idle() > 0) { save.res--; toast('🏚️ 床不夠（民房被拆或凍住），1 位居民離開了'); } }
+  if (refGoT <= 0) {
+    refGoT = CFG.refLeave;
+    if (fireStage >= 2 && villagers.length > 1) {                     // 營火變弱、天太冷：排最後的放棄
+      refLeave(villagers.pop(), false);
+      if (coldMsgT <= 0) { toast('🥶 太冷了，流民放棄離開！把營火燒旺才留得住人'); coldMsgT = 20; }
+    }
+  }
   villagers.forEach((v, i) => {
     const p = QUEUE(i), d = p.sub(v.g.position); d.y = 0;
     const len = d.length();
@@ -79,8 +93,10 @@ function updateVillagers(dt) {
       const m = bbq.cookedMeshes.pop();
       const wp = m.position.clone();
       fly(m, wp, () => front.g.position.clone().add(tmp.set(0, 1.4, 0)), 0.25, () => { front.g.add(m); m.position.set(0, 0.9, 0.35); }, 0.6);
-      spawnBill(bbq, front.g.position.clone().add(tmp.set(0, 1.4, 0)));
-      villagers.shift(); leaving.push({ g: front.g, t: 3.5, dir: rand(-0.12, 0.12) });
+      const stay = save.res < beds();
+      if (stay) { save.res++; toast('🏠 流民吃飽留下來了！居民 ' + save.res + '（空床 ' + (beds() - save.res) + '）'); }
+      else spawnBill(bbq, front.g.position.clone().add(tmp.set(0, 1.4, 0)));
+      villagers.shift(); refLeave(front, stay);
     }
   }
   for (let i = leaving.length - 1; i >= 0; i--) {
@@ -100,7 +116,8 @@ function makeUnlock(def) {
   u.refresh = () => {
     const p = u.price();
     if (p == null) { scene.remove(pad); scene.remove(label); u.done = true; return; }
-    const cost = u.mat === 'plank' && !save.wh ? '先蓋📦倉庫' : ({ plank: '🧱 ', log: '🪵 ' }[u.mat] || '💵 ') + (p - u.paid); // mat：用倉庫的木材或背上的木頭付，不是錢
+    // blk：還不能買的原因（每格的 need()，主迴圈更新）；mat：用倉庫的木材或背上的木頭付，不是錢
+    const cost = u.blk || (u.mat === 'plank' && !save.wh ? '先蓋📦倉庫' : ({ plank: '🧱 ', log: '🪵 ' }[u.mat] || '💵 ') + (p - u.paid));
     if (u.near) { label.set([u.name(), cost], '#ffe066', [36, 68]); label.scale.set(3.2, 1.8, 1); label.position.y = 1.9; } // 錢放大，像參考影片
     else { label.set([cost], '#ffe066', [60]); label.scale.set(1.9, 1.05, 1); label.position.y = 0.9; } // 遠的只顯示小價錢，不會互相蓋住
     pad.fill.scale.y = Math.max(0.0001, u.paid / p);
@@ -190,7 +207,7 @@ function updateGate(dt) {
 }
 
 // ===== 伐木工：自己找樹砍、揹滿就送鋸木廠，一直循環 =====
-makeUnlock({ x: LOT.worker[0], z: LOT.worker[1], icon: '👷', name: () => '雇用伐木工',
+makeUnlock({ x: LOT.worker[0], z: LOT.worker[1], icon: '👷', name: () => '雇用伐木工', need: () => needHand(),
   price: () => [60, 120, 200][save.workers], buy: () => { save.workers++; addWorker(); toast('伐木工上工了！'); } });
 const workers = [];
 function addWorker() {
@@ -233,7 +250,7 @@ function buildWarehouse() {
   wh.bld = addBuilding('倉庫', g, 1.6);
   document.getElementById('pStore').style.display = '';
   while (porters.length < save.porters) addPorter();
-  makeUnlock({ x: LOT.porter[0], z: LOT.porter[1], icon: '🛒', name: () => '雇用搬運工',
+  makeUnlock({ x: LOT.porter[0], z: LOT.porter[1], icon: '🛒', name: () => '雇用搬運工', need: () => needHand(),
     price: () => [120, 220][save.porters], buy: () => { save.porters++; addPorter(); toast('🛒 搬運工會把倉庫的柴、木材送去營火和北門，還會幫你收錢！'); } });
 }
 if (save.wh) buildWarehouse();
@@ -265,7 +282,7 @@ function addHouseUnlock() {
   const u = makeUnlock({ x, z, icon: '🏠', name: () => '蓋民房', mat: 'plank',
     price: () => houses.length < LEVELS[save.level].houses && houseLotOpen() ? P(housePrice()) : null,
     buy: () => {
-      buildHouse(save.houses++); toast('蓋好民房，人口 +' + CFG.housePop + '！');
+      buildHouse(save.houses++); toast('蓋好民房，多 ' + CFG.housePop + ' 張床！給流民烤肉，他們就會住進來');
       [u.x, u.z] = houseSpot(save.houses); u.pad.position.set(u.x, 0.03, u.z); u.label.position.set(u.x, 1.9, u.z);
     } });
   return u;
