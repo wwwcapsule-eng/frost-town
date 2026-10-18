@@ -152,7 +152,7 @@ function step(dt) {
     [nx, nz] = pushOut(nx, nz, 0.4);                  // 不要穿過建築
     [nx, nz] = pushMine(nx, nz, 0.4);                 // 不要走進礦坑的山
     const r1 = fd(nx, nz);                              // 圍欄擋住，只有門口過得去
-    if (Math.abs(r1 - FENCE_R) < 0.4 && !inGate(nx, nz)) {
+    if (Math.abs(r1 - FENCE_R) < 0.4 && !inGate(nx, nz, 0.3, true)) { // 東門要開拓東邊才開，之前關著走不過去
       const k = (fd(player.position.x, player.position.z) < FENCE_R ? FENCE_R - 0.4 : FENCE_R + 0.4) / r1;
       nx *= k; nz *= k;
     }
@@ -260,13 +260,15 @@ function step(dt) {
   }
 
   quietLabels();
-  // 付款格
+  // 付款格：只有最近的那一格顯示大標籤，並排的格子才不會互相蓋住
+  let nearest = null, nd = 6;
+  for (const u of unlocks) { const d = Math.hypot(player.position.x - u.x, player.position.z - u.z); if (!u.done && d < nd) { nd = d; nearest = u; } }
   for (const u of unlocks) {
     if (u.done) continue;
     if (u.cool > 0) { u.cool -= dt; u.pad.visible = u.label.visible = u.cool <= 0; continue; } // 剛升級完：閃亮後要等一下才能再升級
     const p = u.price();
     const dist = Math.hypot(player.position.x - u.x, player.position.z - u.z), on = dist < 1.2;
-    const near = dist < 6; if (near !== u.near) { u.near = near; u.refresh(); }
+    const near = u === nearest; if (near !== u.near) { u.near = near; u.refresh(); }
     u.stand = on ? (u.stand || 0) + dt : 0;                     // 站穩 0.6 秒才開始付錢，路過不會誤買
     // 付什麼：錢、倉庫的🧱木材（mat: 'plank'）、背上的木頭（mat: 'log'）
     const have = u.mat === 'plank' ? (save.wh ? save.store.plank : 0) : u.mat === 'log' ? carried.filter(m => m.userData.type === 'log').length : save.cash;
