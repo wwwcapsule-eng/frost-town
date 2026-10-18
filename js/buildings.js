@@ -138,7 +138,7 @@ function makeUnlock(def) {
     const p = u.price();
     if (p == null) { scene.remove(pad); scene.remove(label); u.done = true; return; }
     // blk：還不能買的原因（每格的 need()，主迴圈更新）；mat：用倉庫的木材或背上的木頭付，不是錢
-    const cost = u.blk || (u.mat === 'plank' && !save.wh ? '先蓋📦倉庫' : ({ plank: '🪚 ', log: '🪵 ' }[u.mat] || '💵 ') + (p - u.paid));
+    const cost = u.blk || ((u.mat === 'plank' || u.mat === 'stone') && !save.wh ? '先蓋📦倉庫' : ({ plank: '🪚 ', log: '🪵 ', stone: '🪨 ' }[u.mat] || '💵 ') + (p - u.paid));
     if (u.near) { label.set([u.name(), cost], '#ffe066', [36, 68]); label.scale.set(3.2, 1.8, 1); label.position.y = 1.9; } // 錢放大，像參考影片
     else { label.set([u.blk ? '👥 人不夠' : cost], '#ffe066', [60]); label.scale.set(1.9, 1.05, 1); label.position.y = 0.9; } // 遠的只顯示小價錢，不會互相蓋住
     pad.fill.scale.y = Math.max(0.0001, u.paid / p);
@@ -358,7 +358,7 @@ const houses = [], FX0 = 0, FZ0 = -3; // 營火位置（跟下面的 FX, FZ 一�
 function houseSpot(i) { const l = HOUSE_LOTS[Math.min(i, HOUSE_LOTS.length - 1)]; return [l.x, l.z]; }
 function houseLotOpen() { const l = HOUSE_LOTS[save.houses]; return !!l && l.ring <= save.territory; } // 下一塊民房地塊在領地裡了嗎
 function buildHouse(i) { const [x, z] = houseSpot(i); buildHouseAt(x, z, '民房' + i); }
-function buildHouseAt(x, z, key) { houses.push(addBuilding(key, houseMesh(x, z), 1.3)); }
+function buildHouseAt(x, z, key) { const h = addBuilding(key, houseMesh(x, z), 1.3); houses.push(h); if (isStone(h)) stoneLook(h); addStoneUnlock(); }
 function houseMesh(x, z) {
   const g = new THREE.Group();
   const wall = box(2.2, 1.4, 2, M(0xd8c3a0)); wall.position.y = 0.7; g.add(wall);
@@ -368,6 +368,29 @@ function houseMesh(x, z) {
   const chimney = box(0.3, 0.7, 0.3, M(0x777777)); chimney.position.set(0.5, 2.2, 0.3); g.add(chimney);
   g.position.set(x, 0, z); g.rotation.y = Math.atan2(x - FX0, z - FZ0); scene.add(g); // 門朝營火
   return g;
+}
+// 石屋（v0.86）：開了採石場後，民房一間間用🪨石材改建，每間多 CFG.stoneBeds 張床；記住改建過的民房名字（save.stoneHouses）
+save.stoneHouses = save.stoneHouses || [];
+const isStone = h => save.stoneHouses.includes(h.key);
+function stoneLook(h) { h.g.children[0].material = mats.stone; }
+let stoneUnlock = null;
+// shortcut: 付款格只在建立和改建完時對準民房，規劃模式搬走那間民房後格子不會跟著走；有人反映再在 moveAll 裡一起搬
+function addStoneUnlock() {                                       // 付款格放在下一間要改建的民房門口（朝營火那邊）
+  if ((stoneUnlock && !stoneUnlock.done) || !save.quarry) return;
+  const next = () => houses.find(h => !isStone(h));
+  const at = h => {                                               // 門口有別的付款格、建築就改放民房左右兩側
+    const d = Math.hypot(FX0 - h.x, FZ0 - h.z) || 1, ux = (FX0 - h.x) / d, uz = (FZ0 - h.z) / d;
+    const spots = [[ux * 2.4, uz * 2.4], [-uz * 2.6, ux * 2.6], [uz * 2.6, -ux * 2.6], [ux * 2.4 - uz * 2, uz * 2.4 + ux * 2]].map(([a, b]) => [h.x + a, h.z + b]);
+    return spots.find(([x, z]) => unlocks.every(o => o.done || o === stoneUnlock || Math.hypot(o.x - x, o.z - z) > 2.3) && buildings.every(b => b === h || Math.hypot(b.x - x, b.z - z) > b.r + 1.1)) || spots[0];
+  };
+  const h0 = next(); if (!h0) return;
+  const [x, z] = at(h0);
+  const u = stoneUnlock = makeUnlock({ x, z, icon: '🪨', mat: 'stone', name: () => '民房改建石屋 +' + CFG.stoneBeds + ' 床',
+    price: () => next() ? CFG.stoneHouse : null,
+    buy: () => {
+      const h = next(); save.stoneHouses.push(h.key); stoneLook(h); sparkle(h.x, h.z); toast('🪨 民房改建成石屋了！更暖、多 ' + CFG.stoneBeds + ' 張床');
+      const n = next(); if (n) { [u.x, u.z] = at(n); u.pad.position.set(u.x, 0.03, u.z); u.label.position.set(u.x, 1.9, u.z); }
+    } });
 }
 for (let i = 0; i < save.houses; i++) buildHouse(i);
 function housePrice() { return CFG.housePrice[0] + houses.length * CFG.housePrice[1]; } // 南門外的和規劃模式蓋的一起算

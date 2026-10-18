@@ -282,7 +282,7 @@ function step(dt) {
     if (blk) { u.payAcc = 0; continue; }
     u.stand = on ? (u.stand || 0) + dt : 0;                     // 站穩 0.6 秒才開始付錢，路過不會誤買
     // 付什麼：錢、倉庫的🪚木材（mat: 'plank'）、背上的木頭（mat: 'log'）
-    const have = u.mat === 'plank' ? (save.wh ? save.store.plank : 0) : u.mat === 'log' ? carried.filter(m => m.userData.type === 'log').length : save.cash;
+    const have = u.mat === 'plank' || u.mat === 'stone' ? (save.wh ? save.store[u.mat] : 0) : u.mat === 'log' ? carried.filter(m => m.userData.type === 'log').length : save.cash;
     if (on && u.stand > CFG.padDelay && have > 0 && u.paid < p) {
       u.payAcc += dt * p / CFG.payRate;
       const pay = Math.min(Math.floor(u.payAcc), have, p - u.paid);
@@ -292,8 +292,8 @@ function step(dt) {
           const m = carried.splice(carried.map(m => m.userData.type).lastIndexOf('log'), 1)[0], wp = m.getWorldPosition(new THREE.Vector3());
           stackRoot.remove(m); restack(); fly(m, wp, () => new THREE.Vector3(u.x, 0.1, u.z), 0.25, () => scene.remove(m), 1);
         } else {
-          if (u.mat === 'plank') save.store.plank -= pay; else save.cash -= pay;
-          const b = box(0.5, 0.1, 0.3, u.mat ? mats.wood : mats.cash);
+          if (u.mat) save.store[u.mat] -= pay; else save.cash -= pay;    // 倉庫的🪚木材、🪨石材
+          const b = box(0.5, 0.1, 0.3, u.mat === 'stone' ? mats.stone : u.mat ? mats.wood : mats.cash);
           fly(b, player.position.clone().add(tmp.set(0, 2, 0)), () => new THREE.Vector3(u.x, 0.1, u.z), 0.25, () => scene.remove(b), 1);
         }
       }

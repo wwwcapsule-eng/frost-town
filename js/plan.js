@@ -336,8 +336,10 @@ function levelUnlocks() {
     price: () => terrUnlock && terrUnlock.waiting ? null : P(CFG.terrPrice[save.territory]), buy: () => { expandTerritory(); terrUnlock.waiting = true; } });
   // 石爐：領地升到最大（營火 Lv3）＋有煤礦後，同一格繼續升 Lv4～6
   if (!stoveUnlock && save.stove < 3 && save.territory >= 2 && save.mine && (!terrUnlock || terrUnlock.waiting)) {
-    stoveUnlock = makeUnlock({ x: LOT.terr[0], z: LOT.terr[1], icon: '🪨', name: () => (save.stove ? '石爐升級' : '蓋石爐') + ' Lv' + (fireLv() + 1),
-      price: () => CFG.stovePrice[save.stove] ?? null, buy: () => { save.stove++; updateStoveLook(); sparkle(FX, FZ);
+    // v0.86：Lv4 用💵蓋，Lv5、Lv6 改用倉庫的🪨石材（要先開採石場）
+    stoveUnlock = makeUnlock({ x: LOT.terr[0], z: LOT.terr[1], icon: '🪨', name: () => (save.stove ? '石爐升級' : '蓋石爐') + ' Lv' + (fireLv() + 1), mat: save.stove ? 'stone' : undefined,
+      need: () => save.stove && !save.quarry ? '先開🪨採石場' : null,
+      price: () => save.stove ? CFG.stoneStove[save.stove - 1] ?? null : CFG.stovePrice[0], buy: () => { save.stove++; stoveUnlock.mat = 'stone'; updateStoveLook(); sparkle(FX, FZ);
         toast(save.stove === 1 ? '🪨 營火進化成石爐！更耐燒、暖氣更大、暖氣塔 +1 座；石爐只燒⚫煤' : '🪨 石爐升級！更耐燒、暖氣更大'); } });
     stoveUnlock.cool = CFG.buildCool;
   }
@@ -349,7 +351,8 @@ function levelUnlocks() {
   if (save.mine && !save.cart && !cartUnlock) cartUnlock = makeUnlock({ x: LOT.cart[0], z: LOT.cart[1], icon: '🛤️', name: () => '雇礦工＋木軌礦車', mat: 'plank',
     price: () => save.cart ? null : P(CFG.cartPrice), buy: () => { save.cart = 1; buildCart(); sparkle(MINE_BIN[0], MINE_BIN[1]); toast('🛤️ 礦工在坑裡挖，礦車會把煤推出來倒在煤堆！'); } });
   if (save.mine && save.territory >= 1 && !save.quarry && !quarryUnlock) quarryUnlock = makeUnlock({ x: LOT.quarry[0], z: LOT.quarry[1], icon: '🪨', name: () => '開採石場', need: () => save.wh ? null : '先蓋📦倉庫',
-    price: () => save.quarry ? null : CFG.quarryPrice, buy: () => { save.quarry = 1; openQuarry(); sparkle(rockFace.x, rockFace.z); toast('🪨 採石場開了！站在岩壁旁會自動敲石頭，揹🪨石材回📦倉庫存起來'); } });
+    price: () => save.quarry ? null : CFG.quarryPrice, buy: () => { save.quarry = 1; openQuarry(); addStoneUnlock(); sparkle(rockFace.x, rockFace.z); toast('🪨 採石場開了！站在岩壁旁會自動敲石頭，揹回📦倉庫；石材可以把民房改建石屋、升級石爐'); } });
+  addStoneUnlock();
   if (save.level >= 1 && !save.shovel && !shovelUnlock) shovelUnlock = makeUnlock({ x: LOT.shovel[0], z: LOT.shovel[1], icon: '🧹', name: () => '雇用鏟雪工', need: () => needHand(),
     price: () => save.shovel ? null : CFG.shovelPrice, buy: () => { save.shovel = 1; addShoveler(); toast('鏟雪工會自己去鏟雪！'); } });
 }

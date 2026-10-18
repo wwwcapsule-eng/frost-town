@@ -1,5 +1,5 @@
 'use strict';
-const VERSION = '0.85';
+const VERSION = '0.86';
 
 // ===== 數值（之後平衡都改這裡） =====
 const CFG = {
@@ -32,12 +32,13 @@ const CFG = {
   perMeat: 5, meals: 3, leaveEvery: 15, // v0.79（作者）：每 5 位居民一餐吃 1 份烤肉、也才能雇 1 個工人；倉庫留幾餐的烤肉給居民，多的才給流民；床不夠時每 15 秒走掉一位沒工作的居民
   housePop: 5, housePrice: [25, 15], // 每間民房住幾人；民房價錢：第一間 25，之後每間多 15
   fuelMax: 100, fuelBurn: 0.4, fuelPerLog: 5, heat: [10, 17], // 火爐：柴滿 100、每秒燒 0.4、一根木頭 +5；暖氣圈半徑（最小、最大）
-  stovePrice: [250, 400, 600], stoveBurn: 0.8, stoveHeat: 2, // 石爐 Lv4～6（領地 Lv3＋煤礦後）：價錢、每級燒柴變成幾成、每級暖氣圈 +2
+  stovePrice: [250], stoveBurn: 0.8, stoveHeat: 2, // 石爐 Lv4～6（領地 Lv3＋煤礦後）：Lv4 的價錢（Lv5、6 用🪨石材，stoneStove）、每級燒柴變成幾成、每級暖氣圈 +2
   terrPrice: [60, 150], terrNeedBuys: 3, // 營火升級（擴大領地）：Lv1 60 元（升級任意 3 個項目後出現）、Lv2 150 元（村莊＋開拓東邊後）
   minePrice: 100, coalHp: 4, coalPerRock: 2, coalRegrow: 4, fuelPerCoal: 20, // 煤礦坑（村莊＋領地 Lv1 解鎖）：價錢、敲幾下、掉幾塊、坑口煤層幾秒再露出來；一塊煤 = 火爐 +20（木頭只有 +5）
   snowEvery: 7, snowMax: 10, snowHp: 3, snowSlow: 0.45, shovelPrice: 60, // 雪堆（村莊開始）：幾秒積一堆、最多幾堆、鏟幾下、踩到剩幾成速度、鏟雪工價錢
   heaterPrice: 120, heaterR: 7, cell: 3, mill2Price: 80, grill2Price: 150, smithPrice: 200, coalValue: 6, storeMax: 150, pileMax: 12, // 倉庫每樣最多存多少；v0.82 做好的東西在建築門口最多堆幾個（等搬運工揹去倉庫）（木材存滿，鋸木廠多做的才換錢）； // 鐵匠鋪：價錢、一塊煤打成工具賣幾元； 規劃模式：暖氣塔價錢、暖氣範圍半徑、格子大小；正式關：第二台鋸木機、第二座烤肉攤價錢
   quarryPrice: 150, stoneHp: 5, stonePerRock: 2, stoneRegrow: 3, // v0.85 採石場（村莊＋開了煤礦＋有倉庫）：價錢、岩壁敲幾下、掉幾塊🪨石材、幾秒再露出來
+  stoneHouse: 20, stoneBeds: 3, stoneStove: [40, 70], // v0.86 石材的用處：民房改建石屋（🪨 20，每間 +3 床）、石爐 Lv5／Lv6 升級改收🪨石材
   coalerPrice: [80, 160], coalerLoad: 6, coalKeep: 40, coalSell: 3, // v0.82 煤礦工（取代自動運輸）：第 1、2 個價錢、一次揹幾塊、倉庫留幾塊煤，多的一塊賣幾元
   counterMax: 6, smokePrice: 100, jerkyValue: 5, // v0.81（作者：肉太多）：櫃台最多擺幾份烤肉；燻肉架價錢（換成木材 ×0.3）；一份肉乾賣流民幾元
   plankKeep: 40,            // 倉庫的🪚木材存到 40 塊（或下一間民房的價錢＋10）就夠，鋸木廠多做的換錢（v0.79，作者：有倉庫後錢沒來源）
