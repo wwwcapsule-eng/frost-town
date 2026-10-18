@@ -59,7 +59,7 @@ const GOALS = PRO ? [ // 正式關：建築要自己用規劃模式選位置，�
   { t: () => '城市的新玩法製作中，繼續擴張吧！', done: () => false },
 ] : [
   { t: () => '升級任意 3 個項目（' + Math.min(save.buys, 3) + '/3）', done: () => save.buys >= 3 },
-  { t: () => '揹 ' + CFG.whLogs + ' 根木頭蓋📦倉庫（建築要用倉庫的🧱木材蓋）', done: () => !!save.wh },
+  { t: () => '揹 ' + CFG.whLogs + ' 根木頭蓋📦倉庫（建築要用倉庫的🪚木材蓋）', done: () => !!save.wh },
   { t: () => '升級營火，擴大領地', done: () => save.territory >= 1 },
   { t: () => '開拓東邊，打開新場地', done: () => !!save.east },
   { t: () => '蓋民房、給流民烤肉留人，居民到 20（' + population() + '/20）', done: () => save.level >= 1 },
@@ -243,9 +243,9 @@ function step(dt) {
       mill.timer += dt;
       if (mill.timer >= mill.time) {
         mill.timer = 0; mill.queue--;
-        const st = save.store;                    // 有倉庫：木頭做成🧱木材、烤肉先存給工人吃，存滿了多的才換錢
+        const st = save.store;                    // 有倉庫：木頭做成🪚木材、烤肉先存給工人吃，存滿了多的才換錢
         if (mill.customers) { if (save.wh && st.food < Math.max(6, mealSize() * CFG.meals)) toStore('food', mill); else addCooked(mill); }
-        else if (save.wh && mill.accept === 'log' && st.plank < CFG.storeMax) toStore('plank', mill);
+        else if (save.wh && mill.accept === 'log' && st.plank < Math.max(CFG.plankKeep, P(housePrice()) + 10)) toStore('plank', mill); // v0.79：木材留夠蓋下一間民房的量就好，多的換錢（不然有倉庫後錢沒來源）
         else spawnBill(mill, mill.g.position.clone().add(tmp.set(1.2, 1, 1)));
       }
     } else if (!cold) mill.timer = 0;
@@ -274,7 +274,7 @@ function step(dt) {
     if (near !== u.near || blk !== u.blk) { u.near = near; u.blk = blk; u.refresh(); }
     if (blk) { u.payAcc = 0; continue; }
     u.stand = on ? (u.stand || 0) + dt : 0;                     // 站穩 0.6 秒才開始付錢，路過不會誤買
-    // 付什麼：錢、倉庫的🧱木材（mat: 'plank'）、背上的木頭（mat: 'log'）
+    // 付什麼：錢、倉庫的🪚木材（mat: 'plank'）、背上的木頭（mat: 'log'）
     const have = u.mat === 'plank' ? (save.wh ? save.store.plank : 0) : u.mat === 'log' ? carried.filter(m => m.userData.type === 'log').length : save.cash;
     if (on && u.stand > CFG.padDelay && have > 0 && u.paid < p) {
       u.payAcc += dt * p / CFG.payRate;
@@ -300,7 +300,7 @@ function step(dt) {
   updateBears(dt);
   updateVillagers(dt);
   updateTower(dt); updateTransport(dt); updateMine(dt); updateStore(dt); updatePorters(dt);
-  updateWorkers(dt);
+  updateWorkers(dt); updateHunters(dt);
   updateGate(dt);
   updateColdWave(dt);
   updateSnow(dt);
@@ -374,4 +374,4 @@ if (firstRun) {
   if (old) { try { localStorage.setItem(MODE_KEY, 'tutorial'); } catch (e) {} }
   else { resetting = true; showMenu(true); }
 }
-window.__game = { camera, coldOver, fireStage: () => fireStage, raidCount, plan, setPlan, planPointer, canBuild, heaters, piles, shovelers, spawnPile, seam, mine, coldWave, hero, save, furnace, houses, player, carried, mills, unlocks, trees, bears, gate, buildings, towers, step, render: () => renderer.render(scene, camera) }; // 測試用
+window.__game = { hunters, tentGs, camera, coldOver, fireStage: () => fireStage, raidCount, plan, setPlan, planPointer, canBuild, heaters, piles, shovelers, spawnPile, seam, mine, coldWave, hero, save, furnace, houses, player, carried, mills, unlocks, trees, bears, gate, buildings, towers, step, render: () => renderer.render(scene, camera) }; // 測試用

@@ -1,5 +1,5 @@
 'use strict';
-const VERSION = '0.78';
+const VERSION = '0.79';
 
 // ===== 數值（之後平衡都改這裡） =====
 const CFG = {
@@ -23,11 +23,12 @@ const CFG = {
   buildHp: 100, bearBuildDps: 2.5, // 建築血量、熊每秒對建築的傷害
   gateHp: 100, raidEvery: 60, raidFirst: 90, raidBears: 2, bearDps: 1.5, // 北門血量、熊群幾秒來一次、一次幾隻、每隻每秒傷害
   workerSpeed: 3.6, workerChop: 0.6, workerLoad: 6, // 伐木工：速度約主角 60%、出手間隔、一次揹幾根
+  hunterPrice: [80, 160, 260, 380], huntRange: 5, huntEvery: 1.2, // 獵人（v0.79）：第 1～4 個的價錢、幾格內開弓、幾秒射一箭（熊 5 血）
   payRate: 1.1, padDelay: 0.6, // padDelay：站在付款格上幾秒後才開始付錢             // 付款格：幾秒內付完整筆
   popBase: 2,               // 新遊戲一開始的居民（主角的夥伴）
-  tentBeds: 4,              // 營地帳篷的床位：還沒蓋民房前最多留幾個人
+  tentBeds: 3, tentPrice: [6, 10, 14], // 帳篷：一頂幾張床；第 2～4 頂要揹幾根木頭來搭（第 1 頂一開始就有）
   refEvery: 9, refCold: 3, refMax: 12, refLeave: 6, // 流民（v0.76）：平常每 9 秒來一個、寒潮時每 3 秒（逃難的變多）、隊伍最多 12 人、營火變弱時每 6 秒走掉一個
-  eatRate: 0.15, meals: 3, leaveEvery: 15, // 居民每餐每人吃 0.15 份（無條件進位）；倉庫留幾餐的烤肉給居民，多的才給流民；床不夠時每 15 秒走掉一位沒工作的居民
+  perMeat: 5, meals: 3, leaveEvery: 15, // v0.79（作者）：每 5 位居民一餐吃 1 份烤肉、也才能雇 1 個工人；倉庫留幾餐的烤肉給居民，多的才給流民；床不夠時每 15 秒走掉一位沒工作的居民
   housePop: 5, housePrice: [25, 15], // 每間民房住幾人；民房價錢：第一間 25，之後每間多 15
   fuelMax: 100, fuelBurn: 0.4, fuelPerLog: 5, heat: [10, 17], // 火爐：柴滿 100、每秒燒 0.4、一根木頭 +5；暖氣圈半徑（最小、最大）
   stovePrice: [250, 400, 600], stoveBurn: 0.8, stoveHeat: 2, // 石爐 Lv4～6（領地 Lv3＋煤礦後）：價錢、每級燒柴變成幾成、每級暖氣圈 +2
@@ -35,7 +36,8 @@ const CFG = {
   minePrice: 100, coalHp: 4, coalPerRock: 2, coalRegrow: 4, fuelPerCoal: 20, // 煤礦坑（村莊＋領地 Lv1 解鎖）：價錢、敲幾下、掉幾塊、坑口煤層幾秒再露出來；一塊煤 = 火爐 +20（木頭只有 +5）
   snowEvery: 7, snowMax: 10, snowHp: 3, snowSlow: 0.45, shovelPrice: 60, // 雪堆（村莊開始）：幾秒積一堆、最多幾堆、鏟幾下、踩到剩幾成速度、鏟雪工價錢
   heaterPrice: 120, heaterR: 7, cell: 3, mill2Price: 80, grill2Price: 150, smithPrice: 200, coalValue: 6, truckPrice: 150, truckEvery: 4, storeMax: 150, // 自動運輸：價錢、每幾秒送一趟、倉庫每樣最多存多少（木材存滿，鋸木廠多做的才換錢）； // 鐵匠鋪：價錢、一塊煤打成工具賣幾元； 規劃模式：暖氣塔價錢、暖氣範圍半徑、格子大小；正式關：第二台鋸木機、第二座烤肉攤價錢
-  whLogs: 10, plankRate: 0.3, fuelKeep: 20, whFood: 10, eatEvery: 60, // 倉庫（第 2 時代）：揹幾根木頭蓋；建築價錢換成🧱木材的比例（原本的錢 ×0.3）；倉庫留幾根木頭當柴（多的送鋸木廠）；蓋好送幾份食物；居民幾秒吃一餐
+  plankKeep: 40,            // 倉庫的🪚木材存到 40 塊（或下一間民房的價錢＋10）就夠，鋸木廠多做的換錢（v0.79，作者：有倉庫後錢沒來源）
+  whLogs: 10, plankRate: 0.3, fuelKeep: 20, whFood: 10, eatEvery: 120, // 倉庫（第 2 時代）：揹幾根木頭蓋；建築價錢換成🪚木材的比例（原本的錢 ×0.3）；倉庫留幾根木頭當柴（多的送鋸木廠）；蓋好送幾份食物；居民幾秒吃一餐
   cartPrice: 120, cartEvery: 6, cartLoad: 2, binMax: 20, // 雇礦工＋木軌礦車：價錢（換成木材）、幾秒推出來一車、一車幾塊煤、煤堆最多幾塊
   gatePrice: 30, gateW: 3.6, gateMax: 4, // 自己開的圍欄門：價錢（換成木材 ×0.3）、門寬、最多幾個
   coldFirst: 120, coldEvery: 150, coldLen: 30, coldBurn: 3, coldShrink: 0.75, coldReward: 30, // 寒潮（村莊開始）：第一次幾秒後、之後每幾秒、持續幾秒、火爐燒幾倍快、暖氣圈縮成幾成、撐過去的獎金 // 火爐升級（村莊解鎖）：暖氣圈最大半徑 +7
@@ -56,14 +58,14 @@ const WOODS = {
   pine: { name: '松樹', hp: 2, logs: 2 },  // 軟、好砍
   birch: { name: '白樺', hp: 6, logs: 2 }, // 硬、砍很久；只長在森林外圍
 };
-const P = cash => Math.ceil(cash * CFG.plankRate); // 建築用木材蓋（企劃 11.3）：原本的價錢換成幾塊🧱木材
+const P = cash => Math.ceil(cash * CFG.plankRate); // 建築用木材蓋（企劃 11.3）：原本的價錢換成幾塊🪚木材
 // 領地等級：營火升級一次，圍欄往外推（r＝圍欄半徑）、暖氣圈變大（heat）、鏡頭拉遠一點（cam）
 const TERR = [ { r: 10 * TS, heat: 0, cam: 1.15 }, { r: 14 * TS, heat: 3, cam: 1.28 }, { r: 18.5 * TS, heat: 7, cam: 1.42 } ];
 // 地塊配置（作者 10/17 第二次回饋：每個建築、付款格都有自己的位置，不互擋）
 // v0.64（作者 10/18）：升級格放在它升級的東西旁邊——營火升級貼著營火、雇伐木工在倉庫旁（木頭送倉庫）、雇鏟雪工在村民櫃台旁
 // 營火廣場在 (0,-3)；N-S 主路 x≈0；東路 z≈0；民房在南邊一圈圈的地塊上，門朝營火
 const LOT = {
-  bag: [-2.8, -5.6], axe: [2.8, -5.6], terr: [-1.9, -1.2], worker: [8.7, 2.3], porter: [8.7, 3.9], shovel: [-1.9, 6.6], store: [6.7, 3.1], tower1: [4.4, 0], tower2: [-4.4, 0],
+  bag: [-2.8, -5.6], axe: [2.8, -5.6], terr: [-1.9, -1.2], worker: [8.7, 2.3], porter: [8.7, 3.9], hunter: [8.7, 5.5], shovel: [-1.9, 6.6], store: [6.7, 3.1], tower1: [4.4, 0], tower2: [-4.4, 0],
   mill: [6.4, -4], mill2: [-6.4, -4], bbq: [2.7, 6.3], minePad: [-8, 3], cart: [-10.81, 1.33], truckCash: [-8, 3], truckStore: [-8.6, -0.4],
 };
 for (const k in LOT) if (!/^tower/.test(k)) LOT[k] = LOT[k].map(v => +(v * TS).toFixed(2)); // 弩砲塔付款格貼著北門兩側（門寬不變），x 不放大；z 跟著圍欄（towerPadZ）

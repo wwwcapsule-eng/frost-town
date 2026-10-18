@@ -68,13 +68,15 @@ function toBack(kind, x, y, z, delay) {                           // 一塊東�
 const $ = id => document.getElementById(id);
 let shownCash = -1, shownWood = -1;
 // 人口（v0.76，作者 10/18）：人口＝真的留下來的居民 save.res；流民吃到烤肉、而且有空床才會留下；工人都從居民裡雇
-const employed = () => save.workers + (save.porters || 0) + (save.shovel ? 1 : 0);
-const beds = () => CFG.tentBeds + houses.filter(h => !h.dead && !h.cold).length * CFG.housePop;
+// v0.79（作者）：每 5 位居民一餐吃 1 份烤肉，也才能雇 1 個工人 → 等於一個工人背後要 1 份肉
+const employed = () => save.workers + (save.porters || 0) + (save.shovel ? 1 : 0) + (save.hunters || 0);
+const beds = () => save.tents * CFG.tentBeds + houses.filter(h => !h.dead && !h.cold).length * CFG.housePop;
 if (save.res == null) save.res = Math.max(employed(), Math.min(beds(), CFG.popBase + save.workers + houses.length * CFG.housePop)); // 舊存檔：民房當作住滿
 function population() { return save.res; }
 const idle = () => save.res - employed();
-const mealSize = () => Math.ceil(save.res * CFG.eatRate);         // 一餐吃幾份烤肉
-const needHand = () => idle() > 0 ? null : '👥 沒有空閒的居民'; // 雇人的付款格：要有沒工作的居民
+const jobSlots = () => Math.floor(save.res / CFG.perMeat);         // 最多能雇幾個工人
+const mealSize = () => Math.ceil(save.res / CFG.perMeat);         // 一餐吃幾份烤肉
+const needHand = () => employed() < jobSlots() ? null : '👥 每 ' + CFG.perMeat + ' 位居民才能雇 1 人（' + save.res + ' 人）'; // 雇人的付款格
 function hud() {
   const lv = LEVELS[save.level], next = LEVELS[save.level + 1];
   $('pop').textContent = population(); $('capP').textContent = next ? '/' + next.need : ''; $('beds').textContent = ' 🛏️' + Math.max(0, beds() - save.res);

@@ -117,9 +117,9 @@ function makeUnlock(def) {
     const p = u.price();
     if (p == null) { scene.remove(pad); scene.remove(label); u.done = true; return; }
     // blk：還不能買的原因（每格的 need()，主迴圈更新）；mat：用倉庫的木材或背上的木頭付，不是錢
-    const cost = u.blk || (u.mat === 'plank' && !save.wh ? '先蓋📦倉庫' : ({ plank: '🧱 ', log: '🪵 ' }[u.mat] || '💵 ') + (p - u.paid));
+    const cost = u.blk || (u.mat === 'plank' && !save.wh ? '先蓋📦倉庫' : ({ plank: '🪚 ', log: '🪵 ' }[u.mat] || '💵 ') + (p - u.paid));
     if (u.near) { label.set([u.name(), cost], '#ffe066', [36, 68]); label.scale.set(3.2, 1.8, 1); label.position.y = 1.9; } // 錢放大，像參考影片
-    else { label.set([cost], '#ffe066', [60]); label.scale.set(1.9, 1.05, 1); label.position.y = 0.9; } // 遠的只顯示小價錢，不會互相蓋住
+    else { label.set([u.blk ? '👥 人不夠' : cost], '#ffe066', [60]); label.scale.set(1.9, 1.05, 1); label.position.y = 0.9; } // 遠的只顯示小價錢，不會互相蓋住
     pad.fill.scale.y = Math.max(0.0001, u.paid / p);
   };
   u.refresh(); unlocks.push(u);
@@ -220,9 +220,12 @@ function addWorker() {
   workers.push({ g, back, load: 0, tree: null, cd: 0, walk: 0 });
 }
 for (let i = 0; i < save.workers; i++) addWorker();
+// 獵人（v0.79）：跟伐木工、搬運工排在倉庫右邊同一列（行為在 plan.js 的 updateHunters）
+makeUnlock({ x: LOT.hunter[0], z: LOT.hunter[1], icon: '🎯', name: () => '雇用獵人', need: () => needHand(),
+  price: () => CFG.hunterPrice[save.hunters || 0], buy: () => { save.hunters++; addHunter(); toast('🎯 獵人會去打野熊，把肉揹去烤肉攤！'); } });
 
 // ===== 倉庫（企劃 11.3～11.5，第 2 時代第一棟）：揹 10 根木頭來蓋；工人採的木頭送進來，
-// 倉庫自動補營火、用木材修門和建築、多的木頭送去鋸木廠做成🧱木材；烤肉先存進來給工人吃，多的才賣村民 =====
+// 倉庫自動補營火、用木材修門和建築、多的木頭送去鋸木廠做成🪚木材；烤肉先存進來給工人吃，多的才賣村民 =====
 save.store = Object.assign({ log: 0, coal: 0, plank: 0, food: CFG.whFood }, save.store);
 save.store.log += (save.store.pine || 0) + (save.store.birch || 0); delete save.store.pine; delete save.store.birch; // v0.73 舊存檔分開放的松木、白樺併回木頭
 if (save.truck === 'store') save.wh = true;                       // 舊存檔：買過「自動運輸：進倉庫」的直接有倉庫
@@ -257,18 +260,30 @@ if (save.wh) buildWarehouse();
 else makeUnlock({ x: LOT.store[0], z: LOT.store[1] + 2.7, icon: '📦', mat: 'log', name: () => '蓋倉庫',
   price: () => save.wh ? null : CFG.whLogs, buy: () => {
     save.wh = true; buildWarehouse(); unlocks.forEach(u => !u.done && u.refresh()); // 用木材付的付款格改顯示價錢
-    toast('📦 倉庫蓋好了！工人的木頭送來這裡，自動補營火、修門；鋸木廠做的🧱木材拿來蓋建築');
+    toast('📦 倉庫蓋好了！工人的木頭送來這裡，自動補營火、修門；鋸木廠做的🪚木材拿來蓋建築');
   } });
 
-// ===== 營地帳篷（v0.77）：CFG.tentBeds 張床，還沒蓋民房前留下來的居民住這裡；Kenney 帳篷模型，載好前先用三角帳 =====
-const TENTS = [[-5.6 * TS, 1.2 * TS], [-5.6 * TS, 3.4 * TS]];
-const tentGs = TENTS.map(([x, z]) => {
-  const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = Math.PI / 2; scene.add(g); // 門朝東邊主路
-  const c = new THREE.Mesh(new THREE.ConeGeometry(1.1, 1.3, 4), M(0xc9a36b)); c.position.y = 0.65; c.rotation.y = Math.PI / 4; c.castShadow = true; g.add(c);
-  props.push({ x, z, r: 1 });
-  return g;
-});
+// ===== 營地帳篷（v0.77；v0.79 作者：帳篷要有用）：一頂 CFG.tentBeds 張床，第 1 頂一開始就有；
+// 第 2～4 頂揹木頭來搭（付款格在下一頂的位置）→ 還沒蓋民房前，帳篷就是留住流民的唯一辦法 =====
+const TENTS = [[-5.6 * TS, 1.2 * TS], [-5.6 * TS, 3.4 * TS], [-5.6 * TS, 5.6 * TS], [-5.6 * TS, -1 * TS]];
+save.tents = save.tents || 1;
+const tentGs = [];
+function addTent(i) {
+  const [x, z] = TENTS[i], g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = Math.PI / 2; scene.add(g); // 門朝東邊主路
+  if (MODELS.tent) g.add(MODELS.tent.clone());
+  else { const c = new THREE.Mesh(new THREE.ConeGeometry(1.1, 1.3, 4), M(0xc9a36b)); c.position.y = 0.65; c.rotation.y = Math.PI / 4; c.castShadow = true; g.add(c); }
+  props.push({ x, z, r: 1 }); tentGs.push(g);
+}
+for (let i = 0; i < save.tents; i++) addTent(i);
 loadModel('tent', 'assets/models/survival/tent-canvas.glb', 1.5, () => tentGs.forEach(g => { g.clear(); g.add(MODELS.tent.clone()); }));
+if (save.tents < TENTS.length) {
+  const u = makeUnlock({ x: TENTS[save.tents][0], z: TENTS[save.tents][1], icon: '⛺', mat: 'log', name: () => '搭帳篷 +' + CFG.tentBeds + ' 床',
+    price: () => save.tents < TENTS.length ? CFG.tentPrice[save.tents - 1] : null,
+    buy: () => {
+      addTent(save.tents++); toast('⛺ 帳篷搭好了，多 ' + CFG.tentBeds + ' 張床！給流民烤肉，他們就會住進來');
+      if (save.tents < TENTS.length) { [u.x, u.z] = TENTS[save.tents]; u.pad.position.set(u.x, 0.03, u.z); u.label.position.set(u.x, 1.9, u.z); }
+    } });
+}
 
 // ===== 民房：在南門外一間間往外蓋，每間 +5 人口；付款格蓋好後會移到下一塊空地 =====
 const houses = [], FX0 = 0, FZ0 = -3; // 營火位置（跟下面的 FX, FZ 一樣）

@@ -306,7 +306,7 @@ function makeDoors(g, tall) {
 }
 let southDoors = makeDoors(GATES[1], false), eastDoors = makeDoors(GATES[2], false);
 function updateDoors(dt) {
-  const movers = [player.position, ...workers.map(w => w.g.position), ...villagers.map(v => v.g.position), ...leaving.map(l => l.g.position)];
+  const movers = [player.position, ...workers.map(w => w.g.position), ...hunters.map(w => w.g.position), ...villagers.map(v => v.g.position), ...leaving.map(l => l.g.position)];
   for (const d of doors) {
     if (d === eastDoors && !save.east) continue;                     // 東邊還被冰牆擋著，東門不開
     const near = movers.some(p => Math.hypot(p.x - d.x, p.z - d.z) < 3.8);
