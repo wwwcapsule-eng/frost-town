@@ -33,7 +33,7 @@ const mats = {
   log: M(0xb06a35), meat: M(0xd9414a), fur: M(0xf2f0ea), cash: M(0x3fbf5a), wood: M(0x8a5a35), roof: M(0xb53a2e), player: M(0x2f8fd8),
   skin: M(0xffd6b0), ice: new THREE.MeshToonMaterial({ color: 0xd6ecff, gradientMap: TOON, transparent: true, opacity: 0.85 }),
   axe: M(0xdfe6ee), coal: M(0x2a2c33), rock: M(0x6b7280),
-  logpine: M(0xdba45a), logbirch: M(0xeee8dc), pineLeaf: M(0x5d8a3c), pineBark: M(0xa8603a), birchBark: M(0xf2efe6), birchMark: M(0x2b2b2e),
+  pineLeaf: M(0x5d8a3c), pineBark: M(0xa8603a), birchBark: M(0xf2efe6), birchMark: M(0x2b2b2e),
 };
 // ===== 3D 模型（Kenney CC0，放在 assets/models）：載好之前先用方塊，載好就換上；材質換成賽璐璐 =====
 const MODELS = {}, gltf = THREE.GLTFLoader ? new THREE.GLTFLoader() : null;

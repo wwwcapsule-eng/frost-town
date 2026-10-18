@@ -58,14 +58,8 @@ function fly(mesh, from, toFn, dur, onDone, arc = 1.5) {
   scene.add(mesh); mesh.position.copy(from);
   flies.push({ mesh, from: from.clone(), toFn, t: 0, dur, onDone, arc });
 }
-function logAt(...woods) {                                         // 背上最後一根這種樹的木頭（照順序找）；沒有回傳 -1
-  for (const w of woods) { const i = carried.findLastIndex(m => m.userData.type === 'log' && m.userData.wood === w); if (i >= 0) return i; }
-  return -1;
-}
-const LOG_MAT = { fir: 'log', pine: 'logpine', birch: 'logbirch' };
-function toBack(kind, x, y, z, delay, wood = 'fir') {             // 一塊東西從 (x,y,z) 飛到主角背上；木頭記得是哪種樹（顏色不同）
-  const idx = stackHeight(), m = new THREE.Mesh(logGeo, mats[kind === 'log' ? LOG_MAT[wood] : kind]); m.castShadow = true; m.userData.type = kind;
-  if (kind === 'log') m.userData.wood = wood;
+function toBack(kind, x, y, z, delay) {                           // 一塊東西從 (x,y,z) 飛到主角背上
+  const idx = stackHeight(), m = new THREE.Mesh(logGeo, mats[kind]); m.castShadow = true; m.userData.type = kind;
   fly(m, tmp.set(x, y, z), () => stackRoot.localToWorld(new THREE.Vector3(0, idx * 0.24, 0)), 0.35 + delay, () => { stackRoot.add(m); carried.push(m); restack(); });
   flies[flies.length - 1].toBack = kind;
 }
@@ -80,11 +74,8 @@ function hud() {
   $('ver').textContent = lv.icon + ' ' + lv.name; $('menuVer').textContent = '寒霜小鎮 v' + VERSION;
   if (shownCash !== save.cash) { $('cash').textContent = save.cash; bump('pCash'); shownCash = save.cash; }
   const nMeat = countOf('meat') - flies.filter(f => f.toBack === 'meat').length, nCoal = carried.filter(m => m.userData.type === 'coal').length, nLog = carried.length - nMeat - nCoal;
-  const nB = carried.filter(m => m.userData.wood === 'birch').length, nP = carried.filter(m => m.userData.wood === 'pine').length, key = carried.length * 1e6 + nMeat * 1e4 + nCoal * 100 + nB;
-  if (shownWood !== key) { $('wood').textContent = nLog + (nB ? ' 🌳' + nB : ''); $('meat').textContent = nMeat; $('coal').textContent = nCoal; shownWood = key; }
-  if (!save.pineTip && nP) { save.pineTip = true; toast('🌲 松木松脂多，丟進營火 1 根抵 2 根！'); }
-  if (!save.birchTip && nB) { save.birchTip = true; toast('🌳 白樺又硬又有彈性：蓋🏹弩砲塔、升級🪓斧頭要用它'); }
-  if (save.wh) { const st = save.store; $('sPlank').textContent = st.plank; $('sFuel').textContent = st.log + st.pine + st.coal; $('sFood').textContent = st.food; $('pStore').classList.toggle('danger', wh.hungry); }
+  if (shownWood !== carried.length * 10000 + nMeat * 100 + nCoal) { $('wood').textContent = nLog; $('meat').textContent = nMeat; $('coal').textContent = nCoal; shownWood = carried.length * 10000 + nMeat * 100 + nCoal; }
+  if (save.wh) { const st = save.store; $('sPlank').textContent = st.plank; $('sFuel').textContent = st.log + st.coal; $('sFood').textContent = st.food; $('pStore').classList.toggle('danger', wh.hungry); }
   $('capW').textContent = '/' + capacity(); $('capM').textContent = '/' + capacity(); $('capC').textContent = '/' + capacity();
   $('pCoal').classList.toggle('full', countOf('coal') >= capacity());
   if (!save.coalTip && countOf('coal') > 0) { save.coalTip = true; toast('⚫ 煤比木頭耐燒 4 倍！丟進火爐，或在🏗️規劃蓋🔨鐵匠鋪拿去賣'); }
