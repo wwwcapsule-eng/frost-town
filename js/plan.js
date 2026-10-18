@@ -65,7 +65,7 @@ function canBuild(x, z, k) {
   if (k === 'tower') {                                          // 弩砲塔：圍欄外 1～2 格，樹會自動移走所以不擋，熊也不擋
     const r = fd(x, z), d = (a, b) => Math.hypot(a - x, b - z);
     return r > FENCE_R + 1.6 && r < FENCE_R + 6.5 && Math.abs(x) > 3 && !(x > 0 && Math.abs(z) < 3) // 不擋北門、南門、東門的路
-      && !buildings.some(b => d(b.x, b.z) < b.r + 1.6) && !trees.some(t => t.coal && !t.gone && d(t.x, t.z) < 2);
+      && !buildings.some(b => d(b.x, b.z) < b.r + 1.6) && !nearMine(x, z, 1);
   }
   const big = !!BIG[k];
   if (big && !canBuild(x, z + 2.7, 'pad')) return false;                         // 門口前的付款格也要有空地
@@ -78,6 +78,7 @@ function canBuild(x, z, k) {
   if (mills.some(m => d(m.inPad.position.x, m.inPad.position.z) < 2 || d(m.outPad.position.x, m.outPad.position.z) < 2)) return false;
   if (wh.pad && d(wh.pad.position.x, wh.pad.position.z) < 2) return false;            // 倉庫門口的格子
   if (trees.some(t => !t.gone && d(t.x, t.z) < 1.7)) return false;
+  if (nearMine(x, z, big ? 1.6 : 1)) return false;                                // 礦坑的山、坑口、木軌、煤堆
   if (!PRO && HOUSE_LOTS.slice(save.houses).some(l => d(l.x, l.z) < 2.8)) return false; // 教學關：民房區保留給固定位置的民房
   if (Object.values(LOT).some(([a, b]) => d(a, b) < 2.4)) return false;            // 付款格、建築的固定地塊
   if (Math.abs(x) < 1.6 || (x > 0 && Math.abs(z) < 1.6)) return false;            // 南北主路、東路
@@ -231,7 +232,8 @@ function updateTransport(dt) {
   const st = save.store;
   truckT += dt;
   if (truckT >= CFG.truckEvery) {
-    truckT = 0; const coal = save.mine && truckN++ % 2 === 1;      // 木頭、煤輪流運
+    truckT = 0; const coal = truckN++ % 2 === 1 && save.bin > 0;    // 木頭、煤輪流運；煤從礦坑的煤堆拿
+    if (coal) save.bin--;
     if (save.truck === 'cash') { save.cash += coal ? (planned('smith') ? CFG.coalValue : 3) : 2; sfx.coin(); }
     else if (coal) st.coal = Math.min(CFG.storeMax, st.coal + 1); else st.log = Math.min(CFG.storeMax, st.log + 1);
   }
@@ -330,8 +332,10 @@ function levelUnlocks() {
   if (!PRO && !mill2Unlock && !save.mill2 && save.east) mill2Unlock = makeUnlock({ x: LOT.mill2[0], z: LOT.mill2[1], icon: '🪚', name: () => '第二台鋸木機', mat: 'plank',
     price: () => save.mill2 ? null : P(80), buy: () => { save.mill2 = true; addMill2(); toast('加工速度翻倍！'); } });
   if (!PRO && save.east && houseUnlock.done && houses.length < LEVELS[save.level].houses && houseLotOpen()) houseUnlock = addHouseUnlock();
-  if (save.level >= 1 && !save.mine && !mineUnlock) mineUnlock = makeUnlock({ x: LOT.minePad[0], z: LOT.minePad[1], icon: '⛏️', name: () => '開採煤礦',
-    price: () => save.mine ? null : CFG.minePrice, buy: () => { save.mine = 1; openMine(); toast('煤礦開放了！煤丟進火爐很耐燒'); } });
+  if (save.level >= 1 && save.territory >= 1 && !save.mine && !mineUnlock) mineUnlock = makeUnlock({ x: LOT.minePad[0], z: LOT.minePad[1], icon: '⛏️', name: () => '開採煤礦',
+    price: () => save.mine ? null : CFG.minePrice, buy: () => { save.mine = 1; openMine(); sparkle(MINE_FX, MINE.z); toast('⛏️ 西邊的礦坑打開了！到坑口挖煤，煤丟進火爐很耐燒'); } });
+  if (save.mine && !save.cart && !cartUnlock) cartUnlock = makeUnlock({ x: LOT.cart[0], z: LOT.cart[1], icon: '🛤️', name: () => '雇礦工＋木軌礦車', mat: 'plank',
+    price: () => save.cart ? null : P(CFG.cartPrice), buy: () => { save.cart = 1; buildCart(); sparkle(MINE_BIN[0], MINE_BIN[1]); toast('🛤️ 礦工在坑裡挖，礦車會把煤推出來倒在煤堆！'); } });
   if (save.level >= 1 && !save.shovel && !shovelUnlock) shovelUnlock = makeUnlock({ x: LOT.shovel[0], z: LOT.shovel[1], icon: '🧹', name: () => '雇用鏟雪工',
     price: () => save.shovel ? null : CFG.shovelPrice, buy: () => { save.shovel = 1; addShoveler(); toast('鏟雪工會自己去鏟雪！'); } });
 }

@@ -58,6 +58,11 @@ function fly(mesh, from, toFn, dur, onDone, arc = 1.5) {
   scene.add(mesh); mesh.position.copy(from);
   flies.push({ mesh, from: from.clone(), toFn, t: 0, dur, onDone, arc });
 }
+function toBack(kind, x, y, z, delay) {                           // 一塊東西從 (x,y,z) 飛到主角背上
+  const idx = stackHeight(), m = new THREE.Mesh(logGeo, mats[kind]); m.castShadow = true; m.userData.type = kind;
+  fly(m, tmp.set(x, y, z), () => stackRoot.localToWorld(new THREE.Vector3(0, idx * 0.24, 0)), 0.35 + delay, () => { stackRoot.add(m); carried.push(m); restack(); });
+  flies[flies.length - 1].toBack = kind;
+}
 
 // ===== HUD =====
 const $ = id => document.getElementById(id);
