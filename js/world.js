@@ -33,6 +33,7 @@ const mats = {
   log: M(0xb06a35), meat: M(0xd9414a), fur: M(0xf2f0ea), cash: M(0x3fbf5a), wood: M(0x8a5a35), roof: M(0xb53a2e), player: M(0x2f8fd8),
   skin: M(0xffd6b0), ice: new THREE.MeshToonMaterial({ color: 0xd6ecff, gradientMap: TOON, transparent: true, opacity: 0.85 }),
   axe: M(0xdfe6ee), coal: M(0x2a2c33), rock: M(0x6b7280),
+  logpine: M(0xdba45a), logbirch: M(0xeee8dc), pineLeaf: M(0x5d8a3c), pineBark: M(0xa8603a), birchBark: M(0xf2efe6), birchMark: M(0x2b2b2e),
 };
 // ===== 3D 模型（Kenney CC0，放在 assets/models）：載好之前先用方塊，載好就換上；材質換成賽璐璐 =====
 const MODELS = {}, gltf = THREE.GLTFLoader ? new THREE.GLTFLoader() : null;
@@ -154,8 +155,26 @@ function makePad(x, z, size, color, icon) {
 // ===== 樹 =====
 const trees = [];
 const TREE_KEYS = ['treeA', 'treeB', 'treeC'];
-function treeLook(g) {                                            // 雪松：有模型用模型（三種隨機），沒有就用圓錐
+function treeLook(g, kind) {                                      // 冷杉：原本的雪松模型；松樹：矮胖黃綠；白樺：冬天沒葉子的白樹幹
   g.clear();
+  if (kind === 'birch') {
+    const tr = box(0.26, 2.8, 0.26, mats.birchBark); tr.position.y = 1.4; g.add(tr);
+    [0.5, 1.1, 1.7, 2.3].forEach((y, i) => { const m = box(0.28, 0.07, 0.28, mats.birchMark); m.position.y = y; m.rotation.y = i; g.add(m); }); // 黑色橫紋
+    [[0.7, 1.9, 0], [-0.7, 2.2, 1.6], [0.6, 2.5, 3.2], [-0.6, 1.6, 4.4]].forEach(([r, y, a]) => {   // 光禿的樹枝，上面積一點雪
+      const b = new THREE.Group(), s = box(0.08, 0.9, 0.08, mats.birchBark); s.position.y = 0.45; b.add(s);
+      const sn = box(0.14, 0.08, 0.14, mats.leafSnow); sn.position.y = 0.92; b.add(sn);
+      b.position.y = y; b.rotation.set(0, a, r); g.add(b);
+    });
+    return;
+  }
+  if (kind === 'pine') {                                          // 松樹：高高的橘褐色光樹幹，樹冠圓圓一團在頂上，冠上積雪
+    const tr = box(0.28, 2.2, 0.28, mats.pineBark); tr.position.y = 1.1; g.add(tr);
+    [[0, 2.25, 0, 0.85], [0.35, 1.85, 0.2, 0.6], [-0.3, 1.95, -0.25, 0.6]].forEach(([x, y, z, r]) => {
+      const c = new THREE.Mesh(new THREE.IcosahedronGeometry(r, 0), mats.pineLeaf); c.scale.y = 0.6; c.position.set(x, y, z); c.castShadow = true; g.add(c);
+      const s = new THREE.Mesh(new THREE.IcosahedronGeometry(r * 0.75, 0), mats.leafSnow); s.scale.y = 0.35; s.position.set(x, y + r * 0.35, z); g.add(s);
+    });
+    return;
+  }
   const k = TREE_KEYS[(Math.random() * 3) | 0];
   if (MODELS[k]) { g.add(MODELS[k].clone()); return; }
   const trunk = box(0.35, 0.8, 0.35, mats.trunk); trunk.position.y = 0.4; g.add(trunk);
@@ -164,16 +183,20 @@ function treeLook(g) {                                            // 雪松：�
     const s = new THREE.Mesh(new THREE.ConeGeometry(r * 0.55, h * 0.45, 7), mats.leafSnow); s.position.y = y + h * 0.3; g.add(s);
   });
 }
+function pickWood(z, locked) {                                    // 白樺只長在森林外圍（離營地遠的北邊、東邊森林）
+  if ((z < -19 * TS || locked) && Math.random() < (locked ? 0.15 : 0.35)) return 'birch';
+  return Math.random() < 0.4 ? 'pine' : 'fir';
+}
 let treesLoaded = 0;
 ['a', 'b', 'c'].forEach((v, i) => loadModel(TREE_KEYS[i], 'assets/models/holiday/tree-snow-' + v + '.glb', 3, () => {
-  if (++treesLoaded === 3) trees.forEach(t => { if (!t.coal) treeLook(t.g); });
+  if (++treesLoaded === 3) trees.forEach(t => { if (t.kind === 'fir') treeLook(t.g, 'fir'); });
 }));
-function addTree(x, z, locked) {
-  const g = new THREE.Group(); treeLook(g);
+function addTree(x, z, locked, kind = pickWood(z, locked)) {
+  const g = new THREE.Group(); treeLook(g, kind);
   g.position.set(x, 0, z); g.rotation.y = Math.random() * 6;
   const sc = 0.85 + Math.random() * 0.35; g.scale.setScalar(sc);
   scene.add(g);
-  trees.push({ g, x, z, hp: CFG.treeHp, alive: true, regrow: 0, sc, shake: 0, locked });
+  trees.push({ g, x, z, kind, hp: WOODS[kind].hp, alive: true, regrow: 0, sc, shake: 0, locked });
 }
 function rand(a, b) { return a + Math.random() * (b - a); }
 // 北門門板往外開的範圍：兩根門柱為圓心、門板長為半徑（門柱位置跟下面 GATES 的北門一樣）

@@ -89,7 +89,7 @@ function planUi() {
   const lv = LEVELS[save.level];
   $('pkHouse').textContent = planLimit('house') ? '🧱 ' + planCost('house') : '已滿 ' + lv.houses + ' 間';
   $('pkMill').textContent = planLimit('mill') ? '🧱 ' + planCost('mill') : planned('mill') ? '已蓋' : '開拓東邊後';
-  $('pkTower').textContent = planLimit('tower') ? '🧱 ' + planCost('tower') : '已滿 ' + towers.length + ' 座';
+  $('pkTower').textContent = planLimit('tower') ? '🧱 ' + planCost('tower') + ' 🌳' + CFG.birchPlanTower : '已滿 ' + towers.length + ' 座';
   $('pkSmith').textContent = planLimit('smith') ? '🧱 ' + planCost('smith') : planned('smith') ? '已蓋' : '開採煤礦後';
   $('pkGrill').textContent = planLimit('grill') ? '🧱 ' + planCost('grill') : planned('grill') ? '已蓋' : '村莊解鎖';
   $('pkGate').textContent = planLimit('gate') ? '🧱 ' + planCost('gate') : '已滿 ' + CFG.gateMax + ' 個';
@@ -102,6 +102,7 @@ function planUi() {
     else if (!canBuild(x, z, plan.kind)) tip = plan.kind === 'gate' ? '開口要點在圍欄上（不能在角落、太靠近別的門或建築）' : wrongZone(x, z, plan.kind) ? '這種建築只能蓋在' + ZONE_TXT[KIND_ZONE[plan.kind]] : '這格不能蓋（太靠近建築、圍欄、樹或路）';
     else if (!save.wh) tip = '先蓋📦倉庫，建築要用倉庫裡的🧱木材蓋';
     else if (save.store.plank < cost) tip = '木材不夠：需要 🧱 ' + cost + '（倉庫有 ' + save.store.plank + '）';
+    else if (plan.kind === 'tower' && save.store.birch < CFG.birchPlanTower) tip = '弩砲塔要 🌳 白樺 ' + CFG.birchPlanTower + ' 根（倉庫有 ' + save.store.birch + '），去森林外圍砍白樺放進倉庫';
     else { tip = (plan.cell === plan.rec ? '⭐ 推薦位置：' : '') + '按「✅ 蓋這裡」用掉 🧱 ' + cost; ok = true; }
     cursor.material.color.setHex(ok ? 0x5fd068 : 0xff5a4a);
   } else if (plan.kind) tip = true ? '附近沒有空位了，擴大領地或自己點格子試試' : '點地上的格子，選要蓋在哪';
@@ -127,8 +128,9 @@ document.querySelectorAll('#planBar [data-k]').forEach(b => b.onclick = () => {
 document.getElementById('planGo').onclick = () => {
   if (!plan.kind || !plan.cell) return;
   const [x, z] = plan.cell, k = plan.kind, cost = planCost(k);
-  if (!planLimit(k) || !canBuild(x, z, k) || !save.wh || save.store.plank < cost) return;
-  save.store.plank -= cost;
+  const nb = k === 'tower' ? CFG.birchPlanTower : 0;
+  if (!planLimit(k) || !canBuild(x, z, k) || !save.wh || save.store.plank < cost || save.store.birch < nb) return;
+  save.store.plank -= cost; save.store.birch -= nb;
   if (k === 'gate') {                                            // 圍欄開口：不是建築，記在 save.gates
     const s = gateSpot(x, z); save.gates.push(s); GATES.push({ a: s.a, w: CFG.gateW, off: s.off, own: true });
     buildFence(); buildDoorsAll(); toast('🚪 開好門了！人和工人會走最近的門');
@@ -247,9 +249,10 @@ function updateStore(dt) {
   const st = save.store, f = furnace, ip = wh.pad.position;
   depositCd -= dt;                                                 // 揹木頭、煤站到倉庫格子上：放進倉庫
   const k = carried.map(m => m.userData.type).findLastIndex(t => t === 'log' || t === 'coal');
-  if (k >= 0 && depositCd <= 0 && st[carried[k].userData.type] < CFG.storeMax && Math.hypot(player.position.x - ip.x, player.position.z - ip.z) < 1.3) {
+  const key = k >= 0 && (carried[k].userData.type === 'coal' ? 'coal' : { fir: 'log', pine: 'pine', birch: 'birch' }[carried[k].userData.wood]); // 冷杉放 log，松木、白樺各放一格
+  if (k >= 0 && depositCd <= 0 && st[key] < CFG.storeMax && Math.hypot(player.position.x - ip.x, player.position.z - ip.z) < 1.3) {
     depositCd = 0.07;
-    const m = carried.splice(k, 1)[0], type = m.userData.type, wp = m.getWorldPosition(new THREE.Vector3());
+    const m = carried.splice(k, 1)[0], type = key, wp = m.getWorldPosition(new THREE.Vector3());
     stackRoot.remove(m); restack();
     fly(m, wp, () => wh.bld.g.position.clone().add(tmp.set(0, 1.6, 0)), 0.3, () => { scene.remove(m); st[type]++; });
   }
@@ -258,7 +261,7 @@ function updateStore(dt) {
     wh.t = 0;
     const hurt = buildings.find(b => !b.dead && b.hp < CFG.buildHp), mill = mills[0];
     if (porters.length) ; // 有搬運工：補火、修門、修建築改成小人走過去才生效（updatePorters）
-    else if (f.fuel < CFG.fuelMax * 0.7 && (st.coal || st.log)) { const c = st.coal > 0; if (c) st.coal--; else st.log--; f.fuel = Math.min(CFG.fuelMax, f.fuel + (c ? CFG.fuelPerCoal : CFG.fuelPerLog)); }
+    else if (f.fuel < CFG.fuelMax * 0.7 && (st.coal || st.pine || st.log)) { const k = st.coal ? 'coal' : st.pine ? 'pine' : 'log'; st[k]--; f.fuel = Math.min(CFG.fuelMax, f.fuel + { coal: CFG.fuelPerCoal, pine: CFG.fuelPerLog * CFG.pineFuel, log: CFG.fuelPerLog }[k]); }
     else if (gate.hp < CFG.gateHp && st.plank) { st.plank--; gate.hp = Math.min(CFG.gateHp, gate.hp + 10); }
     else if (hurt && st.plank) { st.plank--; hurt.hp = Math.min(CFG.buildHp, hurt.hp + 10); }
     if (st.log > CFG.fuelKeep && mill.queue < 3 && !mill.bld.dead) { st.log--; mill.queue++; }
@@ -271,7 +274,7 @@ function updateStore(dt) {
     else { st.food = 0; wh.hungry = true; toast('🍖 倉庫沒食物了，工人罷工！烤肉會先送進倉庫'); }
   }
   if (wh.hungry && st.food > 0) { st.food--; wh.hungry = false; toast('😋 工人吃飽，復工了！'); }
-  wh.label.set(wh.hungry ? ['📦 倉庫', '😩 沒食物，工人罷工'] : ['📦 倉庫', '🧱' + st.plank + ' 🔥' + (st.log + st.coal) + ' 🍖' + st.food], wh.hungry ? '#ff6a5a' : '#fff');
+  wh.label.set(wh.hungry ? ['📦 倉庫', '😩 沒食物，工人罷工'] : ['📦 倉庫', '🧱' + st.plank + ' 🔥' + (st.log + st.pine + st.coal) + ' 🍖' + st.food, ...(st.birch ? ['🌳 白樺 ' + st.birch] : [])], wh.hungry ? '#ff6a5a' : '#fff');
 }
 // 搬運工：營火要柴 → 北門要修 → 建築要修 → 綠框有錢；先回倉庫格子拿東西（一趟最多 3 個），走到目的地才生效
 function updatePorters(dt) {
@@ -280,7 +283,7 @@ function updatePorters(dt) {
   porters.forEach((p, i) => {
     if (!p.job) {
       const hurt = buildings.find(b => !b.dead && b.hp < CFG.buildHp && !taken(b)), cash = mills.find(m => m.out.length && !taken(m));
-      if (furnace.fuel < CFG.fuelMax * 0.7 && st.coal + st.log && !taken('fuel')) p.job = { k: 'fuel' };
+      if (furnace.fuel < CFG.fuelMax * 0.7 && st.coal + st.pine + st.log && !taken('fuel')) p.job = { k: 'fuel' };
       else if (gate.hp < CFG.gateHp && st.plank && !taken('gate')) p.job = { k: 'gate' };
       else if (hurt && st.plank) p.job = { k: 'fix', b: hurt };
       else if (cash) p.job = { k: 'cash', m: cash, got: true };
@@ -290,7 +293,7 @@ function updatePorters(dt) {
     if (!j.got) {                                                    // 先回倉庫拿
       routeTo(p, home.x, home.z, dt);
       if (Math.hypot(p.g.position.x - home.x, p.g.position.z - home.z) > 0.8) return;
-      if (j.k === 'fuel') { j.coal = Math.min(3, st.coal); j.log = Math.min(3 - j.coal, st.log); st.coal -= j.coal; st.log -= j.log; j.n = j.coal + j.log; }
+      if (j.k === 'fuel') { j.coal = Math.min(3, st.coal); j.pine = Math.min(3 - j.coal, st.pine); j.log = Math.min(3 - j.coal - j.pine, st.log); st.coal -= j.coal; st.pine -= j.pine; st.log -= j.log; j.n = j.coal + j.pine + j.log; }
       else { const lack = j.k === 'gate' ? CFG.gateHp - gate.hp : CFG.buildHp - j.b.hp; j.n = Math.min(3, st.plank, Math.ceil(lack / 10)); st.plank -= j.n; }
       if (!j.n) { p.job = null; return; }
       j.got = true; p.cargo.material = j.k === 'fuel' ? (j.coal ? mats.coal : mats.trunk) : mats.wood; p.cargo.visible = true;
@@ -299,7 +302,7 @@ function updatePorters(dt) {
       : j.k === 'fix' ? [j.b.x, j.b.z, j.b.r + 0.9] : [j.m.outPad.position.x, j.m.outPad.position.z, 0.8];
     routeTo(p, tx, tz, dt);
     if (Math.hypot(p.g.position.x - tx, p.g.position.z - tz) > r) return;
-    if (j.k === 'fuel') furnace.fuel = Math.min(CFG.fuelMax, furnace.fuel + j.coal * CFG.fuelPerCoal + j.log * CFG.fuelPerLog);
+    if (j.k === 'fuel') furnace.fuel = Math.min(CFG.fuelMax, furnace.fuel + j.coal * CFG.fuelPerCoal + (j.pine * CFG.pineFuel + j.log) * CFG.fuelPerLog);
     else if (j.k === 'gate') gate.hp = Math.min(CFG.gateHp, gate.hp + j.n * 10);
     else if (j.k === 'fix') { if (j.b.dead) st.plank += j.n; else j.b.hp = Math.min(CFG.buildHp, j.b.hp + j.n * 10); }
     else j.m.out.splice(0).forEach((b, k) => fly(b, b.position.clone(), () => p.g.position.clone().add(tmp.set(0, 1.6, 0)), 0.25 + k * 0.02, () => { scene.remove(b); save.cash += j.m.value; sfx.coin(); }, 1));
@@ -438,8 +441,9 @@ function updateWorkers(dt) {
     if (w.load >= CFG.workerLoad) {                 // 揹滿了：有倉庫送倉庫，沒有就送鋸木廠
       const ip = (toWh ? wh.pad : mills[0].inPad).position;
       if (routeTo(w, ip.x, ip.z, dt)) {
-        if (toWh) save.store.log = Math.min(CFG.storeMax, save.store.log + w.load); else mills[0].queue += w.load;
-        w.load = 0;
+        if (toWh) { save.store.pine = Math.min(CFG.storeMax, save.store.pine + (w.pine || 0)); save.store.log = Math.min(CFG.storeMax, save.store.log + w.load - (w.pine || 0)); }
+        else mills[0].queue += w.load;
+        w.load = w.pine = 0;
         while (w.back.children.length) w.back.remove(w.back.children[0]);
       }
       continue;
@@ -447,7 +451,7 @@ function updateWorkers(dt) {
     if (!w.tree || !w.tree.alive) {                  // 找最近、沒人在砍的樹
       let best = 1e9; w.tree = null;
       for (const t of trees) {
-        if (!t.alive || t.locked || t.coal || workers.some(o => o !== w && o.tree === t)) continue;
+        if (!t.alive || t.locked || t.coal || t.kind === 'birch' || workers.some(o => o !== w && o.tree === t)) continue;
         const d = (t.x - w.g.position.x) ** 2 + (t.z - w.g.position.z) ** 2;
         if (d < best) { best = d; w.tree = t; }
       }
@@ -463,8 +467,9 @@ function updateWorkers(dt) {
         t.hp--; t.shake = 0.25; t.pop = 0.15; burstChips(t.x, t.z);
         if (t.hp <= 0) {
           t.alive = false; t.regrow = CFG.treeRegrow; w.tree = null;
-          const n = Math.min(CFG.logsPerTree, CFG.workerLoad - w.load);
-          for (let i = 0; i < n; i++) { const m = new THREE.Mesh(logGeo, mats.log); m.scale.setScalar(0.7); m.position.y = (w.load + i) * 0.17; w.back.add(m); }
+          const n = Math.min(WOODS[t.kind].logs, CFG.workerLoad - w.load);
+          if (t.kind === 'pine') w.pine = (w.pine || 0) + n;
+          for (let i = 0; i < n; i++) { const m = new THREE.Mesh(logGeo, mats[LOG_MAT[t.kind]]); m.scale.setScalar(0.7); m.position.y = (w.load + i) * 0.17; w.back.add(m); }
           w.load += n;
         }
       }
