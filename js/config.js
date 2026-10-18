@@ -1,5 +1,5 @@
 'use strict';
-const VERSION = '0.82';
+const VERSION = '0.83';
 
 // ===== 數值（之後平衡都改這裡） =====
 const CFG = {
@@ -35,7 +35,7 @@ const CFG = {
   terrPrice: [60, 150], terrNeedBuys: 3, // 營火升級（擴大領地）：Lv1 60 元（升級任意 3 個項目後出現）、Lv2 150 元（村莊＋開拓東邊後）
   minePrice: 100, coalHp: 4, coalPerRock: 2, coalRegrow: 4, fuelPerCoal: 20, // 煤礦坑（村莊＋領地 Lv1 解鎖）：價錢、敲幾下、掉幾塊、坑口煤層幾秒再露出來；一塊煤 = 火爐 +20（木頭只有 +5）
   snowEvery: 7, snowMax: 10, snowHp: 3, snowSlow: 0.45, shovelPrice: 60, // 雪堆（村莊開始）：幾秒積一堆、最多幾堆、鏟幾下、踩到剩幾成速度、鏟雪工價錢
-  heaterPrice: 120, heaterR: 7, cell: 3, mill2Price: 80, grill2Price: 150, smithPrice: 200, coalValue: 6, truckPrice: 150, truckEvery: 4, storeMax: 150, // 自動運輸：價錢、每幾秒送一趟、倉庫每樣最多存多少（木材存滿，鋸木廠多做的才換錢）； // 鐵匠鋪：價錢、一塊煤打成工具賣幾元； 規劃模式：暖氣塔價錢、暖氣範圍半徑、格子大小；正式關：第二台鋸木機、第二座烤肉攤價錢
+  heaterPrice: 120, heaterR: 7, cell: 3, mill2Price: 80, grill2Price: 150, smithPrice: 200, coalValue: 6, storeMax: 150, pileMax: 12, // 倉庫每樣最多存多少；v0.82 做好的東西在建築門口最多堆幾個（等搬運工揹去倉庫）（木材存滿，鋸木廠多做的才換錢）； // 鐵匠鋪：價錢、一塊煤打成工具賣幾元； 規劃模式：暖氣塔價錢、暖氣範圍半徑、格子大小；正式關：第二台鋸木機、第二座烤肉攤價錢
   coalerPrice: [80, 160], coalerLoad: 6, coalKeep: 40, coalSell: 3, // v0.82 煤礦工（取代自動運輸）：第 1、2 個價錢、一次揹幾塊、倉庫留幾塊煤，多的一塊賣幾元
   counterMax: 6, smokePrice: 100, jerkyValue: 5, // v0.81（作者：肉太多）：櫃台最多擺幾份烤肉；燻肉架價錢（換成木材 ×0.3）；一份肉乾賣流民幾元
   plankKeep: 40,            // 倉庫的🪚木材存到 40 塊（或下一間民房的價錢＋10）就夠，鋸木廠多做的換錢（v0.79，作者：有倉庫後錢沒來源）
@@ -68,7 +68,7 @@ const TERR = [ { r: 10 * TS, heat: 0, cam: 1.15 }, { r: 14 * TS, heat: 3, cam: 1
 // 營火廣場在 (0,-3)；N-S 主路 x≈0；東路 z≈0；民房在南邊一圈圈的地塊上，門朝營火
 const LOT = {
   bag: [-2.8, -5.6], axe: [2.8, -5.6], terr: [-1.9, -1.2], worker: [8.7, 2.3], porter: [8.7, 3.9], hunter: [-6.3, 0], shovel: [-1.9, 6.6], store: [6.7, 3.1], tower1: [4.4, 0], tower2: [-4.4, 0],
-  mill: [6.4, -4], bbq: [2.7, 6.3], truckCash: [-8, 3], truckStore: [-8.6, -0.4],
+  mill: [6.4, -4], bbq: [2.7, 6.3],
 };
 for (const k in LOT) if (!/^tower/.test(k)) LOT[k] = LOT[k].map(v => +(v * TS).toFixed(2)); // 弩砲塔付款格貼著北門兩側（門寬不變），x 不放大；z 跟著圍欄（towerPadZ）
 const HOUSE_LOTS = [];                    // 第 1 圈 6 間（Lv1 領地），第 2 圈 10 間（Lv2 領地）

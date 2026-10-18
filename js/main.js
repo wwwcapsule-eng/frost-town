@@ -65,7 +65,7 @@ const GOALS = PRO ? [ // 正式關：建築要自己用規劃模式選位置，�
   { t: () => '蓋民房、給流民烤肉留人，居民到 20（' + population() + '/20）', done: () => save.level >= 1 },
   { t: () => '開採煤礦，煤很耐燒', done: () => !!save.mine },
   { t: () => '用🏗️規劃蓋🔨鐵匠鋪，揹煤去賣', done: () => planned('smith') },
-  { t: () => '雇用⛏️煤礦工，煤自動送進倉庫', done: () => !!(save.coalers || save.truck) },
+  { t: () => '雇用⛏️煤礦工，煤自動送進倉庫', done: () => !!save.coalers },
   { t: () => '營火升級 Lv2，領地再擴大', done: () => save.territory >= 2 },
   { t: () => '蓋民房、留住流民，居民到 80（' + population() + '/80）', done: () => save.level >= 2 },
   { t: () => '把營火進化成石爐（營火 Lv4）', done: () => save.stove >= 1 },
@@ -125,7 +125,7 @@ function updateBuildings(dt) {
 // 血量、北門、營火這些警告不在這裡管，永遠會顯示；地上的付款格圖示一直都在
 function quietLabels() {
   const px = player.position.x, pz = player.position.z;
-  const list = [...mills.map(m => m.label), ...unlocks.filter(u => !u.done && !(u.cool > 0)).map(u => u.label), repairLabel, truckObj && truckObj.label, wh.label, mine.label].filter(Boolean);
+  const list = [...mills.map(m => m.label), ...unlocks.filter(u => !u.done && !(u.cool > 0)).map(u => u.label), repairLabel, wh.label, mine.label].filter(Boolean);
   list.map(l => [l, Math.hypot(l.position.x - px, l.position.z - pz)]).sort((a, b) => a[1] - b[1])
     .forEach(([l, d], i) => l.visible = d < CFG.labelNear && i < CFG.labelMax);
 }
@@ -240,7 +240,7 @@ function step(dt) {
       fly(m, wp, () => mill.g.position.clone().add(tmp.set(0, 1.6, 0)), 0.3, () => { scene.remove(m); mill.queue++; });
     }
     const cold = mill.bld.cold; // 暖氣圈外：停工，但綠框裡的錢還是能收
-    const st = save.store, foodLow = save.wh && st.food < Math.max(6, mealSize() * CFG.meals);
+    const st = save.store, foodLow = save.wh && st.food + save.pile.food < Math.max(6, mealSize() * CFG.meals);
     const jam = mill.customers && !foodLow && !save.smoke && bbq.cookedMeshes.length >= CFG.counterMax; // v0.81：櫃台擺滿、倉庫也夠吃，沒有燻肉架就先不烤
     if (!cold) mill.saw.rotation.y += dt * (mill.queue ? 20 : 2);
     if (mill.saw2) mill.saw2.rotation.y = mill.saw.rotation.y;
@@ -250,7 +250,7 @@ function step(dt) {
         mill.timer = 0; mill.queue--;
         // 有倉庫：木頭做成🪚木材、烤肉先存給居民吃，存夠了才放櫃台；櫃台也擺滿就燻成🥓肉乾
         if (mill.customers) { if (foodLow) toStore('food', mill); else if (bbq.cookedMeshes.length < CFG.counterMax) addCooked(mill); else toStore('jerky', mill); }
-        else if (save.wh && mill.accept === 'log' && st.plank < plankNeed()) toStore('plank', mill); // v0.79：木材留夠就好，多的換錢（不然有倉庫後錢沒來源）
+        else if (save.wh && mill.accept === 'log' && st.plank + save.pile.plank < plankNeed()) toStore('plank', mill); // v0.79：木材留夠就好，多的換錢（不然有倉庫後錢沒來源）
         else if (!mill.outPad.visible) { save.cash += mill.value; sfx.coin(); } // v0.80：收錢格收起來了，錢直接入帳
         else spawnBill(mill, mill.g.position.clone().add(tmp.set(1.2, 1, 1)));
       }
@@ -305,7 +305,7 @@ function step(dt) {
   updateGuide(dt);
   updateBears(dt);
   updateVillagers(dt);
-  updateTower(dt); updateTransport(dt); updateMine(dt); updateStore(dt); updatePorters(dt);
+  updateTower(dt); updateMine(dt); updateStore(dt); updatePorters(dt);
   updateWorkers(dt); updateHunters(dt); updateCoalers(dt);
   updateGate(dt);
   updateColdWave(dt);

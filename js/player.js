@@ -69,7 +69,7 @@ const $ = id => document.getElementById(id);
 let shownCash = -1, shownWood = -1;
 // 人口（v0.76，作者 10/18）：人口＝真的留下來的居民 save.res；流民吃到烤肉、而且有空床才會留下；工人都從居民裡雇
 // v0.79（作者）：每 5 位居民一餐吃 1 份烤肉，也才能雇 1 個工人 → 等於一個工人背後要 1 份肉
-const employed = () => save.workers + (save.porters || 0) + (save.shovel ? 1 : 0) + (save.hunters || 0) + (save.coalers || 0);
+const employed = () => save.workers + Math.max(0, (save.porters || 0) - 1) + (save.shovel ? 1 : 0) + (save.hunters || 0) + (save.coalers || 0);
 const beds = () => (save.tents - save.tentUp) * CFG.tentBeds + [...houses, ...tentHouses].filter(h => !h.dead && !h.cold).length * CFG.housePop; // 帳篷＋民房＋帳篷改建的木屋
 if (save.res == null) save.res = Math.max(employed(), Math.min(beds(), CFG.popBase + save.workers + houses.length * CFG.housePop)); // 舊存檔：民房當作住滿
 function population() { return save.res; }
