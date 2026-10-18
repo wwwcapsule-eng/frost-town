@@ -32,7 +32,7 @@ const mats = {
   trunk: M(0x7a4a2a), leaf: M(0x3f7f9a), leafSnow: M(0xe8f2fa),
   log: M(0xb06a35), meat: M(0xd9414a), fur: M(0xf2f0ea), cash: M(0x3fbf5a), wood: M(0x8a5a35), roof: M(0xb53a2e), player: M(0x2f8fd8),
   skin: M(0xffd6b0), ice: new THREE.MeshToonMaterial({ color: 0xd6ecff, gradientMap: TOON, transparent: true, opacity: 0.85 }),
-  axe: M(0xdfe6ee), coal: M(0x2a2c33), rock: M(0x6b7280),
+  axe: M(0xdfe6ee), coal: M(0x2a2c33), rock: M(0x6b7280), stone: M(0xb4bac4),
   jerky: M(0x6b2e1a), pineLeaf: M(0x5d8a3c), pineBark: M(0xa8603a), birchBark: M(0xf2efe6), birchMark: M(0x2b2b2e),
 };
 // ===== 3D 模型（Kenney CC0，放在 assets/models）：載好之前先用方塊，載好就換上；材質換成賽璐璐 =====
@@ -106,6 +106,7 @@ function rebuildRoads() {
   const main = [[0, -FENCE_R - 1.5, 0, Math.max(FENCE_R + 0.5, 60)]];  // 南北主路：北門 → 營火 → 南門 → 往南穿出森林（v0.81：流民從南邊來）
   if (save.east) main.push([0, 0, FENCE_R + 0.5, 0]);                 // 東路
   if (save.mine) main.push([MINE.x + 3.3, 0, 0, 0], [MINE.x + 3.3, -1.4, MINE.x + 3.3, 0]); // 西路：通到礦坑口前（不穿過山）
+  if (save.quarry) main.push([MINE.x + 3.3, -1.4, MINE.x + 3.3, QUARRY.z]); // v0.85 西路往北接到採石場前
   [[1, 9.8 * TS], [2, 14.3 * TS]].forEach(([ring, r]) => {                      // 民房環狀路：只鋪有民房的那段弧，並接到主路（90°）
     const angs = HOUSE_LOTS.slice(0, save.houses).filter(l => l.ring === ring).map(l => Math.atan2(l.z, l.x) * 180 / Math.PI);
     if (!angs.length) return;

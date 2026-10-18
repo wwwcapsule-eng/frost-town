@@ -223,7 +223,7 @@ function updateStore(dt) {
   if (!save.wh) return;
   const st = save.store, f = furnace, ip = wh.pad.position;
   depositCd -= dt;                                                 // 揹木頭、煤站到倉庫格子上：放進倉庫
-  const k = carried.map(m => m.userData.type).findLastIndex(t => t === 'log' || t === 'coal');
+  const k = carried.map(m => m.userData.type).findLastIndex(t => t === 'log' || t === 'coal' || t === 'stone');
   if (k >= 0 && depositCd <= 0 && st[carried[k].userData.type] < CFG.storeMax && Math.hypot(player.position.x - ip.x, player.position.z - ip.z) < 1.3) {
     depositCd = 0.07;
     const m = carried.splice(k, 1)[0], type = m.userData.type, wp = m.getWorldPosition(new THREE.Vector3());
@@ -253,7 +253,7 @@ function updateStore(dt) {
     }
   }
   if (wh.hungry && st.food > 0) { st.food--; wh.hungry = false; toast('😋 工人吃飽，復工了！'); }
-  wh.label.set(wh.hungry ? ['📦 倉庫', '😩 沒食物，工人罷工'] : ['📦 倉庫', '🪚' + st.plank + '/' + plankNeed() + ' 🍖' + st.food + (save.smoke ? ' 🥓' + st.jerky : '') + (save.mine ?' ⚫' + st.coal : '')], wh.hungry ? '#ff6a5a' : '#fff');
+  wh.label.set(wh.hungry ? ['📦 倉庫', '😩 沒食物，工人罷工'] : ['📦 倉庫', '🪚' + st.plank + '/' + plankNeed() + ' 🍖' + st.food + (save.smoke ? ' 🥓' + st.jerky : '') + (save.mine ?' ⚫' + st.coal : '') + (save.quarry ? ' 🪨' + st.stone : '')], wh.hungry ? '#ff6a5a' : '#fff');
 }
 // 倉庫要留多少🪚木材（v0.79～0.80）：至少 40，還要夠付眼前最貴的一筆（民房、升級伐木場…）；多的鋸木廠直接換錢
 function plankNeed() {
@@ -348,6 +348,8 @@ function levelUnlocks() {
     price: () => save.mine ? null : CFG.minePrice, buy: () => { save.mine = 1; openMine(); sparkle(MINE_FX, MINE.z); toast('⛏️ 礦坑打開了！煤很耐燒，放進倉庫後，營火低於 7 成會自動補'); } });
   if (save.mine && !save.cart && !cartUnlock) cartUnlock = makeUnlock({ x: LOT.cart[0], z: LOT.cart[1], icon: '🛤️', name: () => '雇礦工＋木軌礦車', mat: 'plank',
     price: () => save.cart ? null : P(CFG.cartPrice), buy: () => { save.cart = 1; buildCart(); sparkle(MINE_BIN[0], MINE_BIN[1]); toast('🛤️ 礦工在坑裡挖，礦車會把煤推出來倒在煤堆！'); } });
+  if (save.mine && save.territory >= 1 && !save.quarry && !quarryUnlock) quarryUnlock = makeUnlock({ x: LOT.quarry[0], z: LOT.quarry[1], icon: '🪨', name: () => '開採石場', need: () => save.wh ? null : '先蓋📦倉庫',
+    price: () => save.quarry ? null : CFG.quarryPrice, buy: () => { save.quarry = 1; openQuarry(); sparkle(rockFace.x, rockFace.z); toast('🪨 採石場開了！站在岩壁旁會自動敲石頭，揹🪨石材回📦倉庫存起來'); } });
   if (save.level >= 1 && !save.shovel && !shovelUnlock) shovelUnlock = makeUnlock({ x: LOT.shovel[0], z: LOT.shovel[1], icon: '🧹', name: () => '雇用鏟雪工', need: () => needHand(),
     price: () => save.shovel ? null : CFG.shovelPrice, buy: () => { save.shovel = 1; addShoveler(); toast('鏟雪工會自己去鏟雪！'); } });
 }
@@ -393,7 +395,7 @@ function applyTerritory(init) {
   for (const t of trees) {                                         // 圈進領地的樹移走（煤礦往外推）
     if (t.gone) continue;
     const r = fd(t.x, t.z);
-    if (t.coal) continue;                                          // 煤礦石在固定地塊上，不移動
+    if (t.ore) continue;                                           // 煤礦石在固定地塊上，不移動
     if (r < FENCE_R + 2.2 || nearTower(t.x, t.z)) { t.gone = true; t.alive = false; t.regrow = Infinity; scene.remove(t.g); if (!t.locked) moved++; }
   }
   for (let i = 0, tries = 0; i < moved && tries < 400; tries++) {  // 北邊森林往外補一樣多棵
@@ -472,7 +474,7 @@ function updateWorkers(dt) {
     if (!w.tree || !w.tree.alive) {                  // 找最近、沒人在砍的樹
       let best = 1e9; w.tree = null;
       for (const t of trees) {
-        if (!t.alive || t.locked || t.coal || workers.some(o => o !== w && o.tree === t)) continue;
+        if (!t.alive || t.locked || t.ore || workers.some(o => o !== w && o.tree === t)) continue;
         const d = (t.x - w.g.position.x) ** 2 + (t.z - w.g.position.z) ** 2;
         if (d < best) { best = d; w.tree = t; }
       }

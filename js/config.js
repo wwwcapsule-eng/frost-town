@@ -1,5 +1,5 @@
 'use strict';
-const VERSION = '0.84';
+const VERSION = '0.85';
 
 // ===== 數值（之後平衡都改這裡） =====
 const CFG = {
@@ -37,6 +37,7 @@ const CFG = {
   minePrice: 100, coalHp: 4, coalPerRock: 2, coalRegrow: 4, fuelPerCoal: 20, // 煤礦坑（村莊＋領地 Lv1 解鎖）：價錢、敲幾下、掉幾塊、坑口煤層幾秒再露出來；一塊煤 = 火爐 +20（木頭只有 +5）
   snowEvery: 7, snowMax: 10, snowHp: 3, snowSlow: 0.45, shovelPrice: 60, // 雪堆（村莊開始）：幾秒積一堆、最多幾堆、鏟幾下、踩到剩幾成速度、鏟雪工價錢
   heaterPrice: 120, heaterR: 7, cell: 3, mill2Price: 80, grill2Price: 150, smithPrice: 200, coalValue: 6, storeMax: 150, pileMax: 12, // 倉庫每樣最多存多少；v0.82 做好的東西在建築門口最多堆幾個（等搬運工揹去倉庫）（木材存滿，鋸木廠多做的才換錢）； // 鐵匠鋪：價錢、一塊煤打成工具賣幾元； 規劃模式：暖氣塔價錢、暖氣範圍半徑、格子大小；正式關：第二台鋸木機、第二座烤肉攤價錢
+  quarryPrice: 150, stoneHp: 5, stonePerRock: 2, stoneRegrow: 3, // v0.85 採石場（村莊＋開了煤礦＋有倉庫）：價錢、岩壁敲幾下、掉幾塊🪨石材、幾秒再露出來
   coalerPrice: [80, 160], coalerLoad: 6, coalKeep: 40, coalSell: 3, // v0.82 煤礦工（取代自動運輸）：第 1、2 個價錢、一次揹幾塊、倉庫留幾塊煤，多的一塊賣幾元
   counterMax: 6, smokePrice: 100, jerkyValue: 5, // v0.81（作者：肉太多）：櫃台最多擺幾份烤肉；燻肉架價錢（換成木材 ×0.3）；一份肉乾賣流民幾元
   plankKeep: 40,            // 倉庫的🪚木材存到 40 塊（或下一間民房的價錢＋10）就夠，鋸木廠多做的換錢（v0.79，作者：有倉庫後錢沒來源）
@@ -77,6 +78,8 @@ const HOUSE_LOTS = [];                    // 第 1 圈 6 間（Lv1 領地），�
   angs.forEach(a => HOUSE_LOTS.push({ x: +(Math.cos(a * Math.PI / 180) * r).toFixed(2), z: +(Math.sin(a * Math.PI / 180) * r).toFixed(2), ring })));
 const MINE = { x: -11.9 * TS, z: -1.9 * TS }; // 煤礦坑的山（西邊，第 1 次擴大領地後圈進來）；坑口朝東
 LOT.minePad = LOT.cart = [+(MINE.x + 4.1).toFixed(2), +(MINE.z - 0.55).toFixed(2)];
+const QUARRY = { x: -12.4 * TS, z: -8.6 * TS }; // v0.85 採石場：煤礦坑北邊、圍欄裡；切開的岩壁朝東
+LOT.quarry = [+(QUARRY.x + 4.6).toFixed(2), +(QUARRY.z + 1.6).toFixed(2)];
 LOT.coaler = [+(MINE.x + 4.1).toFixed(2), +(MINE.z - 3.2).toFixed(2)]; // v0.82 雇用煤礦工：煤堆北邊 // v0.81（作者：礦場的格子不在附近）：開採、礦車格都在坑口前（之後煤堆的位置）
 
 // ===== 存檔 =====

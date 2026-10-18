@@ -150,7 +150,7 @@ makeUnlock({ x: LOT.bag[0], z: LOT.bag[1], icon: '🎒', name: () => '背包擴�
   price: () => [12, 35, 90][save.bag], buy: () => { save.bag++; toast('背包容量 ' + CFG.capacity[save.bag] + '！伐木工也一次揹 ' + CFG.workerLoadLv[save.bag] + ' 根'); } });
 makeUnlock({ x: LOT.axe[0], z: LOT.axe[1], icon: '🪓', name: () => '斧頭升級',
   price: () => [20, 60, 140][save.axe], buy: () => { save.axe++; toast('砍得更快了！伐木工的斧頭也一起升級'); } });
-function openEast() { roadsDirty = true; scene.remove(iceWall); trees.forEach(t => { if (!t.coal) t.locked = false; }); }
+function openEast() { roadsDirty = true; scene.remove(iceWall); trees.forEach(t => { if (!t.ore) t.locked = false; }); }
 if (save.east) openEast();
 
 // ===== 弩砲塔：自動射北邊的熊，熊倒下的肉掉在地上，走過去撿 =====
@@ -170,7 +170,7 @@ function buildTower(x = 6.4, z = towerZ(x), fixed = false) {
   const arms = box(1.6, 0.14, 0.18, M(0x3c4a5a)); arms.position.z = 0.5; bow.add(arms);
   g.position.set(x, 0, z); scene.add(g);
   towers.push({ g, bow, cd: 0, fixed, bld: addBuilding('弩砲塔' + towers.length, g, 1.0) });
-  trees.forEach(t => { if (!t.gone && !t.coal && nearTower(t.x, t.z)) { t.gone = true; t.alive = false; t.regrow = Infinity; scene.remove(t.g); } }); // 塔旁邊的樹移走，不穿模
+  trees.forEach(t => { if (!t.gone && !t.ore && nearTower(t.x, t.z)) { t.gone = true; t.alive = false; t.regrow = Infinity; scene.remove(t.g); } }); // 塔旁邊的樹移走，不穿模
 }
 if (save.tower) buildTower();
 // 第二座弩砲塔：要先有第一座才會出現
@@ -274,7 +274,7 @@ makeUnlock({ x: LOT.hunter[0], z: towerPadZ(), north: true, icon: '🎯', name: 
 
 // ===== 倉庫（企劃 11.3～11.5，第 2 時代第一棟）：揹 10 根木頭來蓋；工人採的木頭送進來，
 // 倉庫自動補營火、用木材修門和建築、多的木頭送去鋸木廠做成🪚木材；烤肉先存進來給工人吃，多的才賣村民 =====
-save.store = Object.assign({ log: 0, coal: 0, plank: 0, food: CFG.whFood, jerky: 0 }, save.store);
+save.store = Object.assign({ log: 0, coal: 0, plank: 0, food: CFG.whFood, jerky: 0, stone: 0 }, save.store);
 save.store.log += (save.store.pine || 0) + (save.store.birch || 0); delete save.store.pine; delete save.store.birch; // v0.73 舊存檔分開放的松木、白樺併回木頭
 if (save.truck === 'store') save.wh = true;                       // 舊存檔：買過「自動運輸：進倉庫」的直接有倉庫
 const wh = { bld: null, pad: null, label: null, t: 0, eatT: 0, hungry: false };
@@ -504,14 +504,18 @@ function updateFurnace(dt) {
 // ===== 煤礦坑（作者 10/18：礦要有礦坑的樣子，不是地上冒出一堆）：西邊的岩山、木框坑口，一直都在；
 // 開採後封口木板拆掉，主角在坑口敲煤層；雇礦工後，礦車沿木軌從坑裡推煤出來倒在煤堆，主角或運輸隊來拿（伐木工不挖煤）
 const MINE_FX = MINE.x + 2.1, MINE_RZ = MINE.z - 0.55, MINE_BIN = [MINE_FX + 2.0, MINE_RZ]; // 坑口岩壁正面的 x、木軌的 z、煤堆位置
-function inMineHill(x, z, pad) { return ((x - MINE.x) / (2.1 + pad)) ** 2 + ((z - MINE.z) / (3 + pad)) ** 2 < 1; }
-function nearMine(x, z, pad) {                                    // 規劃、砲塔不能蓋在山、坑口前、木軌和煤堆上
-  return inMineHill(x, z, pad) || (x > MINE_FX - 0.5 && x < MINE_BIN[0] + 0.8 + pad && Math.abs(z - MINE.z) < 1.4 + pad);
+const HILLS = [{ x: MINE.x, z: MINE.z, ax: 2.1, az: 3 }, { x: QUARRY.x, z: QUARRY.z, ax: 1.9, az: 2.4 }]; // 礦坑的山、v0.85 採石場的岩壁（橢圓）
+const inHill = (h, x, z, pad) => ((x - h.x) / (h.ax + pad)) ** 2 + ((z - h.z) / (h.az + pad)) ** 2 < 1;
+function inMineHill(x, z, pad) { return HILLS.some(h => inHill(h, x, z, pad)); }
+function nearMine(x, z, pad) {                                    // 規劃、砲塔不能蓋在山、坑口前、木軌和煤堆上、採石場前
+  return inMineHill(x, z, pad) || (x > MINE_FX - 0.5 && x < MINE_BIN[0] + 0.8 + pad && Math.abs(z - MINE.z) < 1.4 + pad)
+    || (x > QUARRY.x && x < QUARRY.x + 3.4 + pad && Math.abs(z - QUARRY.z) < 1.6 + pad);
 }
 function pushMine(x, z, pad) {                                   // 撞到山就沿著山邊滑開
-  if (!inMineHill(x, z, pad)) return [x, z];
-  const ax = 2.1 + pad, az = 3 + pad, dx = (x - MINE.x) / ax, dz = (z - MINE.z) / az, d = Math.hypot(dx, dz) || 1;
-  return [MINE.x + dx / d * ax, MINE.z + dz / d * az];
+  const h = HILLS.find(h => inHill(h, x, z, pad));
+  if (!h) return [x, z];
+  const ax = h.ax + pad, az = h.az + pad, dx = (x - h.x) / ax, dz = (z - h.z) / az, d = Math.hypot(dx, dz) || 1;
+  return [h.x + dx / d * ax, h.z + dz / d * az];
 }
 const mine = { g: new THREE.Group(), label: makeLabel(), binLabel: makeLabel(), cart: null, cartT: 0, cartLoaded: false };
 const darkMat = M(0x121317);
@@ -537,7 +541,7 @@ const seam = (() => {
   const g = new THREE.Group(), x = MINE_FX + 0.35, z = MINE.z + 0.55; // 煤層在鏡頭這一側，木軌在裡側
   for (let i = 0; i < 4; i++) { const c = box(rand(0.35, 0.5), rand(0.3, 0.55), rand(0.35, 0.5), mats.coal); c.position.set(rand(-0.25, 0.15), 0.2 + i * 0.12, rand(-0.25, 0.25)); c.rotation.set(rand(0, 1), rand(0, 3), 0); g.add(c); }
   g.position.set(x, 0, z); g.visible = !!save.mine; scene.add(g);
-  const t = { g, x, z, hp: CFG.coalHp, alive: true, regrow: 0, sc: 1, shake: 0, locked: !save.mine, coal: true };
+  const t = { g, x, z, hp: CFG.coalHp, alive: true, regrow: 0, sc: 1, shake: 0, locked: !save.mine, coal: true, ore: 'coal', maxHp: CFG.coalHp, per: CFG.coalPerRock, regrowT: CFG.coalRegrow };
   trees.push(t); return t;
 })();
 function buildCart() {                                           // 木軌（坑裡伸出來）＋礦車＋煤堆
@@ -577,6 +581,32 @@ function updateMine(dt) {
   mine.binLabel.visible = Math.hypot(player.position.x - MINE_BIN[0], player.position.z - MINE_BIN[1]) < 2.5; // 站在煤堆旁才顯示數量，不蓋住坑口
   mine.binLabel.set(['⚫ 煤堆 ' + save.bin + '/' + CFG.binMax]);
 }
+
+// ===== 採石場（v0.85，企劃 11.9 階段 D）：煤礦坑北邊一面切開的灰色岩壁，一直都在；開採後主角在岩壁前敲🪨石材，揹回倉庫 =====
+const quarry = { g: new THREE.Group(), label: makeLabel() };
+{
+  const g = quarry.g, fx = QUARRY.x + 1.5;                      // fx＝切平的岩壁正面
+  const hill = new THREE.Mesh(new THREE.IcosahedronGeometry(2.2, 1), new THREE.MeshToonMaterial({ color: 0x7d8490, gradientMap: TOON, flatShading: true }));
+  hill.scale.set(0.75, 0.75, 1.05); hill.position.set(QUARRY.x - 0.3, 0.2, QUARRY.z); hill.castShadow = hill.receiveShadow = true; g.add(hill);
+  [[2.2, 3.6, 0], [1.5, 2.6, 0.45], [0.8, 1.6, 0.9]].forEach(([h, w, o]) => { const s = box(0.6, h, w, mats.rock); s.position.set(fx - 0.6 + o, h / 2, QUARRY.z); g.add(s); }); // 一階一階切下來的岩壁
+  const cap = new THREE.Mesh(new THREE.IcosahedronGeometry(0.9, 1), mats.leafSnow); cap.scale.set(0.8, 0.3, 1.1); cap.position.set(QUARRY.x - 0.6, 1.75, QUARRY.z); g.add(cap);
+  quarry.blocks = new THREE.Group();                             // 開採後：岩壁前一疊切好的石塊
+  for (let i = 0; i < 4; i++) { const b = box(0.55, 0.35, 0.45, mats.stone); b.position.set(fx + 1.6 + (i % 2) * 0.6, 0.18 + (i >> 1) * 0.36, QUARRY.z + 1.7); quarry.blocks.add(b); }
+  quarry.blocks.visible = !!save.quarry; g.add(quarry.blocks); scene.add(g);
+  quarry.label.scale.set(3, 1.5, 1); quarry.label.position.set(QUARRY.x, 3.2, QUARRY.z); quarry.label.set(['🪨 採石場']); scene.add(quarry.label);
+}
+// 岩壁前的石層：跟煤層一樣放在 trees 裡，主角靠近自動敲
+const rockFace = (() => {
+  const g = new THREE.Group(), x = QUARRY.x + 2.4, z = QUARRY.z - 0.3;
+  for (let i = 0; i < 4; i++) { const c = box(rand(0.4, 0.55), rand(0.3, 0.5), rand(0.4, 0.55), mats.stone); c.position.set(rand(-0.2, 0.2), 0.2 + i * 0.12, rand(-0.25, 0.25)); c.rotation.set(0, rand(0, 3), rand(0, 0.4)); g.add(c); }
+  g.position.set(x, 0, z); g.visible = !!save.quarry; scene.add(g);
+  const t = { g, x, z, hp: CFG.stoneHp, alive: true, regrow: 0, sc: 1, shake: 0, locked: !save.quarry, ore: 'stone', maxHp: CFG.stoneHp, per: CFG.stonePerRock, regrowT: CFG.stoneRegrow };
+  trees.push(t); return t;
+})();
+trees.forEach(t => { if (!t.gone && !t.ore && inMineHill(t.x, t.z, 0.8)) { t.gone = true; t.alive = false; t.regrow = Infinity; scene.remove(t.g); } }); // 長在礦山、採石場岩壁上的樹移走，不穿模
+let quarryUnlock = null;
+function openQuarry() { rockFace.locked = false; rockFace.g.visible = true; quarry.blocks.visible = true; document.getElementById('pStone').style.display = ''; roadsDirty = true; }
+if (save.quarry) openQuarry();
 
 // ===== 雪堆：村莊開始，路上會積雪；踩到走很慢，堆在櫃台前村民就不買；主角站旁邊自動鏟，也能雇鏟雪工 =====
 const piles = [], pileMat = new THREE.MeshLambertMaterial({ color: 0xcfe3f7, flatShading: true });

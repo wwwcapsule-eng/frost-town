@@ -82,10 +82,12 @@ function hud() {
   $('pop').textContent = population(); $('capP').textContent = next ? '/' + next.need : ''; $('beds').textContent = ' 🛏️' + Math.max(0, beds() - save.res);
   $('ver').textContent = lv.icon + ' ' + lv.name; $('menuVer').textContent = '寒霜小鎮 v' + VERSION;
   if (shownCash !== save.cash) { $('cash').textContent = save.cash; bump('pCash'); shownCash = save.cash; }
-  const nMeat = countOf('meat') - flies.filter(f => f.toBack === 'meat').length, nCoal = carried.filter(m => m.userData.type === 'coal').length, nLog = carried.length - nMeat - nCoal;
-  if (shownWood !== carried.length * 10000 + nMeat * 100 + nCoal) { $('wood').textContent = nLog; $('meat').textContent = nMeat; $('coal').textContent = nCoal; shownWood = carried.length * 10000 + nMeat * 100 + nCoal; }
-  if (save.wh) { const st = save.store; $('sPlank').textContent = st.plank; $('sNeed').textContent = '/' + plankNeed(); $('sFood').textContent = st.food; $('sCoal').textContent = st.coal; $('sCoalW').style.display = save.mine ? '' : 'none'; $('sJerky').textContent = st.jerky; $('sJerkyW').style.display = save.smoke ? '' : 'none'; $('pStore').classList.toggle('danger', wh.hungry); }
-  $('capW').textContent = '/' + capacity(); $('capM').textContent = '/' + capacity(); $('capC').textContent = '/' + capacity();
+  const nMeat = countOf('meat') - flies.filter(f => f.toBack === 'meat').length, nCoal = carried.filter(m => m.userData.type === 'coal').length, nStone = carried.filter(m => m.userData.type === 'stone').length, nLog = carried.length - nMeat - nCoal - nStone;
+  const key = [carried.length, nMeat, nCoal, nStone].join();
+  if (shownWood !== key) { $('wood').textContent = nLog; $('meat').textContent = nMeat; $('coal').textContent = nCoal; $('stone').textContent = nStone; shownWood = key; }
+  if (save.wh) { const st = save.store; $('sPlank').textContent = st.plank; $('sNeed').textContent = '/' + plankNeed(); $('sFood').textContent = st.food; $('sCoal').textContent = st.coal; $('sCoalW').style.display = save.mine ? '' : 'none'; $('sJerky').textContent = st.jerky; $('sJerkyW').style.display = save.smoke ? '' : 'none'; $('sStone').textContent = st.stone; $('sStoneW').style.display = save.quarry ? '' : 'none'; $('pStore').classList.toggle('danger', wh.hungry); }
+  $('capW').textContent = '/' + capacity(); $('capM').textContent = '/' + capacity(); $('capC').textContent = '/' + capacity(); $('capS').textContent = '/' + capacity();
+  $('pStone').classList.toggle('full', countOf('stone') >= capacity());
   $('pCoal').classList.toggle('full', countOf('coal') >= capacity());
   if (!save.coalTip && countOf('coal') > 0) { save.coalTip = true; toast('⚫ 煤比木頭耐燒 4 倍！丟進火爐，或在🏗️規劃蓋🔨鐵匠鋪拿去賣'); }
   $('pWood').classList.toggle('full', countOf('log') >= capacity()); $('pMeat').classList.toggle('full', countOf('meat') >= capacity());

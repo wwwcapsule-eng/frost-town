@@ -69,6 +69,7 @@ const GOALS = PRO ? [ // 正式關：建築要自己用規劃模式選位置，�
   { t: () => '營火升級 Lv2，領地再擴大', done: () => save.territory >= 2 },
   { t: () => '蓋民房、留住流民，居民到 80（' + population() + '/80）', done: () => save.level >= 2 },
   { t: () => '把營火進化成石爐（營火 Lv4）', done: () => save.stove >= 1 },
+  { t: () => '開採石場，揹🪨石材回倉庫', done: () => !!save.quarry },
   { t: () => '城市的新玩法製作中，繼續擴張吧！', done: () => false },
 ];
 save.goal = Math.min(save.goal || 0, GOALS.length - 1); // 匯入的存檔碼可能不對，不要超出範圍
@@ -125,7 +126,7 @@ function updateBuildings(dt) {
 // 血量、北門、營火這些警告不在這裡管，永遠會顯示；地上的付款格圖示一直都在
 function quietLabels() {
   const px = player.position.x, pz = player.position.z;
-  const list = [...mills.map(m => m.label), ...unlocks.filter(u => !u.done && !(u.cool > 0)).map(u => u.label), repairLabel, wh.label, mine.label].filter(Boolean);
+  const list = [...mills.map(m => m.label), ...unlocks.filter(u => !u.done && !(u.cool > 0)).map(u => u.label), repairLabel, wh.label, mine.label, quarry.label].filter(Boolean);
   list.map(l => [l, Math.hypot(l.position.x - px, l.position.z - pz)]).sort((a, b) => a[1] - b[1])
     .forEach(([l, d], i) => l.visible = d < CFG.labelNear && i < CFG.labelMax);
 }
@@ -147,7 +148,7 @@ function step(dt) {
     if (!save.east && nx > 16 * TS - 0.8) nx = 16 * TS - 0.8;           // 冰牆擋住
     nx = Math.max(-40 * TS, Math.min(40 * TS, nx)); nz = Math.max(-40 * TS, Math.min(40 * TS, nz));
     for (const t of trees) {                          // 不要穿過樹幹
-      if (!t.alive || (t.coal && t.locked)) continue;
+      if (!t.alive || (t.ore && t.locked)) continue;
       const dx = nx - t.x, dz = nz - t.z, d = Math.hypot(dx, dz);
       if (d < 0.7 && d > 0) { nx = t.x + dx / d * 0.7; nz = t.z + dz / d * 0.7; }
     }
@@ -179,9 +180,9 @@ function step(dt) {
     if (Math.hypot(b.x - player.position.x, b.z - player.position.z) < CFG.chopRange + 0.4) { target = b; break; }
   }
   if (target) {
-    const kind = target.isBear ? 'meat' : target.coal ? 'coal' : 'log';
+    const kind = target.isBear ? 'meat' : target.ore || 'log';
     if (countOf(kind) >= capacity()) {
-      fullWarn -= dt; if (fullWarn <= 0) { toast(kind === 'meat' ? '肉滿了！拿去烤肉攤' : kind === 'coal' ? '煤滿了！拿去火爐' : '木頭滿了！拿去鋸木廠'); fullWarn = 3; }
+      fullWarn -= dt; if (fullWarn <= 0) { toast(kind === 'meat' ? '肉滿了！拿去烤肉攤' : kind === 'coal' ? '煤滿了！拿去火爐' : kind === 'stone' ? '石材滿了！拿去📦倉庫' : '木頭滿了！拿去鋸木廠'); fullWarn = 3; }
     } else {
       axeShow = 0.3;
       if (chopTimer <= 0) {
@@ -190,11 +191,11 @@ function step(dt) {
         burstChips(target.x, target.z, target.isBear); sfx.chop();
         if (target.hp <= 0) {
           target.alive = false;
-          if (target.isBear) target.respawn = CFG.bearRespawn; else target.regrow = target.coal ? CFG.coalRegrow : CFG.treeRegrow;
-          const n = target.isBear ? CFG.meatPerBear : target.coal ? CFG.coalPerRock : WOODS[target.kind].logs;
+          if (target.isBear) target.respawn = CFG.bearRespawn; else target.regrow = target.ore ? target.regrowT : CFG.treeRegrow;
+          const n = target.isBear ? CFG.meatPerBear : target.ore ? target.per : WOODS[target.kind].logs;
           const room = Math.max(0, Math.min(n, capacity() - countOf(kind)));
           for (let i = 0; i < room; i++) toBack(kind, target.x, 1 + i * 0.3, target.z, i * 0.08);
-          if (n > room && kind !== 'coal') dropItems(kind, n - room, target.x, target.z); // v0.81：揹不下的掉在地上，之後再撿（獵人、伐木工也會來撿）
+          if (n > room && !target.ore) dropItems(kind, n - room, target.x, target.z); // v0.81：揹不下的掉在地上，之後再撿（獵人、伐木工也會來撿）
         }
       }
     }
@@ -223,7 +224,7 @@ function step(dt) {
     if (!t.alive) {
       t.g.scale.setScalar(Math.max(0.001, t.g.scale.x - dt * 4));
       t.regrow -= dt;
-      if (t.regrow <= 0) { t.alive = true; t.hp = t.coal ? CFG.coalHp : WOODS[t.kind].hp; }
+      if (t.regrow <= 0) { t.alive = true; t.hp = t.ore ? t.maxHp : WOODS[t.kind].hp; }
     } else if (t.g.scale.x < t.sc) t.g.scale.setScalar(Math.min(t.sc, t.g.scale.x + dt * 1.5));
   }
 
