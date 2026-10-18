@@ -23,8 +23,12 @@ const sunRot = new THREE.Matrix4().lookAt(new THREE.Vector3(-10, 20, 8), new THR
 const TOON = new THREE.DataTexture(new Uint8Array([95, 155, 215]), 3, 1, THREE.LuminanceFormat);
 TOON.minFilter = TOON.magFilter = THREE.NearestFilter; TOON.needsUpdate = true;
 const M = c => new THREE.MeshToonMaterial({ color: c, gradientMap: TOON });
+// v0.70（作者 10/18：地上會閃、反光）：地面改逐像素打光（Lambert 只在頂點算光，一大片地只有 4 個角，營火光一變整片跟著跳），不要亮點
+const ground0 = c => new THREE.MeshPhongMaterial({ color: c, specular: 0x000000, shininess: 0 });
+// 地上的薄層（營地、道路、暖氣圈、付款格）像貼紙：不寫深度、用 polygonOffset 浮在雪地上，誰蓋誰由 renderOrder 決定（手機深度精度低，靠 y 差 0.01 會打架）
+function decal(mesh, n) { Object.assign(mesh.material, { depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -4 * n }); mesh.renderOrder = n; return mesh; }
 const mats = {
-  snow: new THREE.MeshLambertMaterial({ color: 0xf4f8fc }), dirt: new THREE.MeshLambertMaterial({ color: 0xc98c5a }), // 地面用平滑著色：卡通色階會把營火光畫成一圈硬邊的黃圈
+  snow: ground0(0xf4f8fc), dirt: ground0(0xc98c5a), // 地面用平滑著色：卡通色階會把營火光畫成一圈硬邊的黃圈
   trunk: M(0x7a4a2a), leaf: M(0x3f7f9a), leafSnow: M(0xe8f2fa),
   log: M(0xb06a35), meat: M(0xd9414a), fur: M(0xf2f0ea), cash: M(0x3fbf5a), wood: M(0x8a5a35), roof: M(0xb53a2e), player: M(0x2f8fd8),
   skin: M(0xffd6b0), ice: new THREE.MeshToonMaterial({ color: 0xd6ecff, gradientMap: TOON, transparent: true, opacity: 0.85 }),
@@ -44,21 +48,21 @@ function loadModel(key, url, height, onLoad) {                    // height：�
 function box(w, h, d, mat) { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.castShadow = m.receiveShadow = true; return m; }
 
 // 地面：雪地＋營地泥土圓
-const ground = new THREE.Mesh(new THREE.PlaneGeometry(120, 120), mats.snow);
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(400, 400), mats.snow); // 夠大，鏡頭拉最遠也看不到邊
 ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
 const camp = new THREE.Mesh(new THREE.PlaneGeometry(17, 17), mats.dirt); // 領地地面：跟方形圍欄一樣大
-camp.rotation.x = -Math.PI / 2; camp.position.y = 0.01; camp.receiveShadow = true; scene.add(camp);
+camp.rotation.x = -Math.PI / 2; camp.position.y = 0.01; camp.receiveShadow = true; scene.add(decal(camp, 1));
 
 // 自動道路（作者 10/17 回饋第 4 項）：主路＋民房環狀路，每棟建築從門口鋪一段路接到最近的路；有變動就整組重鋪
 const roads = new THREE.Group(); scene.add(roads);
-const roadMat = new THREE.MeshLambertMaterial({ color: 0x8d939b, polygonOffset: true, polygonOffsetFactor: -1 });
+const roadMat = ground0(0x8d939b);
 const roadGeo = new THREE.PlaneGeometry(1, 1), plazaGeo = new THREE.CircleGeometry(2.6, 24);
 let roadsDirty = true;
 function roadSeg(ax, az, bx, bz, w = 1.3) {
   const len = Math.hypot(bx - ax, bz - az); if (len < 0.05) return;
   const m = new THREE.Mesh(roadGeo, roadMat);
   m.scale.set(w, len + w * 0.5, 1); m.rotation.set(-Math.PI / 2, 0, Math.atan2(bx - ax, bz - az), 'YXZ'); // 先在平面上轉向，再放平
-  m.position.set((ax + bx) / 2, 0.02, (az + bz) / 2); m.receiveShadow = true; roads.add(m);
+  m.position.set((ax + bx) / 2, 0.02, (az + bz) / 2); m.receiveShadow = true; roads.add(decal(m, 2));
 }
 function nearestOnSeg(x, z, [ax, az, bx, bz]) {
   const dx = bx - ax, dz = bz - az, t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz)));
@@ -80,7 +84,7 @@ function rebuildRoads() {
     }
   });
   main.forEach(s => roadSeg(...s));
-  const plaza = new THREE.Mesh(plazaGeo, roadMat); plaza.rotation.x = -Math.PI / 2; plaza.position.set(0, 0.02, -3 * TS); roads.add(plaza); // 營火廣場
+  const plaza = new THREE.Mesh(plazaGeo, roadMat); plaza.rotation.x = -Math.PI / 2; plaza.position.set(0, 0.02, -3 * TS); plaza.receiveShadow = true; roads.add(decal(plaza, 2)); // 營火廣場
   for (const b of buildings) {                                        // 每棟建築接一段路到最近的主路／環狀路
     let best = null, bd = Infinity;
     for (const s of main) { const p = nearestOnSeg(b.x, b.z, s), d = Math.hypot(p[0] - b.x, p[1] - b.z); if (d < bd) { bd = d; best = p; } }
@@ -142,6 +146,7 @@ function makePad(x, z, size, color, icon) {
     const ic = new THREE.Mesh(new THREE.PlaneGeometry(size * 0.9, size * 0.9), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(cv), transparent: true, depthWrite: false }));
     ic.rotation.x = -Math.PI / 2; ic.position.y = 0.004; g.add(ic);
   }
+  g.children.forEach(m => decal(m, m === fill ? 4 : 5)); // 圖示、虛線蓋在進度色塊上
   g.position.set(x, 0.03, z); scene.add(g);
   return g;
 }

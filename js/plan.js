@@ -71,7 +71,7 @@ function canBuild(x, z, k) {
   if (big && !canBuild(x, z + 2.7, 'pad')) return false;                         // 門口前的付款格也要有空地
   const r = Math.hypot(x, z), d = (a, b) => Math.hypot(a - x, b - z);
   if (r > 27 * TS || Math.abs(fd(x, z) - FENCE_R) < 1.8 || d(FX, FZ) < 2.6) return false;
-  if (Math.abs(x - CX) < 1.8 && z > CZ - 1 && z < CZ + 17 * TS) return false;          // 村民排隊的路
+  if (Math.abs(x - QX) < 1.8 && z > CZ - 1 && z < CZ + 17 * TS) return false;          // 村民排隊的路
   if (Math.abs(x) < 4.5 && z < -FENCE_R + 4 && z > -FENCE_R - 3) return false;                        // 北門前
   if (buildings.some(b => d(b.x, b.z) < b.r + (big ? 2.2 : 1.6))) return false;
   if (unlocks.some(u => !u.done && d(u.x, u.z) < 2.3)) return false;
@@ -175,7 +175,7 @@ function moveAll(b, x, z) {                                       // 建築連�
   const dx = x - b.x, dz = z - b.z;
   moveBuilding(b, x, z);
   const m = mills.find(m => m.bld === b), h = heaters.find(h => h.bld === b);
-  if (m) [m.inPad, ...(m === bbq ? [] : [m.outPad, ...m.out]), m.label].forEach(o => { o.position.x += dx; o.position.z += dz; }); // 烤肉攤的收錢格在村民櫃台旁，不跟著搬
+  if (m) [m.inPad, m.outPad, ...m.out, m.label].forEach(o => { o.position.x += dx; o.position.z += dz; });
   if (h) { h.x = x; h.z = z; [h.ring, h.fill].forEach(o => o.position.set(x, o.position.y, z)); }
   if (b === wh.bld) [wh.pad, wh.label].forEach(o => { o.position.x += dx; o.position.z += dz; });
   roadsDirty = true;
@@ -255,7 +255,8 @@ function updateStore(dt) {
   if (wh.t >= 1 && !wh.bld.dead) {
     wh.t = 0;
     const hurt = buildings.find(b => !b.dead && b.hp < CFG.buildHp), mill = mills[0];
-    if (f.fuel < CFG.fuelMax * 0.7 && (st.coal || st.log)) { const c = st.coal > 0; if (c) st.coal--; else st.log--; f.fuel = Math.min(CFG.fuelMax, f.fuel + (c ? CFG.fuelPerCoal : CFG.fuelPerLog)); }
+    if (porters.length) ; // 有搬運工：補火、修門、修建築改成小人走過去才生效（updatePorters）
+    else if (f.fuel < CFG.fuelMax * 0.7 && (st.coal || st.log)) { const c = st.coal > 0; if (c) st.coal--; else st.log--; f.fuel = Math.min(CFG.fuelMax, f.fuel + (c ? CFG.fuelPerCoal : CFG.fuelPerLog)); }
     else if (gate.hp < CFG.gateHp && st.plank) { st.plank--; gate.hp = Math.min(CFG.gateHp, gate.hp + 10); }
     else if (hurt && st.plank) { st.plank--; hurt.hp = Math.min(CFG.buildHp, hurt.hp + 10); }
     if (st.log > CFG.fuelKeep && mill.queue < 3 && !mill.bld.dead) { st.log--; mill.queue++; }
@@ -269,6 +270,39 @@ function updateStore(dt) {
   }
   if (wh.hungry && st.food > 0) { st.food--; wh.hungry = false; toast('😋 工人吃飽，復工了！'); }
   wh.label.set(wh.hungry ? ['📦 倉庫', '😩 沒食物，工人罷工'] : ['📦 倉庫', '🧱' + st.plank + ' 🔥' + (st.log + st.coal) + ' 🍖' + st.food], wh.hungry ? '#ff6a5a' : '#fff');
+}
+// 搬運工：營火要柴 → 北門要修 → 建築要修 → 綠框有錢；先回倉庫格子拿東西（一趟最多 3 個），走到目的地才生效
+function updatePorters(dt) {
+  if (!save.wh || wh.bld.dead) return;
+  const st = save.store, home = wh.pad.position, taken = k => porters.some(o => o.job && (o.job.k === k || o.job.b === k || o.job.m === k));
+  porters.forEach((p, i) => {
+    if (!p.job) {
+      const hurt = buildings.find(b => !b.dead && b.hp < CFG.buildHp && !taken(b)), cash = mills.find(m => m.out.length && !taken(m));
+      if (furnace.fuel < CFG.fuelMax * 0.7 && st.coal + st.log && !taken('fuel')) p.job = { k: 'fuel' };
+      else if (gate.hp < CFG.gateHp && st.plank && !taken('gate')) p.job = { k: 'gate' };
+      else if (hurt && st.plank) p.job = { k: 'fix', b: hurt };
+      else if (cash) p.job = { k: 'cash', m: cash, got: true };
+      else return void routeTo(p, home.x - 1 + i * 2, home.z + 1.2, dt);  // 沒事做：在倉庫門口等
+    }
+    const j = p.job;
+    if (!j.got) {                                                    // 先回倉庫拿
+      routeTo(p, home.x, home.z, dt);
+      if (Math.hypot(p.g.position.x - home.x, p.g.position.z - home.z) > 0.8) return;
+      if (j.k === 'fuel') { j.coal = Math.min(3, st.coal); j.log = Math.min(3 - j.coal, st.log); st.coal -= j.coal; st.log -= j.log; j.n = j.coal + j.log; }
+      else { const lack = j.k === 'gate' ? CFG.gateHp - gate.hp : CFG.buildHp - j.b.hp; j.n = Math.min(3, st.plank, Math.ceil(lack / 10)); st.plank -= j.n; }
+      if (!j.n) { p.job = null; return; }
+      j.got = true; p.cargo.material = j.k === 'fuel' ? (j.coal ? mats.coal : mats.trunk) : mats.wood; p.cargo.visible = true;
+    }
+    const [tx, tz, r] = j.k === 'fuel' ? [FX + 1.4, FZ + 1.4, 1.2] : j.k === 'gate' ? [repairPad.position.x, repairPad.position.z, 0.8]
+      : j.k === 'fix' ? [j.b.x, j.b.z, j.b.r + 0.9] : [j.m.outPad.position.x, j.m.outPad.position.z, 0.8];
+    routeTo(p, tx, tz, dt);
+    if (Math.hypot(p.g.position.x - tx, p.g.position.z - tz) > r) return;
+    if (j.k === 'fuel') furnace.fuel = Math.min(CFG.fuelMax, furnace.fuel + j.coal * CFG.fuelPerCoal + j.log * CFG.fuelPerLog);
+    else if (j.k === 'gate') gate.hp = Math.min(CFG.gateHp, gate.hp + j.n * 10);
+    else if (j.k === 'fix') { if (j.b.dead) st.plank += j.n; else j.b.hp = Math.min(CFG.buildHp, j.b.hp + j.n * 10); }
+    else j.m.out.splice(0).forEach((b, k) => fly(b, b.position.clone(), () => p.g.position.clone().add(tmp.set(0, 1.6, 0)), 0.25 + k * 0.02, () => { scene.remove(b); save.cash += j.m.value; sfx.coin(); }, 1));
+    p.cargo.visible = false; p.job = null;
+  });
 }
 // 鋸木廠做的木材、烤肉攤烤的肉飛進倉庫
 function toStore(k, mill) {
@@ -335,6 +369,7 @@ function applyTerritory(init) {
   if (!houseUnlock.done) { [houseUnlock.x, houseUnlock.z] = houseSpot(save.houses); houseUnlock.pad.position.set(houseUnlock.x, 0.03, houseUnlock.z); houseUnlock.label.position.set(houseUnlock.x, 1.9, houseUnlock.z); }
   for (const u of unlocks) {                                       // 卡在圍欄上的付款格往內挪
     if (u.done || u === houseUnlock) continue;
+    if (u.north) { u.z = towerPadZ(); u.pad.position.z = u.label.position.z = u.z; continue; }
     const r = fd(u.x, u.z);
     if (Math.abs(r - FENCE_R) < 1.6) { const k = (FENCE_R - 1.8) / r; u.x *= k; u.z *= k; u.pad.position.set(u.x, 0.03, u.z); u.label.position.set(u.x, u.label.position.y, u.z); }
   }

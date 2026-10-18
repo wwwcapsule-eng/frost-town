@@ -302,7 +302,7 @@ function step(dt) {
   updateGuide(dt);
   updateBears(dt);
   updateVillagers(dt);
-  updateTower(dt); updateTransport(dt); updateStore(dt);
+  updateTower(dt); updateTransport(dt); updateStore(dt); updatePorters(dt);
   updateWorkers(dt);
   updateGate(dt);
   updateColdWave(dt);

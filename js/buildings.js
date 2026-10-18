@@ -18,7 +18,8 @@ function makeMill(x, z, opt = {}) {
 const mills = [makeMill(LOT.mill[0], LOT.mill[1], { inX: LOT.mill[0] - 1.3, inZ: LOT.mill[1] + 2.7, outX: LOT.mill[0] + 1.3, outZ: LOT.mill[1] + 2.7 })];
 function addMill2() { const [x, z] = LOT.mill2; mills.push(makeMill(x, z, { key: '第二台鋸木機', inX: x - 1.3, inZ: z + 2.7, outX: x + 1.3, outZ: z + 2.7 })); }
 const GRILL = { name: '烤肉攤', accept: 'meat', value: CFG.meatValue, time: 0.8, roof: M(0xe07b22), customers: true };
-mills.push(makeMill(LOT.bbq[0], LOT.bbq[1], Object.assign({ inX: -1.6, inZ: 3.4 }, GRILL)));
+// v0.68（作者 10/18）：烤肉攤貼著南邊主路，櫃台在攤子左邊（路那側）、揹肉格和收錢格在攤子右邊，整組擠在一起
+mills.push(makeMill(LOT.bbq[0], LOT.bbq[1], Object.assign({ inX: LOT.bbq[0] + 2.4, inZ: LOT.bbq[1] - 1, outX: LOT.bbq[0] + 2.4, outZ: LOT.bbq[1] + 1 }, GRILL)));
 // 正式關：規劃模式蓋的加工建築，付款格在門口前；第二座烤肉攤烤好的肉一樣送到村民排隊的櫃台
 const SMITH = { name: '鐵匠鋪', accept: 'coal', value: CFG.coalValue, time: 1.5, roof: M(0x4a4f5a) }; // 工業區：煤打成工具賣錢
 function addProc(k, x, z) {
@@ -38,17 +39,16 @@ function spawnBill(mill, from) {
 
 // ===== 村民排隊買烤肉：烤好的肉放櫃台，排第一個的村民拿走並付錢 =====
 const bbq = mills[1];
-// 櫃台和村民隊伍放在南邊，遠離北邊森林的熊；烤好的肉從烤肉攤送過來
-const CX = -0.5 * TS, CZ = 7.3 * TS;
-const counter = box(1.4, 0.8, 1, mats.wood); counter.position.set(CX, 0.4, CZ); scene.add(counter);
-bbq.outPad.position.set(CX - 1.7, 0.03, CZ - 0.4); // 村民付的錢放在櫃台旁
+// 櫃台貼在烤肉攤左邊、靠主路；村民在主路上（QX）往南門排隊，遠離北邊森林的熊
+const CX = LOT.bbq[0] - 2.3, CZ = LOT.bbq[1], QX = CX - 1.1;
+const counter = box(1, 0.8, 1.4, mats.wood); counter.position.set(CX, 0.4, CZ); scene.add(counter);
 bbq.cookedMeshes = [];
 function addCooked(mill) {
   const m = new THREE.Mesh(logGeo, mats.meat); m.castShadow = true;
   const i = bbq.cookedMeshes.length; bbq.cookedMeshes.push(m);
   fly(m, mill.g.position.clone().add(tmp.set(0, 1.5, 0)), () => new THREE.Vector3(CX, 0.92 + i * 0.24, CZ), 0.6, null, 1);
 }
-const QUEUE = i => new THREE.Vector3(CX, 0, CZ + 1 + i * 1.0); // 從櫃台往南邊出口排
+const QUEUE = i => new THREE.Vector3(QX, 0, CZ + i * 1.0); // 從櫃台前沿主路往南門排
 const SHIRTS = [0x2f8fd8, 0x3fa66b, 0xd9a03f, 0x9b5fd0, 0xe06a6a];
 const villagers = [], leaving = [];
 function makeVillager(i) {
@@ -71,7 +71,7 @@ function updateVillagers(dt) {
   });
   const front = villagers[0];
   const scared = bears.some(b => b.alive && b.aggro && fd(b.x, b.z) < FENCE_R + 0.3); // 熊進營地，村民不敢買
-  const blocked = piles.some(p => Math.hypot(p.x - CX, p.z - CZ - 1) < 1.6); // 雪堆擋在櫃台前，村民不買
+  const blocked = piles.some(p => Math.hypot(p.x - QX, p.z - CZ) < 1.6); // 雪堆擋在櫃台前，村民不買
   blockWarn -= dt; if (blocked && bbq.cookedMeshes.length && blockWarn <= 0) { toast('❄️ 雪堆擋住櫃台了！快去鏟'); blockWarn = 8; }
   if (front && !scared && !blocked && bbq.cookedMeshes.length && front.g.position.distanceTo(QUEUE(0)) < 0.3) {
     front.wait += dt;
@@ -117,7 +117,9 @@ if (save.east) openEast();
 if (save.mill2 && !PRO) addMill2(); // 正式關的第二台鋸木機在 save.plan 裡
 
 // ===== 弩砲塔：自動射北邊的熊，熊倒下的肉掉在地上，走過去撿 =====
-if (!PRO) makeUnlock({ x: LOT.tower1[0], z: LOT.tower1[1], icon: '🏹', name: () => '弩砲塔', mat: 'plank',
+// v0.71（作者 10/18：北門一帶標誌重疊）：付款格放在北門內側兩旁、跟修門格同一排，擴大領地時跟著圍欄搬（applyTerritory 看 north）
+const towerPadZ = () => -FENCE_R + 2.4;
+if (!PRO) makeUnlock({ x: LOT.tower1[0], z: towerPadZ(), north: true, icon: '🏹', name: () => '弩砲塔', mat: 'plank',
   price: () => save.tower ? null : P(40), buy: () => { save.tower = true; buildTower(); addTower2Unlock(); toast('弩砲塔會自動射熊！'); } });
 const towers = [];
 const towerZ = x => -FENCE_R - 1.8; // 弩砲塔站在圍欄外 1.8、北門門板旁邊，不跟圍欄或門板穿模
@@ -136,7 +138,7 @@ function buildTower(x = 6.4, z = towerZ(x), fixed = false) {
 if (save.tower) buildTower();
 // 第二座弩砲塔：要先有第一座才會出現
 function addTower2Unlock() {
-  makeUnlock({ x: LOT.tower2[0], z: LOT.tower2[1], icon: '🏹', name: () => '第二座弩砲塔', mat: 'plank',
+  makeUnlock({ x: LOT.tower2[0], z: towerPadZ(), north: true, icon: '🏹', name: () => '第二座弩砲塔', mat: 'plank',
   price: () => save.tower2 ? null : P(90), buy: () => { save.tower2 = true; buildTower(-6.4); toast('北門兩側都有弩砲塔了！'); } });
 }
 if (save.tower && !save.tower2) addTower2Unlock();
@@ -207,6 +209,18 @@ for (let i = 0; i < save.workers; i++) addWorker();
 save.store = Object.assign({ log: 0, coal: 0, plank: 0, food: CFG.whFood }, save.store);
 if (save.truck === 'store') save.wh = true;                       // 舊存檔：買過「自動運輸：進倉庫」的直接有倉庫
 const wh = { bld: null, pad: null, label: null, t: 0, eatT: 0, hungry: false };
+// 搬運工（v0.69，作者 10/18）：倉庫蓋好後旁邊可以雇；小人把倉庫的柴送去營火、木材送去修門和建築、去綠框收錢（updatePorters）
+save.porters = save.porters || 0;
+const porters = [];
+function addPorter() {
+  const g = new THREE.Group();
+  const b = box(0.6, 0.75, 0.45, M(0x8e6b3e)); b.position.y = 0.6; g.add(b);
+  const h = box(0.45, 0.42, 0.42, mats.skin); h.position.y = 1.2; g.add(h);
+  const c = box(0.5, 0.18, 0.48, M(0x3fa66b)); c.position.y = 1.48; g.add(c);
+  const cargo = box(0.55, 0.45, 0.35, mats.wood); cargo.position.set(0, 0.9, -0.4); cargo.visible = false; g.add(cargo);
+  g.position.set(LOT.store[0] - 1 + porters.length, 0, LOT.store[1] + 2); scene.add(g);
+  porters.push({ g, cargo, job: null, walk: 0 });
+}
 function buildWarehouse() {
   const [x, z] = LOT.store, g = new THREE.Group();
   const base = box(2.6, 1.6, 2.2, mats.wood); base.position.y = 0.8; g.add(base);
@@ -217,6 +231,9 @@ function buildWarehouse() {
   wh.label = makeLabel(); wh.label.scale.set(3, 1.5, 1); wh.label.position.set(x, 3, z); scene.add(wh.label);
   wh.bld = addBuilding('倉庫', g, 1.6);
   document.getElementById('pStore').style.display = '';
+  while (porters.length < save.porters) addPorter();
+  makeUnlock({ x: LOT.porter[0], z: LOT.porter[1], icon: '🛒', name: () => '雇用搬運工',
+    price: () => [120, 220][save.porters], buy: () => { save.porters++; addPorter(); toast('🛒 搬運工會把倉庫的柴、木材送去營火和北門，還會幫你收錢！'); } });
 }
 if (save.wh) buildWarehouse();
 else makeUnlock({ x: LOT.store[0], z: LOT.store[1] + 2.7, icon: '📦', mat: 'log', name: () => '蓋倉庫',
@@ -272,17 +289,17 @@ function updateStoveLook() { stoveG.visible = save.stove > 0; stone.visible = !s
 updateStoveLook();
 const heatRing = new THREE.Mesh(new THREE.RingGeometry(0.985, 1, 96), new THREE.MeshBasicMaterial({ color: 0xff9a3c, transparent: true, opacity: 0.8, depthWrite: false }));
 const heatFill = new THREE.Mesh(new THREE.CircleGeometry(1, 64), new THREE.MeshBasicMaterial({ color: 0xffb060, transparent: true, opacity: 0.1, depthWrite: false }));
-[heatRing, heatFill].forEach(m => { m.rotation.x = -Math.PI / 2; m.position.set(FX, 0.025, FZ); scene.add(m); });
+[heatRing, heatFill].forEach(m => { m.rotation.x = -Math.PI / 2; m.position.set(FX, 0.025, FZ); scene.add(decal(m, 3)); });
 const furnaceLabel = makeLabel(); furnaceLabel.scale.set(2.6, 1.3, 1); furnaceLabel.position.set(FX + 1.2, 2.4, FZ + 1.2); scene.add(furnaceLabel); // 放在火爐靠鏡頭那側，不蓋住後面背包付款格的標籤
 // 營火分段（作者 10/17 回饋第 5 項）：不同 % 有不同畫面；火越小，熊群來得越多
 const FIRE_STAGES = [ // min：營火 % 以上就是這一段；light：整體亮度；frost：畫面四周結霜；glow：火光；bears：熊群多來幾隻
-  { min: 70, name: '旺', light: 1, frost: 0, glow: 1.6, sky: 0xcfe3f2, bears: 0 },
-  { min: 40, name: '普通', light: 0.88, frost: 0.15, glow: 1.1, sky: 0xc4d9ea, bears: 0 },
-  { min: 20, name: '變弱', light: 0.72, frost: 0.45, glow: 0.7, sky: 0xaec6dc, bears: 1, msg: '🔥 營火變弱了，天氣變冷，熊會多來一隻' },
+  { min: 70, name: '旺', light: 1, frost: 0, glow: 1.15, sky: 0xcfe3f2, bears: 0 },
+  { min: 40, name: '普通', light: 0.88, frost: 0.15, glow: 0.85, sky: 0xc4d9ea, bears: 0 },
+  { min: 20, name: '變弱', light: 0.72, frost: 0.45, glow: 0.55, sky: 0xaec6dc, bears: 1, msg: '🔥 營火變弱了，天氣變冷，熊會多來一隻' },
   { min: 1, name: '快熄', light: 0.58, frost: 0.75, glow: 0.35, sky: 0x93aac2, bears: 2, msg: '🥶 營火快熄了！快加柴，熊群會更多' },
   { min: -1, name: '熄滅', light: 0.48, frost: 1, glow: 0, sky: 0x7f93a8, bears: 2 },
 ];
-const fireLight = new THREE.PointLight(0xff9a3c, 1.2, 14, 1.5); fireLight.position.set(FX, 2.5, FZ); scene.add(fireLight);
+const fireLight = new THREE.PointLight(0xff9a3c, 1.2, 14, 1.5); fireLight.position.set(FX, 4, FZ); scene.add(fireLight); // v0.70：抬高一點，地上的光散開、不會在營火旁亮成一塊白斑
 const skyCol = new THREE.Color(0xcfe3f2), tmpCol = new THREE.Color();
 let fireStage = 0;
 function fireStageOf(pct) { return FIRE_STAGES.findIndex(st => pct >= st.min); }
@@ -355,7 +372,7 @@ let snowT = 3, blockWarn = 0;
 function spawnPile() {
   let x, z;
   for (let tries = 0; tries < 20; tries++) {
-    if (Math.random() < 0.5) { x = CX + rand(-0.7, 0.7); z = rand(CZ + 0.5, CZ + 11 * TS); } // 村民排隊的路上
+    if (Math.random() < 0.5) { x = QX + rand(-0.5, 0.5); z = rand(CZ + 0.5, CZ + 11 * TS); } // 村民排隊的路上
     else { const a = rand(0, 6.28), r = rand(2, FENCE_R - 1.1); x = Math.cos(a) * r; z = Math.sin(a) * r; } // 營地裡
     if (Math.hypot(x - FX, z - FZ) > 1.8 && piles.every(p => Math.hypot(p.x - x, p.z - z) > 1.6)) break;
   }
@@ -431,7 +448,7 @@ function buildHeater(x, z, i) {
   const fl = new THREE.Mesh(new THREE.ConeGeometry(0.4, 0.8, 6), new THREE.MeshBasicMaterial({ color: 0xff8a1f })); fl.position.y = 2.85; g.add(fl);
   g.position.set(x, 0, z); scene.add(g);
   const ring = new THREE.Mesh(heatRing.geometry, heatRing.material), fill = new THREE.Mesh(heatFill.geometry, heatFill.material);
-  [ring, fill].forEach(m => { m.rotation.x = -Math.PI / 2; m.position.set(x, 0.026, z); scene.add(m); });
+  [ring, fill].forEach(m => { m.rotation.x = -Math.PI / 2; m.position.set(x, 0.026, z); scene.add(decal(m, 3)); });
   heaters.push({ x, z, ring, fill, bld: addBuilding('暖氣塔' + i, g, 0.8) });
 }
 
