@@ -125,7 +125,7 @@ function updateBuildings(dt) {
 // 血量、北門、營火這些警告不在這裡管，永遠會顯示；地上的付款格圖示一直都在
 function quietLabels() {
   const px = player.position.x, pz = player.position.z;
-  const list = [...mills.map(m => m.label), ...unlocks.filter(u => !u.done && !(u.cool > 0)).map(u => u.label), repairLabel, truckObj && truckObj.label, wh.label].filter(Boolean);
+  const list = [...mills.map(m => m.label), ...unlocks.filter(u => !u.done && !(u.cool > 0)).map(u => u.label), repairLabel, truckObj && truckObj.label, wh.label, mine.label].filter(Boolean);
   list.map(l => [l, Math.hypot(l.position.x - px, l.position.z - pz)]).sort((a, b) => a[1] - b[1])
     .forEach(([l, d], i) => l.visible = d < CFG.labelNear && i < CFG.labelMax);
 }
@@ -150,6 +150,7 @@ function step(dt) {
       if (d < 0.7 && d > 0) { nx = t.x + dx / d * 0.7; nz = t.z + dz / d * 0.7; }
     }
     [nx, nz] = pushOut(nx, nz, 0.4);                  // 不要穿過建築
+    [nx, nz] = pushMine(nx, nz, 0.4);                 // 不要走進礦坑的山
     const r1 = fd(nx, nz);                              // 圍欄擋住，只有門口過得去
     if (Math.abs(r1 - FENCE_R) < 0.4 && !inGate(nx, nz)) {
       const k = (fd(player.position.x, player.position.z) < FENCE_R ? FENCE_R - 0.4 : FENCE_R + 0.4) / r1;
@@ -189,17 +190,7 @@ function step(dt) {
           target.alive = false;
           if (target.isBear) target.respawn = CFG.bearRespawn; else target.regrow = target.coal ? CFG.coalRegrow : CFG.treeRegrow;
           const n = target.isBear ? CFG.meatPerBear : target.coal ? CFG.coalPerRock : CFG.logsPerTree;
-          for (let i = 0; i < n; i++) {
-            if (countOf(kind) >= capacity()) break;
-            const idx = stackHeight();
-            const m = new THREE.Mesh(logGeo, mats[kind === 'log' ? 'log' : kind]); m.castShadow = true;
-            m.userData.type = kind;
-            const f = { toBack: kind };
-            fly(m, tmp.set(target.x, 1 + i * 0.3, target.z), () => stackRoot.localToWorld(new THREE.Vector3(0, idx * 0.24, 0)), 0.35 + i * 0.08, () => {
-              stackRoot.add(m); carried.push(m); restack();
-            });
-            Object.assign(flies[flies.length - 1], f);
-          }
+          for (let i = 0; i < n && countOf(kind) < capacity(); i++) toBack(kind, target.x, 1 + i * 0.3, target.z, i * 0.08);
         }
       }
     }
@@ -302,7 +293,7 @@ function step(dt) {
   updateGuide(dt);
   updateBears(dt);
   updateVillagers(dt);
-  updateTower(dt); updateTransport(dt); updateStore(dt); updatePorters(dt);
+  updateTower(dt); updateTransport(dt); updateMine(dt); updateStore(dt); updatePorters(dt);
   updateWorkers(dt);
   updateGate(dt);
   updateColdWave(dt);
@@ -377,4 +368,4 @@ if (firstRun) {
   if (old) { try { localStorage.setItem(MODE_KEY, 'tutorial'); } catch (e) {} }
   else { resetting = true; showMenu(true); }
 }
-window.__game = { camera, coldOver, fireStage: () => fireStage, raidCount, plan, setPlan, planPointer, canBuild, heaters, piles, shovelers, spawnPile, rocks, coldWave, hero, save, furnace, houses, player, carried, mills, unlocks, trees, bears, gate, buildings, towers, step, render: () => renderer.render(scene, camera) }; // 測試用
+window.__game = { camera, coldOver, fireStage: () => fireStage, raidCount, plan, setPlan, planPointer, canBuild, heaters, piles, shovelers, spawnPile, seam, mine, coldWave, hero, save, furnace, houses, player, carried, mills, unlocks, trees, bears, gate, buildings, towers, step, render: () => renderer.render(scene, camera) }; // 測試用

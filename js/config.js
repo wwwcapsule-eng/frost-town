@@ -1,5 +1,5 @@
 'use strict';
-const VERSION = '0.71';
+const VERSION = '0.72';
 
 // ===== 數值（之後平衡都改這裡） =====
 const CFG = {
@@ -31,10 +31,11 @@ const CFG = {
   fuelMax: 100, fuelBurn: 0.4, fuelPerLog: 5, heat: [10, 17], // 火爐：柴滿 100、每秒燒 0.4、一根木頭 +5；暖氣圈半徑（最小、最大）
   stovePrice: [250, 400, 600], stoveBurn: 0.8, stoveHeat: 2, // 石爐 Lv4～6（領地 Lv3＋煤礦後）：價錢、每級燒柴變成幾成、每級暖氣圈 +2
   terrPrice: [60, 150], terrNeedBuys: 3, // 營火升級（擴大領地）：Lv1 60 元（升級任意 3 個項目後出現）、Lv2 150 元（村莊＋開拓東邊後）
-  minePrice: 100, coalHp: 4, coalPerRock: 2, coalRegrow: 20, fuelPerCoal: 20, // 煤礦（村莊解鎖）：價錢、敲幾下、掉幾塊、幾秒長回來；一塊煤 = 火爐 +20（木頭只有 +5）
+  minePrice: 100, coalHp: 4, coalPerRock: 2, coalRegrow: 4, fuelPerCoal: 20, // 煤礦坑（村莊＋領地 Lv1 解鎖）：價錢、敲幾下、掉幾塊、坑口煤層幾秒再露出來；一塊煤 = 火爐 +20（木頭只有 +5）
   snowEvery: 7, snowMax: 10, snowHp: 3, snowSlow: 0.45, shovelPrice: 60, // 雪堆（村莊開始）：幾秒積一堆、最多幾堆、鏟幾下、踩到剩幾成速度、鏟雪工價錢
   heaterPrice: 120, heaterR: 7, cell: 3, mill2Price: 80, grill2Price: 150, smithPrice: 200, coalValue: 6, truckPrice: 150, truckEvery: 4, storeMax: 150, // 自動運輸：價錢、每幾秒送一趟、倉庫每樣最多存多少（木材存滿，鋸木廠多做的才換錢）； // 鐵匠鋪：價錢、一塊煤打成工具賣幾元； 規劃模式：暖氣塔價錢、暖氣範圍半徑、格子大小；正式關：第二台鋸木機、第二座烤肉攤價錢
   whLogs: 10, plankRate: 0.3, fuelKeep: 20, foodKeep: 20, whFood: 10, eatEvery: 90, // 倉庫（第 2 時代）：揹幾根木頭蓋；建築價錢換成🧱木材的比例（原本的錢 ×0.3）；倉庫留幾根木頭當柴（多的送鋸木廠）；存多少烤肉（多的才賣村民）；蓋好送幾份食物；工人幾秒吃一次
+  cartPrice: 120, cartEvery: 6, cartLoad: 2, binMax: 20, // 雇礦工＋木軌礦車：價錢（換成木材）、幾秒推出來一車、一車幾塊煤、煤堆最多幾塊
   gatePrice: 30, gateW: 3.6, gateMax: 4, // 自己開的圍欄門：價錢（換成木材 ×0.3）、門寬、最多幾個
   coldFirst: 120, coldEvery: 150, coldLen: 30, coldBurn: 3, coldShrink: 0.75, coldReward: 30, // 寒潮（村莊開始）：第一次幾秒後、之後每幾秒、持續幾秒、火爐燒幾倍快、暖氣圈縮成幾成、撐過去的獎金 // 火爐升級（村莊解鎖）：暖氣圈最大半徑 +7
 };
@@ -56,13 +57,13 @@ const TERR = [ { r: 10 * TS, heat: 0, cam: 1.15 }, { r: 14 * TS, heat: 3, cam: 1
 // 營火廣場在 (0,-3)；N-S 主路 x≈0；東路 z≈0；民房在南邊一圈圈的地塊上，門朝營火
 const LOT = {
   bag: [-2.8, -5.6], axe: [2.8, -5.6], terr: [-1.9, -1.2], worker: [8.7, 3.1], porter: [4.0, 3.9], shovel: [-1.9, 6.6], store: [6.7, 3.1], tower1: [4.4, 0], tower2: [-4.4, 0],
-  mill: [6.4, -4], mill2: [-6.4, -4], bbq: [2.7, 6.3], minePad: [-8, 3], truckCash: [-8, 3], truckStore: [-8.6, -0.4],
+  mill: [6.4, -4], mill2: [-6.4, -4], bbq: [2.7, 6.3], minePad: [-8, 3], cart: [-10.81, 1.33], truckCash: [-8, 3], truckStore: [-8.6, -0.4],
 };
 for (const k in LOT) if (!/^tower/.test(k)) LOT[k] = LOT[k].map(v => +(v * TS).toFixed(2)); // 弩砲塔付款格貼著北門兩側（門寬不變），x 不放大；z 跟著圍欄（towerPadZ）
 const HOUSE_LOTS = [];                    // 第 1 圈 6 間（Lv1 領地），第 2 圈 10 間（Lv2 領地）
 [[11.6 * TS, [35, 50, 65, 115, 130, 145], 1], [16.2 * TS, [30, 41, 52, 63, 74, 106, 117, 128, 139, 150], 2]].forEach(([r, angs, ring]) =>
   angs.forEach(a => HOUSE_LOTS.push({ x: +(Math.cos(a * Math.PI / 180) * r).toFixed(2), z: +(Math.sin(a * Math.PI / 180) * r).toFixed(2), ring })));
-const ROCK_LOTS = [[-11.2, -0.6], [-10.2, 2.2], [-11.6, -3.4], [-9.9, -6.2], [-12, 1]].map(p => p.map(v => v * TS)); // 煤礦區（西邊，第 1 次擴大領地後圈進來）
+const MINE = { x: -11.9 * TS, z: -1.9 * TS }; // 煤礦坑的山（西邊，第 1 次擴大領地後圈進來）；坑口朝東
 
 // ===== 存檔 =====
 // 關卡（企劃 9.2）：教學關沿用原本的存檔；正式關（自己蓋／電腦託管）各有自己的存檔

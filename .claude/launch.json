@@ -1,6 +1,7 @@
 {
   "version": "0.0.1",
   "configurations": [
-    { "name": "frost-town", "runtimeExecutable": "node", "runtimeArgs": ["tools/serve.js"], "port": 8080 }
+    { "name": "frost-town", "runtimeExecutable": "node", "runtimeArgs": ["tools/serve.js"], "port": 8080 },
+    { "name": "frost-town-2", "runtimeExecutable": "node", "runtimeArgs": ["-e", "process.env.PORT=8091;require('./tools/serve.js')"], "port": 8091 }
   ]
 }

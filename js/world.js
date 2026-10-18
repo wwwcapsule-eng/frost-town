@@ -73,7 +73,7 @@ function rebuildRoads() {
   roads.children.slice().forEach(m => roads.remove(m));
   const main = [[0, -FENCE_R - 1.5, 0, FENCE_R + 0.5]];               // 南北主路：北門 → 營火 → 南門
   if (save.east) main.push([0, 0, FENCE_R + 0.5, 0]);                 // 東路
-  if (save.mine) main.push([-FENCE_R - 0.5, 0, 0, 0]);                // 西路：通到煤礦區（v0.60 道路網）
+  if (save.mine) main.push([MINE.x + 3.3, 0, 0, 0], [MINE.x + 3.3, -1.4, MINE.x + 3.3, 0]); // 西路：通到礦坑口前（不穿過山）
   [[1, 9.8 * TS], [2, 14.3 * TS]].forEach(([ring, r]) => {                      // 民房環狀路：只鋪有民房的那段弧，並接到主路（90°）
     const angs = HOUSE_LOTS.slice(0, save.houses).filter(l => l.ring === ring).map(l => Math.atan2(l.z, l.x) * 180 / Math.PI);
     if (!angs.length) return;

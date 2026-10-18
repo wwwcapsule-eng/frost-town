@@ -351,20 +351,82 @@ function updateFurnace(dt) {
   $('fuel').textContent = pct; $('fireName').textContent = fireName(); $('fuelBar').firstElementChild.style.width = pct + '%'; $('fuelBar').classList.toggle('danger', pct < 20);
 }
 
-// ===== 煤礦：營地西南邊的黑色礦石，買下後主角敲得到；煤丟進火爐很耐燒（伐木工不挖煤） =====
-const rocks = [];
-function addRock(x, z) {
-  const g = new THREE.Group();
-  const base = box(1.3, 0.8, 1.1, mats.rock); base.position.y = 0.4; base.rotation.y = rand(0, 3); g.add(base);
-  for (let i = 0; i < 3; i++) { const c = box(rand(0.35, 0.55), rand(0.3, 0.5), rand(0.35, 0.55), mats.coal); c.position.set(rand(-0.4, 0.4), 0.8 + rand(0, 0.15), rand(-0.3, 0.3)); c.rotation.set(rand(0, 1), rand(0, 3), 0); g.add(c); }
+// ===== 煤礦坑（作者 10/18：礦要有礦坑的樣子，不是地上冒出一堆）：西邊的岩山、木框坑口，一直都在；
+// 開採後封口木板拆掉，主角在坑口敲煤層；雇礦工後，礦車沿木軌從坑裡推煤出來倒在煤堆，主角或運輸隊來拿（伐木工不挖煤）
+const MINE_FX = MINE.x + 2.1, MINE_RZ = MINE.z - 0.55, MINE_BIN = [MINE_FX + 2.0, MINE_RZ]; // 坑口岩壁正面的 x、木軌的 z、煤堆位置
+function inMineHill(x, z, pad) { return ((x - MINE.x) / (2.1 + pad)) ** 2 + ((z - MINE.z) / (3 + pad)) ** 2 < 1; }
+function nearMine(x, z, pad) {                                    // 規劃、砲塔不能蓋在山、坑口前、木軌和煤堆上
+  return inMineHill(x, z, pad) || (x > MINE_FX - 0.5 && x < MINE_BIN[0] + 0.8 + pad && Math.abs(z - MINE.z) < 1.4 + pad);
+}
+function pushMine(x, z, pad) {                                   // 撞到山就沿著山邊滑開
+  if (!inMineHill(x, z, pad)) return [x, z];
+  const ax = 2.1 + pad, az = 3 + pad, dx = (x - MINE.x) / ax, dz = (z - MINE.z) / az, d = Math.hypot(dx, dz) || 1;
+  return [MINE.x + dx / d * ax, MINE.z + dz / d * az];
+}
+const mine = { g: new THREE.Group(), label: makeLabel(), binLabel: makeLabel(), cart: null, cartT: 0, cartLoaded: false };
+const darkMat = M(0x121317);
+{
+  const g = mine.g;
+  const hill = new THREE.Mesh(new THREE.IcosahedronGeometry(2.6, 1), new THREE.MeshToonMaterial({ color: 0x6b7280, gradientMap: TOON, flatShading: true }));
+  hill.scale.set(0.8, 0.85, 1.15); hill.position.set(MINE.x, 0.25, MINE.z); hill.castShadow = hill.receiveShadow = true; g.add(hill);
+  const cap = new THREE.Mesh(new THREE.IcosahedronGeometry(1, 1), mats.leafSnow); // 山頂一小片積雪，看得出是岩山
+  cap.scale.set(0.9, 0.35, 1.3); cap.position.set(MINE.x - 0.3, 2.3, MINE.z); g.add(cap);
+  const face = box(0.7, 2.4, 3.4, mats.rock); face.position.set(MINE_FX - 0.35, 1.2, MINE.z); g.add(face); // 坑口切平的岩壁
+  const hole = new THREE.Mesh(new THREE.PlaneGeometry(2, 1.7), new THREE.MeshBasicMaterial({ color: 0x0b0c0f, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 })); // 黑洞口貼在岩壁上，不閃
+  hole.rotation.y = Math.PI / 2; hole.position.set(MINE_FX + 0.03, 0.85, MINE.z); g.add(hole);
+  [-1.05, 1.05].forEach(o => { const p = box(0.22, 2, 0.22, mats.wood); p.position.set(MINE_FX + 0.12, 1, MINE.z + o); g.add(p); }); // 木框
+  const top = box(0.3, 0.26, 2.6, mats.wood); top.position.set(MINE_FX + 0.12, 2.05, MINE.z); g.add(top);
+  const snowTop = box(0.34, 0.08, 2.6, mats.leafSnow); snowTop.position.set(MINE_FX + 0.12, 2.22, MINE.z); g.add(snowTop);
+  mine.boards = new THREE.Group();                                // 還沒開採：坑口釘著交叉木板
+  [0.6, -0.6].forEach(r => { const b = box(0.08, 0.22, 2.3, mats.trunk); b.rotation.x = r; b.position.set(MINE_FX + 0.08, 0.9, MINE.z); mine.boards.add(b); });
+  g.add(mine.boards); scene.add(g);
+  mine.label.scale.set(3, 1.5, 1); mine.label.position.set(MINE.x + 0.8, 3.6, MINE.z); mine.label.set(['⛏️ 煤礦坑']); scene.add(mine.label);
+}
+// 坑口的煤層：主角敲它（跟樹一樣放在 trees 裡），敲完縮回去，幾秒後再露出來
+const seam = (() => {
+  const g = new THREE.Group(), x = MINE_FX + 0.35, z = MINE.z + 0.55; // 煤層在鏡頭這一側，木軌在裡側
+  for (let i = 0; i < 4; i++) { const c = box(rand(0.35, 0.5), rand(0.3, 0.55), rand(0.35, 0.5), mats.coal); c.position.set(rand(-0.25, 0.15), 0.2 + i * 0.12, rand(-0.25, 0.25)); c.rotation.set(rand(0, 1), rand(0, 3), 0); g.add(c); }
   g.position.set(x, 0, z); g.visible = !!save.mine; scene.add(g);
   const t = { g, x, z, hp: CFG.coalHp, alive: true, regrow: 0, sc: 1, shake: 0, locked: !save.mine, coal: true };
-  trees.push(t); rocks.push(t);
+  trees.push(t); return t;
+})();
+function buildCart() {                                           // 木軌（坑裡伸出來）＋礦車＋煤堆
+  const g = new THREE.Group(), x0 = MINE_FX - 0.6, x1 = MINE_BIN[0] - 0.7;
+  [-0.28, 0.28].forEach(o => { const r = box(x1 - x0, 0.06, 0.08, mats.wood); r.position.set((x0 + x1) / 2, 0.05, MINE_RZ + o); g.add(r); });
+  for (let x = x0 + 0.6; x < x1; x += 0.5) { const s = box(0.16, 0.04, 0.8, mats.trunk); s.position.set(x, 0.02, MINE_RZ); g.add(s); }
+  const cart = new THREE.Group(), body = box(0.85, 0.42, 0.62, mats.wood); body.position.y = 0.36; cart.add(body);
+  [[-0.28, -0.3], [0.28, -0.3], [-0.28, 0.3], [0.28, 0.3]].forEach(([a, b]) => { const w = box(0.2, 0.2, 0.06, darkMat); w.position.set(a, 0.12, b); cart.add(w); });
+  mine.load = box(0.7, 0.16, 0.5, mats.coal); mine.load.position.y = 0.6; cart.add(mine.load);
+  cart.position.set(x0, 0, MINE_RZ); g.add(cart); mine.cart = cart;
+  mine.bin = new THREE.Group();                                   // 煤堆：越多越高
+  for (let i = 0; i < 6; i++) { const c = box(0.4, 0.3, 0.4, mats.coal); c.position.set(rand(-0.3, 0.3), 0.15 + (i >> 1) * 0.22, rand(-0.3, 0.3)); c.rotation.y = rand(0, 3); mine.bin.add(c); }
+  mine.bin.position.set(MINE_BIN[0], 0, MINE_BIN[1]); g.add(mine.bin);
+  mine.binLabel.scale.set(2.2, 1.1, 1); mine.binLabel.position.set(MINE_BIN[0], 1.5, MINE_BIN[1]); scene.add(mine.binLabel);
+  scene.add(g);
 }
-ROCK_LOTS.forEach(([x, z]) => addRock(x, z));
-let mineUnlock = null;
-function openMine() { rocks.forEach(t => { t.locked = false; t.g.visible = true; }); document.getElementById('pCoal').style.display = ''; }
+let mineUnlock = null, cartUnlock = null, binCd = 0;
+function openMine() { seam.locked = false; seam.g.visible = true; mine.g.remove(mine.boards); document.getElementById('pCoal').style.display = ''; }
 if (save.mine) openMine();
+if (save.cart) buildCart();
+save.bin = save.bin || 0;
+function updateMine(dt) {
+  if (!mine.cart) return;
+  const x0 = MINE_FX - 0.6, x1 = MINE_BIN[0] - 0.9;
+  mine.cartT = (mine.cartT + dt) % CFG.cartEvery;
+  const p = mine.cartT / CFG.cartEvery;                           // 0～0.4 推出來、0.4～0.5 倒煤、0.5～0.9 推回去、最後在坑裡裝煤
+  const k = p < 0.4 ? p / 0.4 : p < 0.5 ? 1 : p < 0.9 ? 1 - (p - 0.5) / 0.4 : 0;
+  mine.cart.position.x = x0 + (x1 - x0) * k;
+  if (p < 0.4 && !mine.cartLoaded) mine.cartLoaded = true;
+  if (p >= 0.4 && mine.cartLoaded) { mine.cartLoaded = false; save.bin = Math.min(CFG.binMax, save.bin + CFG.cartLoad); }
+  mine.load.visible = p < 0.4 || p >= 0.9;
+  mine.bin.children.forEach((c, i) => c.visible = save.bin > i * (CFG.binMax / 6));
+  binCd -= dt;                                                    // 主角站在煤堆旁：一塊一塊揹起來
+  if (save.bin > 0 && binCd <= 0 && countOf('coal') < capacity() && Math.hypot(player.position.x - MINE_BIN[0], player.position.z - MINE_BIN[1]) < 1.5) {
+    binCd = 0.12; save.bin--; toBack('coal', MINE_BIN[0], 0.6, MINE_BIN[1], 0);
+  }
+  mine.binLabel.visible = Math.hypot(player.position.x - MINE_BIN[0], player.position.z - MINE_BIN[1]) < 2.5; // 站在煤堆旁才顯示數量，不蓋住坑口
+  mine.binLabel.set(['⚫ 煤堆 ' + save.bin + '/' + CFG.binMax]);
+}
 
 // ===== 雪堆：村莊開始，路上會積雪；踩到走很慢，堆在櫃台前村民就不買；主角站旁邊自動鏟，也能雇鏟雪工 =====
 const piles = [], pileMat = new THREE.MeshLambertMaterial({ color: 0xcfe3f7, flatShading: true });
