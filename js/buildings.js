@@ -63,16 +63,15 @@ function makeVillager(i, walkIn) {
 // 排第一個的拿到烤肉：有空床 → 留下來當居民（不付錢）；沒空床 → 付錢走人
 let refT = 0, refGoT = CFG.refLeave, coldMsgT = 0, crowdT = CFG.leaveEvery;
 for (let i = 0; i < 4; i++) villagers.push(makeVillager(i));
-function refLeave(v, stay) { leaving.push({ g: v.g, t: stay ? 2.2 : 7, dir: stay ? Math.PI + rand(-0.3, 0.3) : rand(-0.12, 0.12) }); }
+function refLeave(v, stay) { if (v.jerky) sellJerky(v); leaving.push({ g: v.g, t: stay ? 2.2 : 7, dir: stay ? Math.PI + rand(-0.3, 0.3) : rand(-0.12, 0.12) }); }
 function updateVillagers(dt) {
   refT -= dt * (save.level >= 1 && coldWave.on > 0 ? CFG.refEvery / CFG.refCold : 1);
   if (refT <= 0) {
     refT = CFG.refEvery;
-    if (save.store.jerky > 0) {                                       // 路過的流民買一份肉乾帶在路上吃（燻肉架）
-      save.store.jerky--; save.cash += CFG.jerkyValue; sfx.coin();
-      if (!save.jerkyTip) { save.jerkyTip = 1; toast('🥓 路過的流民買了肉乾 +' + CFG.jerkyValue + ' 元'); }
-    }
-    if (villagers.length < CFG.refMax) villagers.push(makeVillager(villagers.length, true));
+    const want = save.store.jerky > 0;                                 // 路過的流民買一份肉乾帶在路上吃（燻肉架），走近燻肉架時才交貨
+    if (want) save.store.jerky--;
+    if (villagers.length < CFG.refMax) { const v = makeVillager(villagers.length, true); v.jerky = want; villagers.push(v); }
+    else if (want) { save.cash += CFG.jerkyValue; sfx.coin(); }       // 隊伍滿了：買了就走
   }
   refGoT -= dt; coldMsgT -= dt; crowdT -= dt;
   if (crowdT <= 0) { crowdT = CFG.leaveEvery; if (save.res > beds() && idle() > 0) { save.res--; toast('🏚️ 床不夠（民房被拆或凍住），1 位居民離開了'); } }
@@ -84,6 +83,7 @@ function updateVillagers(dt) {
     }
   }
   villagers.forEach((v, i) => {
+    if (v.jerky && Math.hypot(v.g.position.x - SMOKE[0], v.g.position.z - SMOKE[1]) < 11) sellJerky(v);
     const p = QUEUE(i), d = p.sub(v.g.position); d.y = 0;
     const len = d.length();
     if (len > 0.05) { v.g.position.addScaledVector(d, Math.min(1, 3 * slowAt(v.g.position.x, v.g.position.z) * dt / len)); v.g.position.y = Math.abs(Math.sin(guideT * 10 + i)) * 0.08; }
@@ -105,6 +105,7 @@ function updateVillagers(dt) {
       villagers.shift(); refLeave(front, stay);
     }
   }
+  rackStrips.forEach((s, i) => s.visible = i < save.store.jerky);
   for (let i = leaving.length - 1; i >= 0; i--) {
     const l = leaving[i]; l.t -= dt;
     l.g.position.x += Math.sin(l.dir) * 2.5 * dt; l.g.position.z += Math.cos(l.dir) * 2.5 * dt;
@@ -266,10 +267,21 @@ const wh = { bld: null, pad: null, label: null, t: 0, eatT: 0, hungry: false };
 // 燻肉架（v0.81，作者：肉越來越多）：烤肉攤的升級，放在攤子右前方；櫃台擺滿 CFG.counterMax 份後，多的烤肉燻成🥓肉乾存進倉庫，
 // 路過的流民每人買一份（CFG.jerkyValue 元）；沒有燻肉架時櫃台滿了就先不烤
 const SMOKE = [LOT.bbq[0] + 2.4, LOT.bbq[1] + 2.4];
+const rackStrips = [];
+const jerkyMesh = () => box(0.75, 0.06, 0.24, mats.jerky);       // 肉乾：深褐色薄片，跟紅色的生肉、烤肉分得出來
+function sellJerky(v) {                                          // 一片肉乾從燻肉架飛到流民手上，流民付錢
+  v.jerky = false;
+  const m = jerkyMesh(), x = SMOKE[0], z = SMOKE[1];
+  fly(m, new THREE.Vector3(x, 1, z), () => v.g.position.clone().add(tmp.set(0, 1.3, 0)), 0.6, () => {
+    v.g.add(m); m.position.set(0.32, 0.75, 0.25); m.rotation.set(0, 0, 1.2);
+    save.cash += CFG.jerkyValue; sfx.coin(); floatText('🥓 +' + CFG.jerkyValue + ' 💵', v.g.position.x, v.g.position.z);
+    if (!save.jerkyTip) { save.jerkyTip = 1; toast('🥓 路過的流民買了肉乾 +' + CFG.jerkyValue + ' 元'); }
+  }, 1.2);
+}
 function buildRack() {
   const g = new THREE.Group(); g.position.set(SMOKE[0], 0, SMOKE[1]); scene.add(g);
   kit('rack', g, 0, 0, 0, Math.PI / 2);
-  [-0.35, 0, 0.35].forEach(o => { const s = box(0.12, 0.45, 0.08, M(0x9a3b2a)); s.position.set(0.55, 0.75, o); g.add(s); }); // 掛著的肉條
+  for (let i = 0; i < 6; i++) { const s = box(0.1, 0.5, 0.06, mats.jerky); s.position.set(0.55, 0.72, -0.5 + i * 0.2); g.add(s); rackStrips.push(s); } // 掛著的肉乾：倉庫有幾份就掛幾條（最多 6）
   props.push({ x: SMOKE[0], z: SMOKE[1], r: 0.8 });
 }
 if (save.smoke) buildRack();

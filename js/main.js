@@ -65,7 +65,7 @@ const GOALS = PRO ? [ // 正式關：建築要自己用規劃模式選位置，�
   { t: () => '蓋民房、給流民烤肉留人，居民到 20（' + population() + '/20）', done: () => save.level >= 1 },
   { t: () => '開採煤礦，煤很耐燒', done: () => !!save.mine },
   { t: () => '用🏗️規劃蓋🔨鐵匠鋪，揹煤去賣', done: () => planned('smith') },
-  { t: () => '蓋🚚自動運輸，木頭、煤自動換錢', done: () => !!save.truck },
+  { t: () => '雇用⛏️煤礦工，煤自動送進倉庫', done: () => !!(save.coalers || save.truck) },
   { t: () => '營火升級 Lv2，領地再擴大', done: () => save.territory >= 2 },
   { t: () => '蓋民房、留住流民，居民到 80（' + population() + '/80）', done: () => save.level >= 2 },
   { t: () => '把營火進化成石爐（營火 Lv4）', done: () => save.stove >= 1 },
@@ -306,7 +306,7 @@ function step(dt) {
   updateBears(dt);
   updateVillagers(dt);
   updateTower(dt); updateTransport(dt); updateMine(dt); updateStore(dt); updatePorters(dt);
-  updateWorkers(dt); updateHunters(dt);
+  updateWorkers(dt); updateHunters(dt); updateCoalers(dt);
   updateGate(dt);
   updateColdWave(dt);
   updateSnow(dt);
