@@ -16,7 +16,6 @@ function makeMill(x, z, opt = {}) {
   return o;
 }
 const mills = [makeMill(LOT.mill[0], LOT.mill[1], { inX: LOT.mill[0] - 1.3, inZ: LOT.mill[1] + 2.7, outX: LOT.mill[0] + 1.3, outZ: LOT.mill[1] + 2.7 })];
-function addMill2() { const [x, z] = LOT.mill2; mills.push(makeMill(x, z, { key: '第二台鋸木機', inX: x - 1.3, inZ: z + 2.7, outX: x + 1.3, outZ: z + 2.7 })); }
 const GRILL = { name: '烤肉攤', accept: 'meat', value: CFG.meatValue, time: 0.8, roof: M(0xe07b22), customers: true };
 // v0.75（作者 10/18：不同類型的格子放台子不同邊）：櫃台在左邊（主路那側），揹肉格在右邊、收錢格在前面靠櫃台（村民在櫃台付錢）；北邊被攤子擋住看不到，不放
 mills.push(makeMill(LOT.bbq[0], LOT.bbq[1], Object.assign({ inX: LOT.bbq[0] + 2.4, inZ: LOT.bbq[1] - 0.6, outX: LOT.bbq[0] - 0.7, outZ: LOT.bbq[1] + 2.4 }, GRILL)));
@@ -39,6 +38,18 @@ function spawnBill(mill, from) {
 
 // ===== 村民排隊買烤肉：烤好的肉放櫃台，排第一個的村民拿走並付錢 =====
 const bbq = mills[1];
+// 門口的成品堆（v0.82，作者：做好的東西不要自己飛進倉庫）：鋸木廠做的🪚木材、烤肉攤要給倉庫的🍖烤肉先堆在門口，由搬運工揹去倉庫
+save.pile = Object.assign({ plank: 0, food: 0 }, save.pile);
+const PILES = {};
+function addPile(kind, m, ox, oz) {
+  const g = new THREE.Group(); g.position.set(ox, 0, oz); m.g.add(g);
+  for (let i = 0; i < 6; i++) {
+    const b = kind === 'plank' ? box(0.9, 0.12, 0.4, mats.wood) : box(0.9, 0.22, 0.32, mats.meat);
+    b.position.set((i % 2) * 0.48 - 0.24, (kind === 'plank' ? 0.07 : 0.12) + (i >> 1) * (kind === 'plank' ? 0.14 : 0.24), 0); b.rotation.y = 1.57; g.add(b);
+  }
+  PILES[kind] = { g, at: () => new THREE.Vector3(m.bld.x + ox, 0, m.bld.z + oz) };
+}
+addPile('plank', mills[0], 2.3, 1.4); addPile('food', bbq, 1.0, 1.9);
 // 櫃台貼在烤肉攤左邊、靠主路；村民在主路上（QX）往南門排隊，遠離北邊森林的熊
 const CX = LOT.bbq[0] - 2.3, CZ = LOT.bbq[1], QX = CX - 1.1;
 const counter = box(1, 0.8, 1.4, mats.wood); counter.position.set(CX, 0.4, CZ); scene.add(counter); props.push({ x: CX, z: CZ, r: 0.75 });
@@ -51,12 +62,12 @@ function addCooked(mill) {
 const QUEUE = i => new THREE.Vector3(QX, 0, CZ + i * 1.0); // 從櫃台前沿主路往南門排
 const SHIRTS = [0x2f8fd8, 0x3fa66b, 0xd9a03f, 0x9b5fd0, 0xe06a6a];
 const villagers = [], leaving = [];
-function makeVillager(i) {
+function makeVillager(i, walkIn) {
   const g = new THREE.Group();
   const b = box(0.55, 0.7, 0.4, M(SHIRTS[(Math.random() * SHIRTS.length) | 0])); b.position.y = 0.55; g.add(b);
   const h = box(0.42, 0.4, 0.4, mats.skin); h.position.y = 1.1; g.add(h);
   const c = box(0.48, 0.16, 0.45, M(0x24486b)); c.position.y = 1.36; g.add(c);
-  const p = QUEUE(i + 4); g.position.set(p.x + rand(-0.3, 0.3), 0, p.z); g.rotation.y = Math.PI;
+  const p = QUEUE(i + 4); g.position.set(p.x + rand(-0.3, 0.3), 0, walkIn ? Math.max(p.z, 42) : p.z); g.rotation.y = Math.PI; // v0.81（作者：南邊來人）：新來的流民從南邊的路走進來
   scene.add(g);
   return { g, wait: 0 };
 }
@@ -64,10 +75,16 @@ function makeVillager(i) {
 // 排第一個的拿到烤肉：有空床 → 留下來當居民（不付錢）；沒空床 → 付錢走人
 let refT = 0, refGoT = CFG.refLeave, coldMsgT = 0, crowdT = CFG.leaveEvery;
 for (let i = 0; i < 4; i++) villagers.push(makeVillager(i));
-function refLeave(v, stay) { leaving.push({ g: v.g, t: stay ? 2.2 : 3.5, dir: stay ? Math.PI + rand(-0.3, 0.3) : rand(-0.12, 0.12) }); }
+function refLeave(v, stay) { if (v.jerky) sellJerky(v); leaving.push({ g: v.g, t: stay ? 2.2 : 7, dir: stay ? Math.PI + rand(-0.3, 0.3) : rand(-0.12, 0.12) }); }
 function updateVillagers(dt) {
   refT -= dt * (save.level >= 1 && coldWave.on > 0 ? CFG.refEvery / CFG.refCold : 1);
-  if (refT <= 0) { refT = CFG.refEvery; if (villagers.length < CFG.refMax) villagers.push(makeVillager(villagers.length)); }
+  if (refT <= 0) {
+    refT = CFG.refEvery;
+    const want = save.store.jerky > 0;                                 // 路過的流民買一份肉乾帶在路上吃（燻肉架），走近燻肉架時才交貨
+    if (want) save.store.jerky--;
+    if (villagers.length < CFG.refMax) { const v = makeVillager(villagers.length, true); v.jerky = want; villagers.push(v); }
+    else if (want) { save.cash += CFG.jerkyValue; sfx.coin(); }       // 隊伍滿了：買了就走
+  }
   refGoT -= dt; coldMsgT -= dt; crowdT -= dt;
   if (crowdT <= 0) { crowdT = CFG.leaveEvery; if (save.res > beds() && idle() > 0) { save.res--; toast('🏚️ 床不夠（民房被拆或凍住），1 位居民離開了'); } }
   if (refGoT <= 0) {
@@ -78,7 +95,10 @@ function updateVillagers(dt) {
     }
   }
   villagers.forEach((v, i) => {
-    const p = QUEUE(i), d = p.sub(v.g.position); d.y = 0;
+    // 要買肉乾的流民先繞去燻肉架前，拿到肉乾、付完錢才去排隊
+    const stand = v.jerky ? new THREE.Vector3(SMOKE[0] - 1.4, 0, SMOKE[1] + 0.3) : null;
+    if (stand && v.g.position.distanceTo(stand) < 0.3) { v.buyT = (v.buyT || 0) + dt; if (v.buyT > 0.6) sellJerky(v); }
+    const p = stand || QUEUE(i), d = p.sub(v.g.position); d.y = 0;
     const len = d.length();
     if (len > 0.05) { v.g.position.addScaledVector(d, Math.min(1, 3 * slowAt(v.g.position.x, v.g.position.z) * dt / len)); v.g.position.y = Math.abs(Math.sin(guideT * 10 + i)) * 0.08; }
     else v.g.position.y = 0;
@@ -99,6 +119,7 @@ function updateVillagers(dt) {
       villagers.shift(); refLeave(front, stay);
     }
   }
+  rackStrips.forEach((s, i) => s.visible = i < save.store.jerky);
   for (let i = leaving.length - 1; i >= 0; i--) {
     const l = leaving[i]; l.t -= dt;
     l.g.position.x += Math.sin(l.dir) * 2.5 * dt; l.g.position.z += Math.cos(l.dir) * 2.5 * dt;
@@ -126,12 +147,11 @@ function makeUnlock(def) {
   return u;
 }
 makeUnlock({ x: LOT.bag[0], z: LOT.bag[1], icon: '🎒', name: () => '背包擴充',
-  price: () => [12, 35, 90][save.bag], buy: () => { save.bag++; toast('背包容量 ' + CFG.capacity[save.bag] + '！'); } });
+  price: () => [12, 35, 90][save.bag], buy: () => { save.bag++; toast('背包容量 ' + CFG.capacity[save.bag] + '！伐木工也一次揹 ' + CFG.workerLoadLv[save.bag] + ' 根'); } });
 makeUnlock({ x: LOT.axe[0], z: LOT.axe[1], icon: '🪓', name: () => '斧頭升級',
-  price: () => [20, 60, 140][save.axe], buy: () => { save.axe++; toast('砍得更快了！'); } });
+  price: () => [20, 60, 140][save.axe], buy: () => { save.axe++; toast('砍得更快了！伐木工的斧頭也一起升級'); } });
 function openEast() { roadsDirty = true; scene.remove(iceWall); trees.forEach(t => { if (!t.coal) t.locked = false; }); }
 if (save.east) openEast();
-if (save.mill2 && !PRO) addMill2(); // 正式關的第二台鋸木機在 save.plan 裡
 
 // ===== 弩砲塔：自動射北邊的熊，熊倒下的肉掉在地上，走過去撿 =====
 // v0.71（作者 10/18：北門一帶標誌重疊）：付款格放在北門內側兩旁、跟修門格同一排，擴大領地時跟著圍欄搬（applyTerritory 看 north）
@@ -209,7 +229,7 @@ function updateGate(dt) {
 // ===== 伐木工：自己找樹砍、揹滿就送倉庫，一直循環 =====
 // v0.80（作者：倉庫要更簡單）：蓋了倉庫後，鋸木廠的🪵投放格、💵收錢格收起來（木頭由倉庫自動送、多的木材直接換錢），
 // 鋸木廠旁邊只剩兩格：👷 雇用伐木工、🪚 升級伐木場（每升 1 級多雇 1 個伐木工）
-save.millLv = save.millLv || 0;
+save.millLv = save.millLv || (save.mill2 && !PRO ? 1 : 0);          // v0.81：拿掉第二台鋸木機，舊存檔蓋過的當作升過 1 級
 function addMillUnlocks() {
   const m = mills[0], a = m.inPad.position, b = m.outPad.position;
   m.inPad.visible = m.outPad.visible = false;
@@ -218,8 +238,25 @@ function addMillUnlocks() {
     need: () => save.workers > save.millLv ? '🪚 先升級伐木場' : needHand(),
     price: () => [60, 120, 200][save.workers], buy: () => { save.workers++; addWorker(); toast('👷 伐木工上工了！木頭會自己送進倉庫'); } });
   makeUnlock({ x: b.x, z: b.z, icon: '🪚', mat: 'plank', name: () => '升級伐木場 Lv' + (save.millLv + 2),
-    price: () => [P(80), P(160)][save.millLv], buy: () => { save.millLv++; toast('🪚 伐木場升級了，可以多雇 1 個伐木工！'); } });
+    price: () => [P(80), P(160)][save.millLv], buy: () => { save.millLv++; millLook(); toast('🪚 伐木場升級了：多雇 1 個伐木工、鋸得更快！'); } });
 }
+// 伐木場升級的樣子（v0.81，作者：要看得出升級，不要蓋第二台）：每升 1 級鋸得快一倍（倉庫每秒多送 1 根木頭）；
+// Lv2 旁邊多一大堆原木＋第二片鋸片；Lv3 再多一個工作台棚子和一疊木板
+function millLook() {
+  const m = mills[0], g = m.g, lv = save.millLv;
+  m.time = CFG.millTime / (1 + lv); m.name = '鋸木廠' + (lv ? ' Lv' + (lv + 1) : '');
+  if (lv >= 1 && !m.saw2) {
+    kit('logs', g, 2.1, 0, -0.1, Math.PI / 2);
+    m.saw2 = m.saw.clone(); m.saw2.position.x = -0.85; g.add(m.saw2); m.bld.r = 2.0;
+  }
+  if (lv >= 2 && !m.shed) {
+    m.shed = new THREE.Group(); m.shed.position.set(-2.1, 0, 0); g.add(m.shed);
+    const roof = box(1.5, 0.2, 2.6, m.roof); roof.position.y = 1.5; roof.rotation.z = -0.2; m.shed.add(roof);
+    [-1.1, 1.1].forEach(z => { const p = box(0.16, 1.4, 0.16, mats.trunk); p.position.set(-0.55, 0.7, z); m.shed.add(p); });
+    kit('bench', m.shed, 0, 0, 0.4, Math.PI / 2); kit('planks', m.shed, 0, 0, -0.7);
+  }
+}
+millLook();
 const workers = [];
 function addWorker() {
   const g = new THREE.Group();
@@ -237,10 +274,49 @@ makeUnlock({ x: LOT.hunter[0], z: towerPadZ(), north: true, icon: '🎯', name: 
 
 // ===== 倉庫（企劃 11.3～11.5，第 2 時代第一棟）：揹 10 根木頭來蓋；工人採的木頭送進來，
 // 倉庫自動補營火、用木材修門和建築、多的木頭送去鋸木廠做成🪚木材；烤肉先存進來給工人吃，多的才賣村民 =====
-save.store = Object.assign({ log: 0, coal: 0, plank: 0, food: CFG.whFood }, save.store);
+save.store = Object.assign({ log: 0, coal: 0, plank: 0, food: CFG.whFood, jerky: 0 }, save.store);
 save.store.log += (save.store.pine || 0) + (save.store.birch || 0); delete save.store.pine; delete save.store.birch; // v0.73 舊存檔分開放的松木、白樺併回木頭
 if (save.truck === 'store') save.wh = true;                       // 舊存檔：買過「自動運輸：進倉庫」的直接有倉庫
 const wh = { bld: null, pad: null, label: null, t: 0, eatT: 0, hungry: false };
+// 燻肉架（v0.81，作者：肉越來越多）：烤肉攤的升級，放在攤子右前方；櫃台擺滿 CFG.counterMax 份後，多的烤肉燻成🥓肉乾存進倉庫，
+// 路過的流民每人買一份（CFG.jerkyValue 元）；沒有燻肉架時櫃台滿了就先不烤
+const SMOKE = [LOT.bbq[0] + 2.4, LOT.bbq[1] + 2.4];
+const rackStrips = [];
+function jerkyMesh() {                                           // 肉乾：三片深褐色長條用麻繩綁成一捆，跟紅色方塊的生肉、烤肉分得出來
+  const g = new THREE.Group();
+  [-0.13, 0, 0.13].forEach((o, i) => { const s = box(0.95, 0.07, 0.12, mats.jerky); s.position.set(0, i * 0.03, o); s.rotation.y = (i - 1) * 0.12; g.add(s); });
+  const rope = box(0.1, 0.14, 0.44, M(0xe6d29a)); rope.position.y = 0.03; g.add(rope);
+  return g;
+}
+// 燻肉架冒煙：灰色煙團往上飄
+const smokeMat = new THREE.MeshBasicMaterial({ color: 0xb8bec6, transparent: true, opacity: 0.7, depthWrite: false });
+function smokePuff() {
+  for (let i = 0; i < 3; i++) {
+    const s = new THREE.Mesh(new THREE.SphereGeometry(0.28 + i * 0.08, 8, 6), smokeMat);
+    fly(s, new THREE.Vector3(SMOKE[0] + rand(-0.2, 0.2), 1.3, SMOKE[1] + rand(-0.2, 0.2)), () => new THREE.Vector3(SMOKE[0] + 0.6, 3.6 + i * 0.4, SMOKE[1] - 0.4), 1.4 + i * 0.3, () => scene.remove(s), 0);
+  }
+}
+function sellJerky(v) {                                          // 一片肉乾從燻肉架飛到流民手上，流民付錢
+  v.jerky = false;
+  const m = jerkyMesh(), x = SMOKE[0], z = SMOKE[1];
+  fly(m, new THREE.Vector3(x, 1, z), () => v.g.position.clone().add(tmp.set(0, 1.3, 0)), 0.6, () => {
+    v.g.add(m); m.position.set(0.32, 0.75, 0.25); m.rotation.set(0, 0, 1.2);
+    save.cash += CFG.jerkyValue; sfx.coin(); floatText('🥓 +' + CFG.jerkyValue + ' 💵', v.g.position.x, v.g.position.z);
+    if (!save.jerkyTip) { save.jerkyTip = 1; toast('🥓 路過的流民買了肉乾 +' + CFG.jerkyValue + ' 元'); }
+  }, 1.2);
+}
+function buildRack() {
+  const g = new THREE.Group(); g.position.set(SMOKE[0], 0, SMOKE[1]); scene.add(g);
+  kit('rack', g, 0, 0, 0, Math.PI / 2);
+  for (let i = 0; i < 6; i++) { const s = box(0.17, 0.75, 0.07, mats.jerky); s.position.set(0.55, 0.62, -0.55 + i * 0.22); s.rotation.x = (i % 2 - 0.5) * 0.15; g.add(s); rackStrips.push(s); } // 掛著的肉乾：有幾份就掛幾條（最多 6 條）
+  props.push({ x: SMOKE[0], z: SMOKE[1], r: 0.8 });
+}
+if (save.smoke) buildRack();
+function addSmokeUnlock() {
+  if (save.smoke) return;
+  makeUnlock({ x: SMOKE[0], z: SMOKE[1], icon: '🥓', mat: 'plank', name: () => '烤肉攤升級：燻肉架',
+    price: () => save.smoke ? null : P(CFG.smokePrice), buy: () => { save.smoke = true; buildRack(); toast('🥓 櫃台擺滿後，多的肉會燻成肉乾存進倉庫，路過的流民會買！'); } });
+}
 // 搬運工（v0.69，作者 10/18）：倉庫蓋好後旁邊可以雇；小人把倉庫的柴送去營火、木材送去修門和建築、去綠框收錢（updatePorters）
 save.porters = save.porters || 0;
 const porters = [];
@@ -258,21 +334,23 @@ function buildWarehouse() {
   const base = box(2.6, 1.6, 2.2, mats.wood); base.position.y = 0.8; g.add(base);
   const roof = box(3, 0.3, 2.6, M(0x4f6f8f)); roof.position.y = 1.75; g.add(roof);
   const door = box(1.2, 1.1, 0.06, mats.trunk); door.position.set(0, 0.55, 1.12); g.add(door);
+  kit('barrel', g, -1.7, 0, 0.6); kit('barrel', g, -1.75, 0, -0.2, 1); kit('crate', g, -1.65, 0, -1, 0.3); kit('chest', g, 0.9, 0, 1.45); // 木桶、木箱（Kenney）
   g.position.set(x, 0, z); scene.add(g);
   wh.pad = makePad(x, z + 2.7, 1.8, 0xffffff, '📦');
   wh.label = makeLabel(); wh.label.scale.set(3, 1.5, 1); wh.label.position.set(x, 3, z); scene.add(wh.label);
-  wh.bld = addBuilding('倉庫', g, 1.6);
+  wh.bld = addBuilding('倉庫', g, 1.9);
   document.getElementById('pStore').style.display = '';
+  if (!save.porters) save.porters = 1;                             // v0.82：倉庫附 1 個搬運工（揹門口做好的東西回倉庫）
   while (porters.length < save.porters) addPorter();
-  addMillUnlocks();
+  addMillUnlocks(); addSmokeUnlock();
   makeUnlock({ x: LOT.porter[0], z: LOT.porter[1], icon: '🛒', name: () => '雇用搬運工', need: () => needHand(),
-    price: () => [120, 220][save.porters], buy: () => { save.porters++; addPorter(); toast('🛒 搬運工會揹倉庫的木材去修北門和建築、收烤肉攤的錢（開了煤礦也會補營火）'); } });
+    price: () => [0, 120, 220][save.porters], buy: () => { save.porters++; addPorter(); toast('🛒 搬運工會揹倉庫的木材去修北門和建築、收烤肉攤的錢（開了煤礦也會補營火）'); } });
 }
 if (save.wh) buildWarehouse();
 else makeUnlock({ x: LOT.store[0], z: LOT.store[1] + 2.7, icon: '📦', mat: 'log', name: () => '蓋倉庫',
   price: () => save.wh ? null : CFG.whLogs, buy: () => {
     save.wh = true; buildWarehouse(); unlocks.forEach(u => !u.done && u.refresh()); // 用木材付的付款格改顯示價錢
-    addTentUpUnlock(); toast('📦 倉庫會存 40 塊🪚木材，自動修北門和建築；雇了伐木工會自動補木材，多的直接換錢');
+    addTentUpUnlock(); toast('📦 倉庫附 1 個搬運工：做好的木材、烤肉由他揹回倉庫，也會修北門和建築');
   } });
 
 // ===== 民房：在南門外一間間往外蓋，每間 +5 人口；付款格蓋好後會移到下一塊空地 =====
@@ -395,7 +473,7 @@ function updateFurnace(dt) {
   f.fuel = Math.max(0, f.fuel - CFG.fuelBurn * CFG.stoveBurn ** save.stove * (coldWave.on > 0 ? CFG.coldBurn : 1) * dt); save.fuel = Math.round(f.fuel * 10) / 10;
   // 揹木頭站到火爐旁，一根根丟進去
   feedCd -= dt;
-  const types = carried.map(m => m.userData.type), kc = types.lastIndexOf('coal'), k = kc >= 0 ? kc : types.lastIndexOf('log'); // 有煤先丟煤
+  const types = carried.map(m => m.userData.type), kc = types.lastIndexOf('coal'), k = kc >= 0 || save.stove ? kc : types.lastIndexOf('log'); // 有煤先丟煤；v0.84（作者）：石爐只燒煤
   const per = kc >= 0 ? CFG.fuelPerCoal : CFG.fuelPerLog;
   if (k >= 0 && feedCd <= 0 && f.fuel + f.pend < CFG.fuelMax && Math.hypot(player.position.x - FX, player.position.z - FZ) < 1.5) {
     feedCd = 0.12; f.pend += per; // pend：還在半空中、等一下會加進去的柴量
@@ -418,7 +496,7 @@ function updateFurnace(dt) {
   if (f.fuel <= 0 && !f.out) { toast('🔥 火爐熄了！建築都凍住了，快加柴！'); beep(180, 0.4, 'sawtooth', 0.06, 0.6); }
   f.out = f.fuel <= 0;
   furnaceLabel.visible = pct < 50 || Math.hypot(player.position.x - FX, player.position.z - FZ) < 5;
-  furnaceLabel.set([fireName() + ' Lv' + fireLv() + ' ' + pct + '%', pct < 50 ? (save.mine ? '🪵⚫ 揹木頭或煤來加' : '🪵 揹木頭來加柴') : '🔥 暖氣範圍'], pct > 50 ? '#ffd34d' : pct > 20 ? '#ffa040' : '#ff6a5a');
+  furnaceLabel.set([fireName() + ' Lv' + fireLv() + ' ' + pct + '%', pct < 50 ? (save.stove ? '⚫ 石爐只燒煤，揹煤來加' : save.mine ? '🪵⚫ 揹木頭或煤來加' : '🪵 揹木頭來加柴') : '🔥 暖氣範圍'], pct > 50 ? '#ffd34d' : pct > 20 ? '#ffa040' : '#ff6a5a');
   updateFireLook(dt, pct);
   $('fuel').textContent = pct; $('fireName').textContent = fireName(); $('fuelBar').firstElementChild.style.width = pct + '%'; $('fuelBar').classList.toggle('danger', pct < 20);
 }
@@ -477,7 +555,7 @@ function buildCart() {                                           // 木軌（坑
   scene.add(g);
 }
 let mineUnlock = null, cartUnlock = null, binCd = 0;
-function openMine() { seam.locked = false; seam.g.visible = true; mine.g.remove(mine.boards); document.getElementById('pCoal').style.display = ''; }
+function openMine() { seam.locked = false; seam.g.visible = true; mine.g.remove(mine.boards); kit('lantern', mine.g, MINE_FX + 0.45, 0, MINE.z + 1.55); document.getElementById('pCoal').style.display = ''; }
 if (save.mine) openMine();
 if (save.cart) buildCart();
 save.bin = save.bin || 0;
