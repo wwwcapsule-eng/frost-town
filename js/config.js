@@ -1,5 +1,5 @@
 'use strict';
-const VERSION = '0.80';
+const VERSION = '0.81';
 
 // ===== 數值（之後平衡都改這裡） =====
 const CFG = {
@@ -12,8 +12,8 @@ const CFG = {
   millTime: 0.6,            // 鋸木機每根木頭加工秒數
   logValue: 1,              // 一根木頭換幾元
   meatValue: 3,             // 一塊肉換幾元
-  bearHp: 5, bearCount: 5, bearRespawn: 20, meatPerBear: 2,
-  lvBearHp: 0.3, lvBearDmg: 0.2, bearMax: 12, // 營火每升 1 級：熊血量 +30%、撞門／拆建築傷害 +20%；森林裡最多幾隻熊（企劃 10.1）
+  bearHp: 5, bearCount: 8, bearRespawn: 20, meatPerBear: 2, // v0.81（作者：北邊猛獸多）：北邊森林平常 8 隻熊
+  lvBearHp: 0.3, lvBearDmg: 0.2, bearMax: 14, // 營火每升 1 級：熊血量 +30%、撞門／拆建築傷害 +20%；森林裡最多幾隻熊（企劃 10.1）
   wolfHp: 1, wolfSpeed: 4.4, wolfLv: 4, // 冰狼：石爐時代（營火 Lv4）起跟熊群一起來，一次 4～6 隻、跑很快、血少
   towerRange: 11, towerInterval: 1.1, // 弩砲塔射程與射速
   buildCool: 2,             // 升級完要等幾秒才能再升級
@@ -22,7 +22,7 @@ const CFG = {
   playerHp: 100, bearHitDps: 14, bearChase: 6, heal: 20, // 主角血量、熊每秒打人多少、熊幾格內會追人、在營地裡每秒回血
   buildHp: 100, bearBuildDps: 2.5, // 建築血量、熊每秒對建築的傷害
   gateHp: 100, raidEvery: 60, raidFirst: 90, raidBears: 2, bearDps: 1.5, // 北門血量、熊群幾秒來一次、一次幾隻、每隻每秒傷害
-  workerSpeed: 3.6, workerChop: 0.6, workerLoad: 6, // 伐木工：速度約主角 60%、出手間隔、一次揹幾根
+  workerSpeed: 3.6, workerChop: 0.6, workerLoad: 6, hunterLoad: 4, // 伐木工：速度約主角 60%、出手間隔、一次揹幾根（＝兩棵冷杉）；獵人一次揹幾塊肉（＝兩隻熊）
   hunterPrice: [80, 160, 260, 380], huntRange: 5, huntEvery: 1.2, // 獵人（v0.79）：第 1～4 個的價錢、幾格內開弓、幾秒射一箭（熊 5 血）
   payRate: 1.1, padDelay: 0.6, // padDelay：站在付款格上幾秒後才開始付錢             // 付款格：幾秒內付完整筆
   popBase: 2,               // 新遊戲一開始的居民（主角的夥伴）
@@ -36,8 +36,9 @@ const CFG = {
   minePrice: 100, coalHp: 4, coalPerRock: 2, coalRegrow: 4, fuelPerCoal: 20, // 煤礦坑（村莊＋領地 Lv1 解鎖）：價錢、敲幾下、掉幾塊、坑口煤層幾秒再露出來；一塊煤 = 火爐 +20（木頭只有 +5）
   snowEvery: 7, snowMax: 10, snowHp: 3, snowSlow: 0.45, shovelPrice: 60, // 雪堆（村莊開始）：幾秒積一堆、最多幾堆、鏟幾下、踩到剩幾成速度、鏟雪工價錢
   heaterPrice: 120, heaterR: 7, cell: 3, mill2Price: 80, grill2Price: 150, smithPrice: 200, coalValue: 6, truckPrice: 150, truckEvery: 4, storeMax: 150, // 自動運輸：價錢、每幾秒送一趟、倉庫每樣最多存多少（木材存滿，鋸木廠多做的才換錢）； // 鐵匠鋪：價錢、一塊煤打成工具賣幾元； 規劃模式：暖氣塔價錢、暖氣範圍半徑、格子大小；正式關：第二台鋸木機、第二座烤肉攤價錢
+  counterMax: 6, smokePrice: 100, jerkyValue: 5, // v0.81（作者：肉太多）：櫃台最多擺幾份烤肉；燻肉架價錢（換成木材 ×0.3）；一份肉乾賣流民幾元
   plankKeep: 40,            // 倉庫的🪚木材存到 40 塊（或下一間民房的價錢＋10）就夠，鋸木廠多做的換錢（v0.79，作者：有倉庫後錢沒來源）
-  whLogs: 10, plankRate: 0.3, fuelKeep: 20, whFood: 10, eatEvery: 120, // 倉庫（第 2 時代）：揹幾根木頭蓋；建築價錢換成🪚木材的比例（原本的錢 ×0.3）；倉庫留幾根木頭當柴（多的送鋸木廠）；蓋好送幾份食物；居民幾秒吃一餐
+  whLogs: 10, plankRate: 0.3, fuelKeep: 20, whFood: 10, eatEvery: 60, // 倉庫（第 2 時代）：揹幾根木頭蓋；建築價錢換成🪚木材的比例（原本的錢 ×0.3）；倉庫留幾根木頭當柴（多的送鋸木廠）；蓋好送幾份食物；居民幾秒吃一餐
   cartPrice: 120, cartEvery: 6, cartLoad: 2, binMax: 20, // 雇礦工＋木軌礦車：價錢（換成木材）、幾秒推出來一車、一車幾塊煤、煤堆最多幾塊
   gatePrice: 30, gateW: 3.6, gateMax: 4, // 自己開的圍欄門：價錢（換成木材 ×0.3）、門寬、最多幾個
   coldFirst: 120, coldEvery: 150, coldLen: 30, coldBurn: 3, coldShrink: 0.75, coldReward: 30, // 寒潮（村莊開始）：第一次幾秒後、之後每幾秒、持續幾秒、火爐燒幾倍快、暖氣圈縮成幾成、撐過去的獎金 // 火爐升級（村莊解鎖）：暖氣圈最大半徑 +7
@@ -66,13 +67,14 @@ const TERR = [ { r: 10 * TS, heat: 0, cam: 1.15 }, { r: 14 * TS, heat: 3, cam: 1
 // 營火廣場在 (0,-3)；N-S 主路 x≈0；東路 z≈0；民房在南邊一圈圈的地塊上，門朝營火
 const LOT = {
   bag: [-2.8, -5.6], axe: [2.8, -5.6], terr: [-1.9, -1.2], worker: [8.7, 2.3], porter: [8.7, 3.9], hunter: [-6.3, 0], shovel: [-1.9, 6.6], store: [6.7, 3.1], tower1: [4.4, 0], tower2: [-4.4, 0],
-  mill: [6.4, -4], mill2: [-6.4, -4], bbq: [2.7, 6.3], minePad: [-8, 3], cart: [-10.81, 1.33], truckCash: [-8, 3], truckStore: [-8.6, -0.4],
+  mill: [6.4, -4], bbq: [2.7, 6.3], truckCash: [-8, 3], truckStore: [-8.6, -0.4],
 };
 for (const k in LOT) if (!/^tower/.test(k)) LOT[k] = LOT[k].map(v => +(v * TS).toFixed(2)); // 弩砲塔付款格貼著北門兩側（門寬不變），x 不放大；z 跟著圍欄（towerPadZ）
 const HOUSE_LOTS = [];                    // 第 1 圈 6 間（Lv1 領地），第 2 圈 10 間（Lv2 領地）
 [[11.6 * TS, [35, 50, 65, 115, 130, 145], 1], [16.2 * TS, [30, 41, 52, 63, 74, 106, 117, 128, 139, 150], 2]].forEach(([r, angs, ring]) =>
   angs.forEach(a => HOUSE_LOTS.push({ x: +(Math.cos(a * Math.PI / 180) * r).toFixed(2), z: +(Math.sin(a * Math.PI / 180) * r).toFixed(2), ring })));
 const MINE = { x: -11.9 * TS, z: -1.9 * TS }; // 煤礦坑的山（西邊，第 1 次擴大領地後圈進來）；坑口朝東
+LOT.minePad = LOT.cart = [+(MINE.x + 4.1).toFixed(2), +(MINE.z - 0.55).toFixed(2)]; // v0.81（作者：礦場的格子不在附近）：開採、礦車格都在坑口前（之後煤堆的位置）
 
 // ===== 存檔 =====
 // 關卡（企劃 9.2）：教學關沿用原本的存檔；正式關（自己蓋／電腦託管）各有自己的存檔

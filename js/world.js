@@ -46,6 +46,20 @@ function loadModel(key, url, height, onLoad) {                    // height：�
     o.scale.setScalar(height / s.y); MODELS[key] = o; onLoad();
   }, undefined, () => {});
 }
+// 其他 Kenney 模型（v0.81，作者：下載的模型先用上）：key → [檔案, 高度]；kit() 在 parent 底下放一個，還沒載好就等載好再放
+const KIT = {
+  logs: ['nature/log_stackLarge.glb', 0.9], bench: ['survival/workbench.glb', 0.9], planks: ['survival/resource-planks.glb', 0.35], wood: ['survival/resource-wood.glb', 0.5],
+  rack: ['survival/campfire-stand.glb', 1.4], barrel: ['survival/barrel.glb', 0.9], crate: ['survival/box-large.glb', 0.8], chest: ['survival/chest.glb', 0.6],
+  sign: ['survival/signpost.glb', 1.6], lantern: ['holiday/lantern.glb', 0.6],
+  rockA: ['survival/rock-a.glb', 1.2], rockB: ['survival/rock-b.glb', 0.9], rockC: ['survival/rock-c.glb', 1.5],
+};
+const kitWait = {};
+function kit(key, parent, x, y, z, ry = 0, s = 1) {
+  const put = () => { const m = MODELS[key].clone(); m.position.set(x, y, z); m.rotation.y = ry; m.scale.multiplyScalar(s); parent.add(m); };
+  if (MODELS[key]) return put();
+  if (!kitWait[key]) { kitWait[key] = []; loadModel(key, 'assets/models/' + KIT[key][0], KIT[key][1], () => kitWait[key].forEach(f => f())); }
+  kitWait[key].push(put);
+}
 // 賽璐璐描邊（v0.77，作者 10/18）：每個卡通著色的東西外面套一層深色、只畫背面的殼，看起來像動畫的線稿
 // 方塊用放大殼（角不會斷線）；模型、圓柱沿法線往外推固定粗細；樹太多不描（userData.noInk，手機效能）
 const INK = new THREE.MeshBasicMaterial({ color: 0x27303d, side: THREE.BackSide });
@@ -89,7 +103,7 @@ function nearestOnSeg(x, z, [ax, az, bx, bz]) {
 function rebuildRoads() {
   roadsDirty = false;
   roads.children.slice().forEach(m => roads.remove(m));
-  const main = [[0, -FENCE_R - 1.5, 0, FENCE_R + 0.5]];               // 南北主路：北門 → 營火 → 南門
+  const main = [[0, -FENCE_R - 1.5, 0, Math.max(FENCE_R + 0.5, 60)]];  // 南北主路：北門 → 營火 → 南門 → 往南穿出森林（v0.81：流民從南邊來）
   if (save.east) main.push([0, 0, FENCE_R + 0.5, 0]);                 // 東路
   if (save.mine) main.push([MINE.x + 3.3, 0, 0, 0], [MINE.x + 3.3, -1.4, MINE.x + 3.3, 0]); // 西路：通到礦坑口前（不穿過山）
   [[1, 9.8 * TS], [2, 14.3 * TS]].forEach(([ring, r]) => {                      // 民房環狀路：只鋪有民房的那段弧，並接到主路（90°）
@@ -224,19 +238,20 @@ function rand(a, b) { return a + Math.random() * (b - a); }
 let NG_PX = 4.15, NG_PZ = -8.7, NG_LEN = NG_PX; // 北門兩片門板的門柱位置；領地擴大時重算
 function nearNorthDoors(x, z, pad) { return z < NG_PZ + 0.5 && (Math.hypot(x - NG_PX, z - NG_PZ) < NG_LEN + pad || Math.hypot(x + NG_PX, z - NG_PZ) < NG_LEN + pad); }
 // 北邊森林（一開始就能砍）；門板擺動範圍內不長樹
-for (let i = 0; i < 95; i++) {                   // 森林變大，樹也多一點
-  const x = rand(-13, 9) * TS, z = rand(-22, -9) * TS;
+for (let i = 0; i < 150; i++) {                  // v0.81（作者：樹林在畫面裡太小）：北邊森林再往外、往兩側長
+  const x = rand(-16, 14) * TS, z = rand(-26, -9) * TS;
   if (!nearNorthDoors(x, z, 1.2) && trees.every(t => (t.x - x) ** 2 + (t.z - z) ** 2 > 2.6)) addTree(x, z, false);
 }
-// 東邊森林（被冰牆擋住，要開拓）
-for (let i = 0; i < 60; i++) {
-  const x = rand(17.5, 32) * TS, z = rand(-12, 10) * TS;
+// 東邊森林（被冰牆擋住，要開拓）；v0.81（作者：東邊樹林多）：最大、最密的一片，沒有熊
+for (let i = 0; i < 140; i++) {
+  const x = rand(17.5, 36) * TS, z = rand(-16, 14) * TS;
   if (trees.every(t => (t.x - x) ** 2 + (t.z - z) ** 2 > 2.6)) addTree(x, z, true);
 }
 // 遠處的大森林（v0.78，作者 10/18：鏡頭拉遠時樹林看起來太單薄）：遊戲區外圍一大片裝飾用的樹，不能砍、不擋路
 // 用 InstancedMesh 一次畫完（幾千棵只要 3 次繪製，手機也跑得動）；造型跟冷杉一樣是兩層樹冠＋積雪
 {
-  const clear = [[-22, 24, -30, 28], [22, 46, -18, 16]];           // [x 最小, x 最大, z 最小, z 最大]：營地、小鎮、可砍的森林都在裡面
+  // [x 最小, x 最大, z 最小, z 最大]：營地、小鎮、可砍的森林、西邊的岩石區、往南的流民路都不長裝飾樹
+  const clear = [[-24, 24, -37, 28], [22, 51, -23, 21], [-50, -22, -20, 20], [-4, 4, 20, 95]];
   const spots = [];
   for (let x = -85; x <= 95; x += 3.4) for (let z = -90; z <= 72; z += 3.4) {
     const px = x + rand(-1.4, 1.4), pz = z + rand(-1.4, 1.4);
@@ -249,6 +264,13 @@ for (let i = 0; i < 60; i++) {
     spots.forEach(([x, z, s, r], i) => im.setMatrixAt(i, mtx.compose(new THREE.Vector3(x, y * s, z), q.setFromAxisAngle(up, r), new THREE.Vector3(s, s, s))));
     scene.add(im);
   });
+}
+// 西邊岩石區（v0.81，作者：西邊是礦產）：遠處一片灰石頭，看得出那邊是礦山；只是背景，不擋路
+{
+  const g = new THREE.Group(); g.userData.noInk = true; scene.add(g);
+  const ks = ['rockA', 'rockB', 'rockC'];
+  for (let i = 0; i < 36; i++) kit(ks[i % 3], g, rand(-48, -28), 0, rand(-19, 19), rand(0, 6), rand(1, 2.2));
+  kit('sign', scene, 2.2, 0, 31, -Math.PI / 2);                    // 往南的路口立一塊路牌：流民從這條路來
 }
 // 冰牆
 const iceWall = new THREE.Group();
@@ -321,7 +343,7 @@ function updateDoors(dt) {
 
 // ===== 北極熊：在北邊森林閒晃，打倒掉肉，過一陣子重生 =====
 const bears = [];
-function bearSpot() { let x, z; do { x = rand(-12, 8) * TS; z = rand(-FENCE_R - 14 * TS, -FENCE_R - 2.3); } while (nearNorthDoors(x, z, 2)); return [x, z]; }
+function bearSpot() { let x, z; do { x = rand(-15, 13) * TS; z = rand(-FENCE_R - 14 * TS, -FENCE_R - 2.3); } while (nearNorthDoors(x, z, 2)); return [x, z]; }
 function makeMob(wolf) {
   const g = new THREE.Group();
   if (wolf) {                                                   // 冰狼：灰色、細長、比熊小
@@ -386,7 +408,7 @@ function updateBears(dt) {
     } else if (!b.idle && b.shake <= 0) {
       b.hunting = false;
       b.x += Math.sin(b.dir) * 1.2 * dt; b.z += Math.cos(b.dir) * 1.2 * dt;
-      if (b.x < -13 * TS || b.x > 9 * TS || b.z < -FENCE_R - 15 * TS || b.z > -FENCE_R - 1.3) { b.dir = Math.atan2(-2 - b.x, -FENCE_R - 8 - b.z); b.x += Math.sin(b.dir) * 1.5 * dt; b.z += Math.cos(b.dir) * 1.5 * dt; } // 追完人慢慢走回森林
+      if (b.x < -16 * TS || b.x > 14 * TS || b.z < -FENCE_R - 15 * TS || b.z > -FENCE_R - 1.3) { b.dir = Math.atan2(-2 - b.x, -FENCE_R - 8 - b.z); b.x += Math.sin(b.dir) * 1.5 * dt; b.z += Math.cos(b.dir) * 1.5 * dt; } // 追完人慢慢走回森林
     }
     if (!b.aggro && !b.hunting && nearNorthDoors(b.x, b.z, 1.6)) {  // 平常閒晃的熊不靠近北門，碰到就往北走開
       b.z -= 2.5 * dt; b.dir = Math.PI + rand(-0.6, 0.6); b.idle = false;
