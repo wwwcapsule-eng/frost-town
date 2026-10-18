@@ -67,15 +67,24 @@ function toBack(kind, x, y, z, delay) {                           // 一塊東�
 // ===== HUD =====
 const $ = id => document.getElementById(id);
 let shownCash = -1, shownWood = -1;
-function population() { return CFG.popBase + save.workers + houses.filter(h => !h.dead && !h.cold).length * CFG.housePop; }
+// 人口（v0.76，作者 10/18）：人口＝真的留下來的居民 save.res；流民吃到烤肉、而且有空床才會留下；工人都從居民裡雇
+// v0.79（作者）：每 5 位居民一餐吃 1 份烤肉，也才能雇 1 個工人 → 等於一個工人背後要 1 份肉
+const employed = () => save.workers + (save.porters || 0) + (save.shovel ? 1 : 0) + (save.hunters || 0);
+const beds = () => (save.tents - save.tentUp) * CFG.tentBeds + [...houses, ...tentHouses].filter(h => !h.dead && !h.cold).length * CFG.housePop; // 帳篷＋民房＋帳篷改建的木屋
+if (save.res == null) save.res = Math.max(employed(), Math.min(beds(), CFG.popBase + save.workers + houses.length * CFG.housePop)); // 舊存檔：民房當作住滿
+function population() { return save.res; }
+const idle = () => save.res - employed();
+const jobSlots = () => Math.floor(save.res / CFG.perMeat);         // 最多能雇幾個工人
+const mealSize = () => Math.ceil(save.res / CFG.perMeat);         // 一餐吃幾份烤肉
+const needHand = () => employed() < jobSlots() ? null : '👥 居民 ' + save.res + '/' + (employed() + 1) * CFG.perMeat; // 雇人的付款格：每 5 位居民雇 1 人，顯示還差多少
 function hud() {
   const lv = LEVELS[save.level], next = LEVELS[save.level + 1];
-  $('pop').textContent = population(); $('capP').textContent = next ? '/' + next.need : '';
+  $('pop').textContent = population(); $('capP').textContent = next ? '/' + next.need : ''; $('beds').textContent = ' 🛏️' + Math.max(0, beds() - save.res);
   $('ver').textContent = lv.icon + ' ' + lv.name; $('menuVer').textContent = '寒霜小鎮 v' + VERSION;
   if (shownCash !== save.cash) { $('cash').textContent = save.cash; bump('pCash'); shownCash = save.cash; }
   const nMeat = countOf('meat') - flies.filter(f => f.toBack === 'meat').length, nCoal = carried.filter(m => m.userData.type === 'coal').length, nLog = carried.length - nMeat - nCoal;
   if (shownWood !== carried.length * 10000 + nMeat * 100 + nCoal) { $('wood').textContent = nLog; $('meat').textContent = nMeat; $('coal').textContent = nCoal; shownWood = carried.length * 10000 + nMeat * 100 + nCoal; }
-  if (save.wh) { const st = save.store; $('sPlank').textContent = st.plank; $('sFuel').textContent = st.log + st.coal; $('sFood').textContent = st.food; $('pStore').classList.toggle('danger', wh.hungry); }
+  if (save.wh) { const st = save.store; $('sPlank').textContent = st.plank; $('sNeed').textContent = '/' + plankNeed(); $('sFood').textContent = st.food; $('sCoal').textContent = st.coal; $('sCoalW').style.display = save.mine ? '' : 'none'; $('pStore').classList.toggle('danger', wh.hungry); }
   $('capW').textContent = '/' + capacity(); $('capM').textContent = '/' + capacity(); $('capC').textContent = '/' + capacity();
   $('pCoal').classList.toggle('full', countOf('coal') >= capacity());
   if (!save.coalTip && countOf('coal') > 0) { save.coalTip = true; toast('⚫ 煤比木頭耐燒 4 倍！丟進火爐，或在🏗️規劃蓋🔨鐵匠鋪拿去賣'); }

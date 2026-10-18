@@ -56,7 +56,7 @@
   #planBar #planGo{background:#5fd068}#planBar #planGo:disabled{opacity:.4}
   #toast{position:fixed;left:50%;top:22%;transform:translateX(-50%);background:rgba(30,40,60,.8);color:#fff;font-weight:700;
     padding:8px 16px;border-radius:14px;font-size:16px;opacity:0;transition:opacity .25s;pointer-events:none;white-space:nowrap}
-  #hint{position:fixed;left:50%;bottom:9%;transform:translateX(-50%);color:#25415e;font-weight:900;font-size:18px;
+  #hint{position:fixed;left:50%;bottom:calc(150px + env(safe-area-inset-bottom));transform:translateX(-50%);color:#25415e;font-weight:900;font-size:18px;
     text-shadow:0 2px 0 #fff;pointer-events:none;text-align:center;animation:blink 1.4s infinite}
   @keyframes blink{50%{opacity:.35}}
   #joy{position:fixed;width:120px;height:120px;margin:-60px 0 0 -60px;border-radius:50%;background:rgba(255,255,255,.25);
@@ -74,7 +74,7 @@
 <body>
 <div id="hud">
   <div class="pill" id="pCash">💵 <b id="cash">0</b></div>
-  <div class="pill" id="pPop">👥 <b id="pop">0</b><span class="cap" id="capP"></span></div>
+  <div class="pill" id="pPop">👥 <b id="pop">0</b><span class="cap" id="capP"></span><span class="cap" id="beds"></span></div>
   <div id="ver"></div>
 </div>
 <div id="bag">
@@ -82,7 +82,7 @@
   <div class="pill" id="pCoal" style="display:none">⚫ <b id="coal">0</b><span class="cap" id="capC"></span></div>
   <div class="pill" id="pWood">🪵 <b id="wood">0</b><span class="cap" id="capW"></span></div>
 </div>
-<div class="pill" id="pStore" style="display:none">📦 🧱<b id="sPlank">0</b> 🔥<b id="sFuel">0</b> 🍖<b id="sFood">0</b></div>
+<div class="pill" id="pStore" style="display:none">📦 🪚<b id="sPlank">0</b><span class="cap" id="sNeed"></span> 🍖<b id="sFood">0</b><span id="sCoalW" style="display:none"> ⚫<b id="sCoal">0</b></span></div>
 <div id="bars">
   <div class="bar" id="hpBar"><i></i><span>❤️ <b id="hp">100</b></span></div>
   <div class="bar" id="fuelBar"><i></i><span>🔥 <em id="fireName" style="font-style:normal">營火</em> <b id="fuel">100</b>%</span></div>

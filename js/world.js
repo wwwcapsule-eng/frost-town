@@ -46,6 +46,23 @@ function loadModel(key, url, height, onLoad) {                    // height：�
     o.scale.setScalar(height / s.y); MODELS[key] = o; onLoad();
   }, undefined, () => {});
 }
+// 賽璐璐描邊（v0.77，作者 10/18）：每個卡通著色的東西外面套一層深色、只畫背面的殼，看起來像動畫的線稿
+// 方塊用放大殼（角不會斷線）；模型、圓柱沿法線往外推固定粗細；樹太多不描（userData.noInk，手機效能）
+const INK = new THREE.MeshBasicMaterial({ color: 0x27303d, side: THREE.BackSide });
+const INK_N = new THREE.MeshBasicMaterial({ color: 0x27303d, side: THREE.BackSide });
+INK_N.onBeforeCompile = sh => { sh.vertexShader = sh.vertexShader.replace('#include <project_vertex>', 'vec4 mvPosition = modelViewMatrix * vec4(transformed, 1.0); mvPosition.xyz += normalize(normalMatrix * normal) * 0.035; gl_Position = projectionMatrix * mvPosition;'); };
+const FLAT = /Plane|Circle|Ring/;
+function inkAll(o) {
+  if (o.userData.noInk || o.userData.isInk || !o.visible) return;
+  if (o.isMesh && !o.userData.ink && o.material.isMeshToonMaterial && !o.material.transparent && !FLAT.test(o.geometry.type)) {
+    o.userData.ink = true;
+    const bx = o.geometry.type === 'BoxGeometry', p = o.geometry.parameters, t = 0.07;
+    const h = new THREE.Mesh(o.geometry, bx ? INK : INK_N); h.userData.isInk = true;
+    if (bx) h.scale.set(1 + t / p.width, 1 + t / p.height, 1 + t / p.depth);
+    o.add(h);
+  }
+  for (let i = 0; i < o.children.length; i++) inkAll(o.children[i]);
+}
 function box(w, h, d, mat) { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.castShadow = m.receiveShadow = true; return m; }
 
 // 地面：雪地＋營地泥土圓
@@ -104,10 +121,14 @@ function makeLabel(w = 256, h = 128) {
     const key = lines.join('|') + color + sizes; if (key === last) return; last = key; // 文字沒變就不重畫
     const g = cv.getContext('2d'); g.clearRect(0, 0, w, h);
     g.textAlign = 'center'; g.textBaseline = 'middle';
-    const fs = lines.map((t, i) => sizes[Math.min(i, sizes.length - 1)]);
+    const font = (i, s) => (i === 0 ? '900 ' : '800 ') + s + 'px "Noto Sans TC","Microsoft JhengHei",sans-serif';
+    const fs = lines.map((t, i) => {                                 // v0.80（作者：字被切掉）：太寬就把這一行縮小到放得下
+      const s = sizes[Math.min(i, sizes.length - 1)]; g.font = font(i, s);
+      return Math.min(s, Math.floor(s * (w - 20) / Math.max(1, g.measureText(t).width)));
+    });
     let y = h / 2 - fs.reduce((a, b) => a + b * 1.05, 0) / 2;
     lines.forEach((t, i) => {
-      g.font = (i === 0 ? '900 ' : '800 ') + fs[i] + 'px "Noto Sans TC","Microsoft JhengHei",sans-serif';
+      g.font = font(i, fs[i]);
       g.lineWidth = Math.max(8, fs[i] / 6); g.strokeStyle = 'rgba(30,40,60,.85)';
       y += fs[i] * 0.525;
       g.strokeText(t, w / 2, y); g.fillStyle = color; g.fillText(t, w / 2, y);
@@ -192,7 +213,7 @@ let treesLoaded = 0;
   if (++treesLoaded === 3) trees.forEach(t => { if (t.kind === 'fir') treeLook(t.g, 'fir'); });
 }));
 function addTree(x, z, locked, kind = pickWood(z, locked)) {
-  const g = new THREE.Group(); treeLook(g, kind);
+  const g = new THREE.Group(); g.userData.noInk = true; treeLook(g, kind);
   g.position.set(x, 0, z); g.rotation.y = Math.random() * 6;
   const sc = 0.85 + Math.random() * 0.35; g.scale.setScalar(sc);
   scene.add(g);
@@ -211,6 +232,23 @@ for (let i = 0; i < 95; i++) {                   // 森林變大，樹也多一�
 for (let i = 0; i < 60; i++) {
   const x = rand(17.5, 32) * TS, z = rand(-12, 10) * TS;
   if (trees.every(t => (t.x - x) ** 2 + (t.z - z) ** 2 > 2.6)) addTree(x, z, true);
+}
+// 遠處的大森林（v0.78，作者 10/18：鏡頭拉遠時樹林看起來太單薄）：遊戲區外圍一大片裝飾用的樹，不能砍、不擋路
+// 用 InstancedMesh 一次畫完（幾千棵只要 3 次繪製，手機也跑得動）；造型跟冷杉一樣是兩層樹冠＋積雪
+{
+  const clear = [[-22, 24, -30, 28], [22, 46, -18, 16]];           // [x 最小, x 最大, z 最小, z 最大]：營地、小鎮、可砍的森林都在裡面
+  const spots = [];
+  for (let x = -85; x <= 95; x += 3.4) for (let z = -90; z <= 72; z += 3.4) {
+    const px = x + rand(-1.4, 1.4), pz = z + rand(-1.4, 1.4);
+    if (!clear.some(([a, b, c, d]) => px > a - 1 && px < b + 1 && pz > c - 1 && pz < d + 1)) spots.push([px, pz, rand(0.9, 1.7), rand(0, 6)]);
+  }
+  const parts = [[new THREE.ConeGeometry(1.4, 1.8, 7), mats.leaf, 1.1], [new THREE.ConeGeometry(0.95, 1.5, 7), mats.leaf, 2.1], [new THREE.ConeGeometry(0.6, 0.7, 7), mats.leafSnow, 2.75]];
+  const mtx = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0);
+  parts.forEach(([geo, mat, y]) => {
+    const im = new THREE.InstancedMesh(geo, mat, spots.length); im.userData.noInk = true;
+    spots.forEach(([x, z, s, r], i) => im.setMatrixAt(i, mtx.compose(new THREE.Vector3(x, y * s, z), q.setFromAxisAngle(up, r), new THREE.Vector3(s, s, s))));
+    scene.add(im);
+  });
 }
 // 冰牆
 const iceWall = new THREE.Group();
@@ -272,7 +310,7 @@ function makeDoors(g, tall) {
 }
 let southDoors = makeDoors(GATES[1], false), eastDoors = makeDoors(GATES[2], false);
 function updateDoors(dt) {
-  const movers = [player.position, ...workers.map(w => w.g.position), ...villagers.map(v => v.g.position), ...leaving.map(l => l.g.position)];
+  const movers = [player.position, ...workers.map(w => w.g.position), ...hunters.map(w => w.g.position), ...villagers.map(v => v.g.position), ...leaving.map(l => l.g.position)];
   for (const d of doors) {
     if (d === eastDoors && !save.east) continue;                     // 東邊還被冰牆擋著，東門不開
     const near = movers.some(p => Math.hypot(p.x - d.x, p.z - d.z) < 3.8);
