@@ -229,6 +229,23 @@ for (let i = 0; i < 60; i++) {
   const x = rand(17.5, 32) * TS, z = rand(-12, 10) * TS;
   if (trees.every(t => (t.x - x) ** 2 + (t.z - z) ** 2 > 2.6)) addTree(x, z, true);
 }
+// 遠處的大森林（v0.78，作者 10/18：鏡頭拉遠時樹林看起來太單薄）：遊戲區外圍一大片裝飾用的樹，不能砍、不擋路
+// 用 InstancedMesh 一次畫完（幾千棵只要 3 次繪製，手機也跑得動）；造型跟冷杉一樣是兩層樹冠＋積雪
+{
+  const clear = [[-22, 24, -30, 28], [22, 46, -18, 16]];           // [x 最小, x 最大, z 最小, z 最大]：營地、小鎮、可砍的森林都在裡面
+  const spots = [];
+  for (let x = -85; x <= 95; x += 3.4) for (let z = -90; z <= 72; z += 3.4) {
+    const px = x + rand(-1.4, 1.4), pz = z + rand(-1.4, 1.4);
+    if (!clear.some(([a, b, c, d]) => px > a - 1 && px < b + 1 && pz > c - 1 && pz < d + 1)) spots.push([px, pz, rand(0.9, 1.7), rand(0, 6)]);
+  }
+  const parts = [[new THREE.ConeGeometry(1.4, 1.8, 7), mats.leaf, 1.1], [new THREE.ConeGeometry(0.95, 1.5, 7), mats.leaf, 2.1], [new THREE.ConeGeometry(0.6, 0.7, 7), mats.leafSnow, 2.75]];
+  const mtx = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0);
+  parts.forEach(([geo, mat, y]) => {
+    const im = new THREE.InstancedMesh(geo, mat, spots.length); im.userData.noInk = true;
+    spots.forEach(([x, z, s, r], i) => im.setMatrixAt(i, mtx.compose(new THREE.Vector3(x, y * s, z), q.setFromAxisAngle(up, r), new THREE.Vector3(s, s, s))));
+    scene.add(im);
+  });
+}
 // 冰牆
 const iceWall = new THREE.Group();
 for (let z = -14 * TS; z <= 12 * TS; z += 1.6) {
