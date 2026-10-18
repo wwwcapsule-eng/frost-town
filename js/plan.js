@@ -369,6 +369,7 @@ function applyTerritory(init) {
   if (!houseUnlock.done) { [houseUnlock.x, houseUnlock.z] = houseSpot(save.houses); houseUnlock.pad.position.set(houseUnlock.x, 0.03, houseUnlock.z); houseUnlock.label.position.set(houseUnlock.x, 1.9, houseUnlock.z); }
   for (const u of unlocks) {                                       // 卡在圍欄上的付款格往內挪
     if (u.done || u === houseUnlock) continue;
+    if (u.north) { u.z = towerPadZ(); u.pad.position.z = u.label.position.z = u.z; continue; }
     const r = fd(u.x, u.z);
     if (Math.abs(r - FENCE_R) < 1.6) { const k = (FENCE_R - 1.8) / r; u.x *= k; u.z *= k; u.pad.position.set(u.x, 0.03, u.z); u.label.position.set(u.x, u.label.position.y, u.z); }
   }

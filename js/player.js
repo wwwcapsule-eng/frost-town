@@ -143,6 +143,7 @@ function resize() {
   renderer.setSize(w, h); camera.aspect = w / h;
   camera.fov = 40;
   camOffset.copy(camBase).multiplyScalar((w < h ? Math.min(1.9, 1 + (h / w - 1) * 0.75) : 1) * zoom * LEVELS[save.level].cam * TERR[save.territory].cam); // 直式（手機）、城市等級越高，鏡頭越遠
+  scene.fog.near = camOffset.length() + 10; scene.fog.far = camOffset.length() + 55; // v0.71：霧跟著鏡頭距離走，鏡頭拉遠時整片地不會被霧蓋白
   camera.updateProjectionMatrix();
 }
 addEventListener('resize', resize);

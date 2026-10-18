@@ -48,7 +48,7 @@ function loadModel(key, url, height, onLoad) {                    // height：�
 function box(w, h, d, mat) { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.castShadow = m.receiveShadow = true; return m; }
 
 // 地面：雪地＋營地泥土圓
-const ground = new THREE.Mesh(new THREE.PlaneGeometry(120, 120), mats.snow);
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(400, 400), mats.snow); // 夠大，鏡頭拉最遠也看不到邊
 ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
 const camp = new THREE.Mesh(new THREE.PlaneGeometry(17, 17), mats.dirt); // 領地地面：跟方形圍欄一樣大
 camp.rotation.x = -Math.PI / 2; camp.position.y = 0.01; camp.receiveShadow = true; scene.add(decal(camp, 1));

@@ -117,7 +117,9 @@ if (save.east) openEast();
 if (save.mill2 && !PRO) addMill2(); // 正式關的第二台鋸木機在 save.plan 裡
 
 // ===== 弩砲塔：自動射北邊的熊，熊倒下的肉掉在地上，走過去撿 =====
-if (!PRO) makeUnlock({ x: LOT.tower1[0], z: LOT.tower1[1], icon: '🏹', name: () => '弩砲塔', mat: 'plank',
+// v0.71（作者 10/18：北門一帶標誌重疊）：付款格放在北門內側兩旁、跟修門格同一排，擴大領地時跟著圍欄搬（applyTerritory 看 north）
+const towerPadZ = () => -FENCE_R + 2.4;
+if (!PRO) makeUnlock({ x: LOT.tower1[0], z: towerPadZ(), north: true, icon: '🏹', name: () => '弩砲塔', mat: 'plank',
   price: () => save.tower ? null : P(40), buy: () => { save.tower = true; buildTower(); addTower2Unlock(); toast('弩砲塔會自動射熊！'); } });
 const towers = [];
 const towerZ = x => -FENCE_R - 1.8; // 弩砲塔站在圍欄外 1.8、北門門板旁邊，不跟圍欄或門板穿模
@@ -136,7 +138,7 @@ function buildTower(x = 6.4, z = towerZ(x), fixed = false) {
 if (save.tower) buildTower();
 // 第二座弩砲塔：要先有第一座才會出現
 function addTower2Unlock() {
-  makeUnlock({ x: LOT.tower2[0], z: LOT.tower2[1], icon: '🏹', name: () => '第二座弩砲塔', mat: 'plank',
+  makeUnlock({ x: LOT.tower2[0], z: towerPadZ(), north: true, icon: '🏹', name: () => '第二座弩砲塔', mat: 'plank',
   price: () => save.tower2 ? null : P(90), buy: () => { save.tower2 = true; buildTower(-6.4); toast('北門兩側都有弩砲塔了！'); } });
 }
 if (save.tower && !save.tower2) addTower2Unlock();
