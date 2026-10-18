@@ -1,5 +1,5 @@
 'use strict';
-const VERSION = '0.67';
+const VERSION = '0.68';
 
 // ===== 數值（之後平衡都改這裡） =====
 const CFG = {
@@ -55,8 +55,8 @@ const TERR = [ { r: 10 * TS, heat: 0, cam: 1.15 }, { r: 14 * TS, heat: 3, cam: 1
 // v0.64（作者 10/18）：升級格放在它升級的東西旁邊——營火升級貼著營火、雇伐木工在倉庫旁（木頭送倉庫）、雇鏟雪工在村民櫃台旁
 // 營火廣場在 (0,-3)；N-S 主路 x≈0；東路 z≈0；民房在南邊一圈圈的地塊上，門朝營火
 const LOT = {
-  bag: [-2.8, -5.6], axe: [2.8, -5.6], terr: [-1.9, -1.2], worker: [4.7, 5.1], shovel: [1.9, 6.4], store: [6.7, 3.1], tower1: [3.6, -7.4], tower2: [-3.6, -7.4],
-  mill: [6.4, -4], mill2: [-6.4, -4], bbq: [-4.6, 3.8], minePad: [-8, 3], truckCash: [-8, 3], truckStore: [-8.6, -0.4],
+  bag: [-2.8, -5.6], axe: [2.8, -5.6], terr: [-1.9, -1.2], worker: [6.7, 1.4], shovel: [-1.9, 6.6], store: [6.7, 3.1], tower1: [3.6, -7.4], tower2: [-3.6, -7.4],
+  mill: [6.4, -4], mill2: [-6.4, -4], bbq: [2.7, 6.3], minePad: [-8, 3], truckCash: [-8, 3], truckStore: [-8.6, -0.4],
 };
 for (const k in LOT) if (!/^tower/.test(k)) LOT[k] = LOT[k].map(v => +(v * TS).toFixed(2)); // 弩砲塔貼著北門（門寬不變），不放大
 const HOUSE_LOTS = [];                    // 第 1 圈 6 間（Lv1 領地），第 2 圈 10 間（Lv2 領地）

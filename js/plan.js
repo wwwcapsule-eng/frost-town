@@ -71,7 +71,7 @@ function canBuild(x, z, k) {
   if (big && !canBuild(x, z + 2.7, 'pad')) return false;                         // 門口前的付款格也要有空地
   const r = Math.hypot(x, z), d = (a, b) => Math.hypot(a - x, b - z);
   if (r > 27 * TS || Math.abs(fd(x, z) - FENCE_R) < 1.8 || d(FX, FZ) < 2.6) return false;
-  if (Math.abs(x - CX) < 1.8 && z > CZ - 1 && z < CZ + 17 * TS) return false;          // 村民排隊的路
+  if (Math.abs(x - QX) < 1.8 && z > CZ - 1 && z < CZ + 17 * TS) return false;          // 村民排隊的路
   if (Math.abs(x) < 4.5 && z < -FENCE_R + 4 && z > -FENCE_R - 3) return false;                        // 北門前
   if (buildings.some(b => d(b.x, b.z) < b.r + (big ? 2.2 : 1.6))) return false;
   if (unlocks.some(u => !u.done && d(u.x, u.z) < 2.3)) return false;
@@ -175,7 +175,7 @@ function moveAll(b, x, z) {                                       // 建築連�
   const dx = x - b.x, dz = z - b.z;
   moveBuilding(b, x, z);
   const m = mills.find(m => m.bld === b), h = heaters.find(h => h.bld === b);
-  if (m) [m.inPad, ...(m === bbq ? [] : [m.outPad, ...m.out]), m.label].forEach(o => { o.position.x += dx; o.position.z += dz; }); // 烤肉攤的收錢格在村民櫃台旁，不跟著搬
+  if (m) [m.inPad, m.outPad, ...m.out, m.label].forEach(o => { o.position.x += dx; o.position.z += dz; });
   if (h) { h.x = x; h.z = z; [h.ring, h.fill].forEach(o => o.position.set(x, o.position.y, z)); }
   if (b === wh.bld) [wh.pad, wh.label].forEach(o => { o.position.x += dx; o.position.z += dz; });
   roadsDirty = true;
