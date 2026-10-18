@@ -207,6 +207,18 @@ for (let i = 0; i < save.workers; i++) addWorker();
 save.store = Object.assign({ log: 0, coal: 0, plank: 0, food: CFG.whFood }, save.store);
 if (save.truck === 'store') save.wh = true;                       // 舊存檔：買過「自動運輸：進倉庫」的直接有倉庫
 const wh = { bld: null, pad: null, label: null, t: 0, eatT: 0, hungry: false };
+// 搬運工（v0.69，作者 10/18）：倉庫蓋好後旁邊可以雇；小人把倉庫的柴送去營火、木材送去修門和建築、去綠框收錢（updatePorters）
+save.porters = save.porters || 0;
+const porters = [];
+function addPorter() {
+  const g = new THREE.Group();
+  const b = box(0.6, 0.75, 0.45, M(0x8e6b3e)); b.position.y = 0.6; g.add(b);
+  const h = box(0.45, 0.42, 0.42, mats.skin); h.position.y = 1.2; g.add(h);
+  const c = box(0.5, 0.18, 0.48, M(0x3fa66b)); c.position.y = 1.48; g.add(c);
+  const cargo = box(0.55, 0.45, 0.35, mats.wood); cargo.position.set(0, 0.9, -0.4); cargo.visible = false; g.add(cargo);
+  g.position.set(LOT.store[0] - 1 + porters.length, 0, LOT.store[1] + 2); scene.add(g);
+  porters.push({ g, cargo, job: null, walk: 0 });
+}
 function buildWarehouse() {
   const [x, z] = LOT.store, g = new THREE.Group();
   const base = box(2.6, 1.6, 2.2, mats.wood); base.position.y = 0.8; g.add(base);
@@ -217,6 +229,9 @@ function buildWarehouse() {
   wh.label = makeLabel(); wh.label.scale.set(3, 1.5, 1); wh.label.position.set(x, 3, z); scene.add(wh.label);
   wh.bld = addBuilding('倉庫', g, 1.6);
   document.getElementById('pStore').style.display = '';
+  while (porters.length < save.porters) addPorter();
+  makeUnlock({ x: LOT.porter[0], z: LOT.porter[1], icon: '🛒', name: () => '雇用搬運工',
+    price: () => [120, 220][save.porters], buy: () => { save.porters++; addPorter(); toast('🛒 搬運工會把倉庫的柴、木材送去營火和北門，還會幫你收錢！'); } });
 }
 if (save.wh) buildWarehouse();
 else makeUnlock({ x: LOT.store[0], z: LOT.store[1] + 2.7, icon: '📦', mat: 'log', name: () => '蓋倉庫',

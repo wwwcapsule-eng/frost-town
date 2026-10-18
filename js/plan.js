@@ -255,7 +255,8 @@ function updateStore(dt) {
   if (wh.t >= 1 && !wh.bld.dead) {
     wh.t = 0;
     const hurt = buildings.find(b => !b.dead && b.hp < CFG.buildHp), mill = mills[0];
-    if (f.fuel < CFG.fuelMax * 0.7 && (st.coal || st.log)) { const c = st.coal > 0; if (c) st.coal--; else st.log--; f.fuel = Math.min(CFG.fuelMax, f.fuel + (c ? CFG.fuelPerCoal : CFG.fuelPerLog)); }
+    if (porters.length) ; // 有搬運工：補火、修門、修建築改成小人走過去才生效（updatePorters）
+    else if (f.fuel < CFG.fuelMax * 0.7 && (st.coal || st.log)) { const c = st.coal > 0; if (c) st.coal--; else st.log--; f.fuel = Math.min(CFG.fuelMax, f.fuel + (c ? CFG.fuelPerCoal : CFG.fuelPerLog)); }
     else if (gate.hp < CFG.gateHp && st.plank) { st.plank--; gate.hp = Math.min(CFG.gateHp, gate.hp + 10); }
     else if (hurt && st.plank) { st.plank--; hurt.hp = Math.min(CFG.buildHp, hurt.hp + 10); }
     if (st.log > CFG.fuelKeep && mill.queue < 3 && !mill.bld.dead) { st.log--; mill.queue++; }
@@ -269,6 +270,39 @@ function updateStore(dt) {
   }
   if (wh.hungry && st.food > 0) { st.food--; wh.hungry = false; toast('😋 工人吃飽，復工了！'); }
   wh.label.set(wh.hungry ? ['📦 倉庫', '😩 沒食物，工人罷工'] : ['📦 倉庫', '🧱' + st.plank + ' 🔥' + (st.log + st.coal) + ' 🍖' + st.food], wh.hungry ? '#ff6a5a' : '#fff');
+}
+// 搬運工：營火要柴 → 北門要修 → 建築要修 → 綠框有錢；先回倉庫格子拿東西（一趟最多 3 個），走到目的地才生效
+function updatePorters(dt) {
+  if (!save.wh || wh.bld.dead) return;
+  const st = save.store, home = wh.pad.position, taken = k => porters.some(o => o.job && (o.job.k === k || o.job.b === k || o.job.m === k));
+  porters.forEach((p, i) => {
+    if (!p.job) {
+      const hurt = buildings.find(b => !b.dead && b.hp < CFG.buildHp && !taken(b)), cash = mills.find(m => m.out.length && !taken(m));
+      if (furnace.fuel < CFG.fuelMax * 0.7 && st.coal + st.log && !taken('fuel')) p.job = { k: 'fuel' };
+      else if (gate.hp < CFG.gateHp && st.plank && !taken('gate')) p.job = { k: 'gate' };
+      else if (hurt && st.plank) p.job = { k: 'fix', b: hurt };
+      else if (cash) p.job = { k: 'cash', m: cash, got: true };
+      else return void routeTo(p, home.x - 1 + i * 2, home.z + 1.2, dt);  // 沒事做：在倉庫門口等
+    }
+    const j = p.job;
+    if (!j.got) {                                                    // 先回倉庫拿
+      routeTo(p, home.x, home.z, dt);
+      if (Math.hypot(p.g.position.x - home.x, p.g.position.z - home.z) > 0.8) return;
+      if (j.k === 'fuel') { j.coal = Math.min(3, st.coal); j.log = Math.min(3 - j.coal, st.log); st.coal -= j.coal; st.log -= j.log; j.n = j.coal + j.log; }
+      else { const lack = j.k === 'gate' ? CFG.gateHp - gate.hp : CFG.buildHp - j.b.hp; j.n = Math.min(3, st.plank, Math.ceil(lack / 10)); st.plank -= j.n; }
+      if (!j.n) { p.job = null; return; }
+      j.got = true; p.cargo.material = j.k === 'fuel' ? (j.coal ? mats.coal : mats.trunk) : mats.wood; p.cargo.visible = true;
+    }
+    const [tx, tz, r] = j.k === 'fuel' ? [FX + 1.4, FZ + 1.4, 1.2] : j.k === 'gate' ? [repairPad.position.x, repairPad.position.z, 0.8]
+      : j.k === 'fix' ? [j.b.x, j.b.z, j.b.r + 0.9] : [j.m.outPad.position.x, j.m.outPad.position.z, 0.8];
+    routeTo(p, tx, tz, dt);
+    if (Math.hypot(p.g.position.x - tx, p.g.position.z - tz) > r) return;
+    if (j.k === 'fuel') furnace.fuel = Math.min(CFG.fuelMax, furnace.fuel + j.coal * CFG.fuelPerCoal + j.log * CFG.fuelPerLog);
+    else if (j.k === 'gate') gate.hp = Math.min(CFG.gateHp, gate.hp + j.n * 10);
+    else if (j.k === 'fix') { if (j.b.dead) st.plank += j.n; else j.b.hp = Math.min(CFG.buildHp, j.b.hp + j.n * 10); }
+    else j.m.out.splice(0).forEach((b, k) => fly(b, b.position.clone(), () => p.g.position.clone().add(tmp.set(0, 1.6, 0)), 0.25 + k * 0.02, () => { scene.remove(b); save.cash += j.m.value; sfx.coin(); }, 1));
+    p.cargo.visible = false; p.job = null;
+  });
 }
 // 鋸木廠做的木材、烤肉攤烤的肉飛進倉庫
 function toStore(k, mill) {
