@@ -1,5 +1,5 @@
 'use strict';
-const VERSION = '0.72';
+const VERSION = '0.73';
 
 // ===== 數值（之後平衡都改這裡） =====
 const CFG = {
@@ -7,8 +7,6 @@ const CFG = {
   speed: 6,                 // 主角移動速度
   chopRange: 1.9,           // 自動砍樹距離
   chopInterval: [0.45, 0.32, 0.22, 0.15], // 斧頭各等級的出手間隔（秒）
-  treeHp: 3,
-  logsPerTree: 3,
   treeRegrow: 12,           // 樹重新長出來的秒數
   capacity: [10, 20, 30, 45], // 背包各等級容量
   millTime: 0.6,            // 鋸木機每根木頭加工秒數
@@ -35,6 +33,7 @@ const CFG = {
   snowEvery: 7, snowMax: 10, snowHp: 3, snowSlow: 0.45, shovelPrice: 60, // 雪堆（村莊開始）：幾秒積一堆、最多幾堆、鏟幾下、踩到剩幾成速度、鏟雪工價錢
   heaterPrice: 120, heaterR: 7, cell: 3, mill2Price: 80, grill2Price: 150, smithPrice: 200, coalValue: 6, truckPrice: 150, truckEvery: 4, storeMax: 150, // 自動運輸：價錢、每幾秒送一趟、倉庫每樣最多存多少（木材存滿，鋸木廠多做的才換錢）； // 鐵匠鋪：價錢、一塊煤打成工具賣幾元； 規劃模式：暖氣塔價錢、暖氣範圍半徑、格子大小；正式關：第二台鋸木機、第二座烤肉攤價錢
   whLogs: 10, plankRate: 0.3, fuelKeep: 20, foodKeep: 20, whFood: 10, eatEvery: 90, // 倉庫（第 2 時代）：揹幾根木頭蓋；建築價錢換成🧱木材的比例（原本的錢 ×0.3）；倉庫留幾根木頭當柴（多的送鋸木廠）；存多少烤肉（多的才賣村民）；蓋好送幾份食物；工人幾秒吃一次
+  pineFuel: 2, birchTower: [3, 5], birchPlanTower: 4, birchAxe: [2, 4, 6], // 松木丟營火抵幾根；弩砲塔（第一、二座）、規劃蓋的弩砲塔、斧頭各級要幾根白樺
   cartPrice: 120, cartEvery: 6, cartLoad: 2, binMax: 20, // 雇礦工＋木軌礦車：價錢（換成木材）、幾秒推出來一車、一車幾塊煤、煤堆最多幾塊
   gatePrice: 30, gateW: 3.6, gateMax: 4, // 自己開的圍欄門：價錢（換成木材 ×0.3）、門寬、最多幾個
   coldFirst: 120, coldEvery: 150, coldLen: 30, coldBurn: 3, coldShrink: 0.75, coldReward: 30, // 寒潮（村莊開始）：第一次幾秒後、之後每幾秒、持續幾秒、火爐燒幾倍快、暖氣圈縮成幾成、撐過去的獎金 // 火爐升級（村莊解鎖）：暖氣圈最大半徑 +7
@@ -49,6 +48,12 @@ const LEVELS = [
 ];
 
 const TS = CFG.townScale;
+// 三種樹（作者 10/18）：hp＝要砍幾下（砍的時間不一樣）、logs＝倒下掉幾根木頭
+const WOODS = {
+  fir: { name: '冷杉', hp: 3, logs: 3 },   // 樹幹又高又直：做木板最多，主要建材
+  pine: { name: '松樹', hp: 2, logs: 2 },  // 木頭軟好砍、松脂多：最好燒
+  birch: { name: '白樺', hp: 6, logs: 2 }, // 又硬又有彈性，砍很久：做弩砲塔、斧頭；只長在森林外圍
+};
 const P = cash => Math.ceil(cash * CFG.plankRate); // 建築用木材蓋（企劃 11.3）：原本的價錢換成幾塊🧱木材
 // 領地等級：營火升級一次，圍欄往外推（r＝圍欄半徑）、暖氣圈變大（heat）、鏡頭拉遠一點（cam）
 const TERR = [ { r: 10 * TS, heat: 0, cam: 1.15 }, { r: 14 * TS, heat: 3, cam: 1.28 }, { r: 18.5 * TS, heat: 7, cam: 1.42 } ];

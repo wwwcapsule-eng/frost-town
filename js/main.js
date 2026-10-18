@@ -104,7 +104,7 @@ function updateBuildings(dt) {
   for (const b of buildings) {
     b.hp = Math.max(0, b.hp);
     if (b.hit > 0) { b.hit -= dt; b.g.position.x = b.x + Math.sin(b.hit * 80) * 0.08; } else b.g.position.x = b.x;
-    const k = carried.map(m => m.userData.type).lastIndexOf('log');
+    const k = logAt('fir', 'pine');
     if (b.hp + (b.pend || 0) * 10 < CFG.buildHp && k >= 0 && fixCd <= 0 && Math.hypot(player.position.x - b.x, player.position.z - b.z) < b.r + 1.1) {
       fixCd = 0.12; b.pend = (b.pend || 0) + 1; // 飛在半空中的木頭也算，修滿就不再拿
       const m = carried.splice(k, 1)[0]; const wp = m.getWorldPosition(new THREE.Vector3());
@@ -189,8 +189,8 @@ function step(dt) {
         if (target.hp <= 0) {
           target.alive = false;
           if (target.isBear) target.respawn = CFG.bearRespawn; else target.regrow = target.coal ? CFG.coalRegrow : CFG.treeRegrow;
-          const n = target.isBear ? CFG.meatPerBear : target.coal ? CFG.coalPerRock : CFG.logsPerTree;
-          for (let i = 0; i < n && countOf(kind) < capacity(); i++) toBack(kind, target.x, 1 + i * 0.3, target.z, i * 0.08);
+          const n = target.isBear ? CFG.meatPerBear : target.coal ? CFG.coalPerRock : WOODS[target.kind].logs;
+          for (let i = 0; i < n && countOf(kind) < capacity(); i++) toBack(kind, target.x, 1 + i * 0.3, target.z, i * 0.08, target.kind);
         }
       }
     }
@@ -219,7 +219,7 @@ function step(dt) {
     if (!t.alive) {
       t.g.scale.setScalar(Math.max(0.001, t.g.scale.x - dt * 4));
       t.regrow -= dt;
-      if (t.regrow <= 0) { t.alive = true; t.hp = t.coal ? CFG.coalHp : CFG.treeHp; }
+      if (t.regrow <= 0) { t.alive = true; t.hp = t.coal ? CFG.coalHp : WOODS[t.kind].hp; }
     } else if (t.g.scale.x < t.sc) t.g.scale.setScalar(Math.min(t.sc, t.g.scale.x + dt * 1.5));
   }
 
@@ -228,7 +228,7 @@ function step(dt) {
   for (const mill of mills) {
     const ip = mill.inPad.position, op = mill.outPad.position;
     if (mill.bld.dead) { mill.label.set([mill.name]); continue; }
-    const k = carried.map(m => m.userData.type).lastIndexOf(mill.accept); // 只收這個站要的東西
+    const k = mill.accept === 'log' ? logAt('fir', 'pine') : carried.map(m => m.userData.type).lastIndexOf(mill.accept); // 只收這個站要的東西（白樺不鋸）
     if (k >= 0 && dropTimer <= 0 && Math.hypot(player.position.x - ip.x, player.position.z - ip.z) < 1.3) {
       dropTimer = 0.07;
       const m = carried.splice(k, 1)[0]; const wp = m.getWorldPosition(new THREE.Vector3());
@@ -268,15 +268,26 @@ function step(dt) {
     const dist = Math.hypot(player.position.x - u.x, player.position.z - u.z), on = dist < 1.2;
     const near = dist < 6; if (near !== u.near) { u.near = near; u.refresh(); }
     u.stand = on ? (u.stand || 0) + dt : 0;                     // 站穩 0.6 秒才開始付錢，路過不會誤買
+    const nb = u.birch ? u.birch() - u.birchPaid : 0;            // 弩砲塔、斧頭：先交白樺
+    if (nb > 0) {
+      u.birchCd = (u.birchCd || 0) - dt;
+      if (on && u.stand > CFG.padDelay && u.birchCd <= 0) {
+        const i = logAt('birch'), fromStore = i < 0 && save.wh && save.store.birch > 0;
+        if (i >= 0) { const m = carried.splice(i, 1)[0], wp = m.getWorldPosition(new THREE.Vector3()); stackRoot.remove(m); restack(); fly(m, wp, () => new THREE.Vector3(u.x, 0.1, u.z), 0.25, () => scene.remove(m), 1); }
+        else if (fromStore) { save.store.birch--; const b = box(0.9, 0.22, 0.32, mats.logbirch); fly(b, player.position.clone().add(tmp.set(0, 2, 0)), () => new THREE.Vector3(u.x, 0.1, u.z), 0.25, () => scene.remove(b), 1); }
+        if (i >= 0 || fromStore) { u.birchPaid++; u.birchCd = 0.18; u.refresh(); }
+      }
+      continue;
+    }
     // 付什麼：錢、倉庫的🧱木材（mat: 'plank'）、背上的木頭（mat: 'log'）
-    const have = u.mat === 'plank' ? (save.wh ? save.store.plank : 0) : u.mat === 'log' ? carried.filter(m => m.userData.type === 'log').length : save.cash;
+    const have = u.mat === 'plank' ? (save.wh ? save.store.plank : 0) : u.mat === 'log' ? carried.filter(m => m.userData.type === 'log' && m.userData.wood !== 'birch').length : save.cash;
     if (on && u.stand > CFG.padDelay && have > 0 && u.paid < p) {
       u.payAcc += dt * p / CFG.payRate;
       const pay = Math.min(Math.floor(u.payAcc), have, p - u.paid);
       if (pay > 0) {
         u.payAcc -= pay; u.paid += pay;
         if (u.mat === 'log') for (let i = 0; i < pay; i++) {
-          const m = carried.splice(carried.map(m => m.userData.type).lastIndexOf('log'), 1)[0], wp = m.getWorldPosition(new THREE.Vector3());
+          const m = carried.splice(logAt('fir', 'pine'), 1)[0], wp = m.getWorldPosition(new THREE.Vector3());
           stackRoot.remove(m); restack(); fly(m, wp, () => new THREE.Vector3(u.x, 0.1, u.z), 0.25, () => scene.remove(m), 1);
         } else {
           if (u.mat === 'plank') save.store.plank -= pay; else save.cash -= pay;
@@ -284,7 +295,7 @@ function step(dt) {
           fly(b, player.position.clone().add(tmp.set(0, 2, 0)), () => new THREE.Vector3(u.x, 0.1, u.z), 0.25, () => scene.remove(b), 1);
         }
       }
-      if (u.paid >= p) { u.paid = 0; u.payAcc = 0; sparkle(u.x, u.z); u.buy(); save.buys++; sfx.unlock(); u.cool = CFG.buildCool; levelUnlocks(); writeSave(); }
+      if (u.paid >= p) { u.paid = 0; u.payAcc = 0; u.birchPaid = 0; sparkle(u.x, u.z); u.buy(); save.buys++; sfx.unlock(); u.cool = CFG.buildCool; levelUnlocks(); writeSave(); }
       u.refresh();
     } else u.payAcc = 0;
   }

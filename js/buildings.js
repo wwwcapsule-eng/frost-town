@@ -96,10 +96,16 @@ const unlocks = [];
 function makeUnlock(def) {
   const pad = makePad(def.x, def.z, 2, 0xffd34d, def.icon);
   const label = makeLabel(320, 180); label.scale.set(3.2, 1.8, 1); label.position.set(def.x, 1.9, def.z); scene.add(label);
-  const u = Object.assign({ pad, label, paid: 0, payAcc: 0 }, def);
+  const u = Object.assign({ pad, label, paid: 0, payAcc: 0, birchPaid: 0 }, def);
   u.refresh = () => {
     const p = u.price();
     if (p == null) { scene.remove(pad); scene.remove(label); u.done = true; return; }
+    const nb = u.birch ? u.birch() - u.birchPaid : 0;            // 還要先交幾根白樺
+    if (nb > 0) {
+      if (u.near) { label.set([u.name(), '🌳 白樺 ' + nb, '再付 ' + (({ plank: '🧱 ', log: '🪵 ' }[u.mat] || '💵 ') + p)], '#ffe066', [36, 48, 34]); label.scale.set(3.2, 1.8, 1); label.position.y = 1.9; }
+      else { label.set(['🌳' + nb], '#ffe066', [60]); label.scale.set(1.9, 1.05, 1); label.position.y = 0.9; }
+      pad.fill.scale.y = 0.0001; return;
+    }
     const cost = u.mat === 'plank' && !save.wh ? '先蓋📦倉庫' : ({ plank: '🧱 ', log: '🪵 ' }[u.mat] || '💵 ') + (p - u.paid); // mat：用倉庫的木材或背上的木頭付，不是錢
     if (u.near) { label.set([u.name(), cost], '#ffe066', [36, 68]); label.scale.set(3.2, 1.8, 1); label.position.y = 1.9; } // 錢放大，像參考影片
     else { label.set([cost], '#ffe066', [60]); label.scale.set(1.9, 1.05, 1); label.position.y = 0.9; } // 遠的只顯示小價錢，不會互相蓋住
@@ -110,7 +116,7 @@ function makeUnlock(def) {
 }
 makeUnlock({ x: LOT.bag[0], z: LOT.bag[1], icon: '🎒', name: () => '背包擴充',
   price: () => [12, 35, 90][save.bag], buy: () => { save.bag++; toast('背包容量 ' + CFG.capacity[save.bag] + '！'); } });
-makeUnlock({ x: LOT.axe[0], z: LOT.axe[1], icon: '🪓', name: () => '斧頭升級',
+makeUnlock({ x: LOT.axe[0], z: LOT.axe[1], icon: '🪓', name: () => '斧頭升級', birch: () => CFG.birchAxe[save.axe] || 0,
   price: () => [20, 60, 140][save.axe], buy: () => { save.axe++; toast('砍得更快了！'); } });
 function openEast() { roadsDirty = true; scene.remove(iceWall); trees.forEach(t => { if (!t.coal) t.locked = false; }); }
 if (save.east) openEast();
@@ -119,7 +125,7 @@ if (save.mill2 && !PRO) addMill2(); // 正式關的第二台鋸木機在 save.pl
 // ===== 弩砲塔：自動射北邊的熊，熊倒下的肉掉在地上，走過去撿 =====
 // v0.71（作者 10/18：北門一帶標誌重疊）：付款格放在北門內側兩旁、跟修門格同一排，擴大領地時跟著圍欄搬（applyTerritory 看 north）
 const towerPadZ = () => -FENCE_R + 2.4;
-if (!PRO) makeUnlock({ x: LOT.tower1[0], z: towerPadZ(), north: true, icon: '🏹', name: () => '弩砲塔', mat: 'plank',
+if (!PRO) makeUnlock({ x: LOT.tower1[0], z: towerPadZ(), north: true, icon: '🏹', name: () => '弩砲塔', mat: 'plank', birch: () => CFG.birchTower[0],
   price: () => save.tower ? null : P(40), buy: () => { save.tower = true; buildTower(); addTower2Unlock(); toast('弩砲塔會自動射熊！'); } });
 const towers = [];
 const towerZ = x => -FENCE_R - 1.8; // 弩砲塔站在圍欄外 1.8、北門門板旁邊，不跟圍欄或門板穿模
@@ -138,7 +144,7 @@ function buildTower(x = 6.4, z = towerZ(x), fixed = false) {
 if (save.tower) buildTower();
 // 第二座弩砲塔：要先有第一座才會出現
 function addTower2Unlock() {
-  makeUnlock({ x: LOT.tower2[0], z: towerPadZ(), north: true, icon: '🏹', name: () => '第二座弩砲塔', mat: 'plank',
+  makeUnlock({ x: LOT.tower2[0], z: towerPadZ(), north: true, icon: '🏹', name: () => '第二座弩砲塔', mat: 'plank', birch: () => CFG.birchTower[1],
   price: () => save.tower2 ? null : P(90), buy: () => { save.tower2 = true; buildTower(-6.4); toast('北門兩側都有弩砲塔了！'); } });
 }
 if (save.tower && !save.tower2) addTower2Unlock();
@@ -206,7 +212,7 @@ for (let i = 0; i < save.workers; i++) addWorker();
 
 // ===== 倉庫（企劃 11.3～11.5，第 2 時代第一棟）：揹 10 根木頭來蓋；工人採的木頭送進來，
 // 倉庫自動補營火、用木材修門和建築、多的木頭送去鋸木廠做成🧱木材；烤肉先存進來給工人吃，多的才賣村民 =====
-save.store = Object.assign({ log: 0, coal: 0, plank: 0, food: CFG.whFood }, save.store);
+save.store = Object.assign({ log: 0, pine: 0, birch: 0, coal: 0, plank: 0, food: CFG.whFood }, save.store); // log＝冷杉；松木、白樺分開放
 if (save.truck === 'store') save.wh = true;                       // 舊存檔：買過「自動運輸：進倉庫」的直接有倉庫
 const wh = { bld: null, pad: null, label: null, t: 0, eatT: 0, hungry: false };
 // 搬運工（v0.69，作者 10/18）：倉庫蓋好後旁邊可以雇；小人把倉庫的柴送去營火、木材送去修門和建築、去綠框收錢（updatePorters）
@@ -323,8 +329,8 @@ function updateFurnace(dt) {
   f.fuel = Math.max(0, f.fuel - CFG.fuelBurn * CFG.stoveBurn ** save.stove * (coldWave.on > 0 ? CFG.coldBurn : 1) * dt); save.fuel = Math.round(f.fuel * 10) / 10;
   // 揹木頭站到火爐旁，一根根丟進去
   feedCd -= dt;
-  const types = carried.map(m => m.userData.type), kc = types.lastIndexOf('coal'), k = kc >= 0 ? kc : types.lastIndexOf('log'); // 有煤先丟煤
-  const per = kc >= 0 ? CFG.fuelPerCoal : CFG.fuelPerLog;
+  const kc = carried.findLastIndex(m => m.userData.type === 'coal'), kp = logAt('pine'), k = kc >= 0 ? kc : kp >= 0 ? kp : logAt('fir'); // 煤 → 松木（最好燒）→ 冷杉；白樺留著不燒
+  const per = kc >= 0 ? CFG.fuelPerCoal : kp >= 0 ? CFG.fuelPerLog * CFG.pineFuel : CFG.fuelPerLog;
   if (k >= 0 && feedCd <= 0 && f.fuel + f.pend < CFG.fuelMax && Math.hypot(player.position.x - FX, player.position.z - FZ) < 1.5) {
     feedCd = 0.12; f.pend += per; // pend：還在半空中、等一下會加進去的柴量
     const m = carried.splice(k, 1)[0]; const wp = m.getWorldPosition(new THREE.Vector3());
