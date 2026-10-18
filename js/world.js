@@ -19,19 +19,34 @@ Object.assign(sun.shadow.camera, { left: -18, right: 18, top: 18, bottom: -18, n
 scene.add(sun, sun.target);
 const sunRot = new THREE.Matrix4().lookAt(new THREE.Vector3(-10, 20, 8), new THREE.Vector3(), new THREE.Vector3(0, 1, 0)), sunInv = sunRot.clone().invert(), sunC = new THREE.Vector3(), SUN_TEX = 36 / 1024;
 
-const M = c => new THREE.MeshLambertMaterial({ color: c });
+// 賽璐璐風格（v0.67，作者 10/18）：卡通著色，亮、中、暗三段色塊，不是平滑漸層
+const TOON = new THREE.DataTexture(new Uint8Array([95, 155, 215]), 3, 1, THREE.LuminanceFormat);
+TOON.minFilter = TOON.magFilter = THREE.NearestFilter; TOON.needsUpdate = true;
+const M = c => new THREE.MeshToonMaterial({ color: c, gradientMap: TOON });
 const mats = {
-  snow: M(0xf4f8fc), dirt: M(0xc98c5a), trunk: M(0x7a4a2a), leaf: M(0x3f7f9a), leafSnow: M(0xe8f2fa),
+  snow: new THREE.MeshLambertMaterial({ color: 0xf4f8fc }), dirt: new THREE.MeshLambertMaterial({ color: 0xc98c5a }), // 地面用平滑著色：卡通色階會把營火光畫成一圈硬邊的黃圈
+  trunk: M(0x7a4a2a), leaf: M(0x3f7f9a), leafSnow: M(0xe8f2fa),
   log: M(0xb06a35), meat: M(0xd9414a), fur: M(0xf2f0ea), cash: M(0x3fbf5a), wood: M(0x8a5a35), roof: M(0xb53a2e), player: M(0x2f8fd8),
-  skin: M(0xffd6b0), ice: new THREE.MeshLambertMaterial({ color: 0xd6ecff, transparent: true, opacity: 0.85 }),
+  skin: M(0xffd6b0), ice: new THREE.MeshToonMaterial({ color: 0xd6ecff, gradientMap: TOON, transparent: true, opacity: 0.85 }),
   axe: M(0xdfe6ee), coal: M(0x2a2c33), rock: M(0x6b7280),
 };
+// ===== 3D 模型（Kenney CC0，放在 assets/models）：載好之前先用方塊，載好就換上；材質換成賽璐璐 =====
+const MODELS = {}, gltf = THREE.GLTFLoader ? new THREE.GLTFLoader() : null;
+function loadModel(key, url, height, onLoad) {                    // height：縮放到多高
+  if (!gltf) return;                                              // 載不到載入器（沒網路）就一直用方塊
+  gltf.load(url, r => {
+    const o = r.scene;
+    o.traverse(m => { if (m.isMesh) { m.material = new THREE.MeshToonMaterial({ map: m.material.map, color: m.material.color, gradientMap: TOON }); m.castShadow = m.receiveShadow = true; } });
+    const s = new THREE.Box3().setFromObject(o).getSize(new THREE.Vector3());
+    o.scale.setScalar(height / s.y); MODELS[key] = o; onLoad();
+  }, undefined, () => {});
+}
 function box(w, h, d, mat) { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.castShadow = m.receiveShadow = true; return m; }
 
 // 地面：雪地＋營地泥土圓
 const ground = new THREE.Mesh(new THREE.PlaneGeometry(120, 120), mats.snow);
 ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
-const camp = new THREE.Mesh(new THREE.CircleGeometry(8.5, 40), mats.dirt);
+const camp = new THREE.Mesh(new THREE.PlaneGeometry(17, 17), mats.dirt); // 領地地面：跟方形圍欄一樣大
 camp.rotation.x = -Math.PI / 2; camp.position.y = 0.01; camp.receiveShadow = true; scene.add(camp);
 
 // 自動道路（作者 10/17 回饋第 4 項）：主路＋民房環狀路，每棟建築從門口鋪一段路接到最近的路；有變動就整組重鋪
@@ -133,13 +148,23 @@ function makePad(x, z, size, color, icon) {
 
 // ===== 樹 =====
 const trees = [];
-function addTree(x, z, locked) {
-  const g = new THREE.Group();
+const TREE_KEYS = ['treeA', 'treeB', 'treeC'];
+function treeLook(g) {                                            // 雪松：有模型用模型（三種隨機），沒有就用圓錐
+  g.clear();
+  const k = TREE_KEYS[(Math.random() * 3) | 0];
+  if (MODELS[k]) { g.add(MODELS[k].clone()); return; }
   const trunk = box(0.35, 0.8, 0.35, mats.trunk); trunk.position.y = 0.4; g.add(trunk);
   [[1.3, 1.3, 1.0], [1.0, 1.1, 1.7], [0.65, 0.9, 2.3]].forEach(([r, h, y]) => {
     const c = new THREE.Mesh(new THREE.ConeGeometry(r, h, 7), mats.leaf); c.position.y = y; c.castShadow = true; g.add(c);
     const s = new THREE.Mesh(new THREE.ConeGeometry(r * 0.55, h * 0.45, 7), mats.leafSnow); s.position.y = y + h * 0.3; g.add(s);
   });
+}
+let treesLoaded = 0;
+['a', 'b', 'c'].forEach((v, i) => loadModel(TREE_KEYS[i], 'assets/models/holiday/tree-snow-' + v + '.glb', 3, () => {
+  if (++treesLoaded === 3) trees.forEach(t => { if (!t.coal) treeLook(t.g); });
+}));
+function addTree(x, z, locked) {
+  const g = new THREE.Group(); treeLook(g);
   g.position.set(x, 0, z); g.rotation.y = Math.random() * 6;
   const sc = 0.85 + Math.random() * 0.35; g.scale.setScalar(sc);
   scene.add(g);
@@ -147,7 +172,7 @@ function addTree(x, z, locked) {
 }
 function rand(a, b) { return a + Math.random() * (b - a); }
 // 北門門板往外開的範圍：兩根門柱為圓心、門板長為半徑（門柱位置跟下面 GATES 的北門一樣）
-let NG_PX = 8.7 * Math.sin(0.5), NG_PZ = -8.7 * Math.cos(0.5), NG_LEN = NG_PX; // 領地擴大時重算
+let NG_PX = 4.15, NG_PZ = -8.7, NG_LEN = NG_PX; // 北門兩片門板的門柱位置；領地擴大時重算
 function nearNorthDoors(x, z, pad) { return z < NG_PZ + 0.5 && (Math.hypot(x - NG_PX, z - NG_PZ) < NG_LEN + pad || Math.hypot(x + NG_PX, z - NG_PZ) < NG_LEN + pad); }
 // 北邊森林（一開始就能砍）；門板擺動範圍內不長樹
 for (let i = 0; i < 95; i++) {                   // 森林變大，樹也多一點
@@ -165,23 +190,30 @@ for (let z = -14 * TS; z <= 12 * TS; z += 1.6) {
   const b = box(1.4, rand(1.6, 2.6), 1.6, mats.ice); b.position.set(16 * TS + rand(-0.2, 0.2), b.geometry.parameters.height / 2, z); iceWall.add(b);
 }
 scene.add(iceWall);
-// ===== 營地圍欄：走不過去，只能從三個門進出；門有人靠近會自己打開 =====
-let FENCE_R = 8.7;                  // 圍欄半徑：營火升級（擴大領地）時變大
-const GATES = [                      // w＝門寬（固定），half＝門在圓上佔的角度一半（跟著半徑重算）
-  { a: Math.PI * 1.5, w: 8.3, half: 0.5 },  // 北門（熊會來撞）
-  { a: Math.PI / 2, w: 5.1, half: 0.3 },    // 南門（村民進出）
-  { a: 0, w: 7.6, half: 0.45 },             // 東門
+// ===== 營地圍欄（v0.65 作者 10/18：改正方形，跟格子城鎮對齊）：FENCE_R＝正方形邊長的一半；走不過去，只能從門進出；門有人靠近會自己打開 =====
+let FENCE_R = 8.7;                  // 圍欄半邊長：營火升級（擴大領地）時變大
+const fd = (x, z) => Math.max(Math.abs(x), Math.abs(z)); // 離營地中心的「方形距離」：< FENCE_R 就在圍欄裡
+const GATES = [                      // a＝門在哪一邊（北、南、東）；w＝門寬（固定）
+  { a: Math.PI * 1.5, w: 8.3 },  // 北門（熊會來撞）
+  { a: Math.PI / 2, w: 5.1 },    // 南門（村民進出）
+  { a: 0, w: 7.6 },              // 東門
 ];
+// 自己開的門（v0.66，作者 10/18）：規劃模式在圍欄上開口；off＝沿著那一邊離中間多遠
+save.gates = save.gates || [];
+save.gates.forEach(c => GATES.push({ a: c.a, w: CFG.gateW, off: c.off, own: true }));
 function angDiff(a, b) { let d = (a - b) % (Math.PI * 2); if (d > Math.PI) d -= Math.PI * 2; if (d < -Math.PI) d += Math.PI * 2; return Math.abs(d); }
-function inGate(x, z) { const a = Math.atan2(z, x); return GATES.some(g => angDiff(a, g.a) < g.half - 0.05); }
-function gatePoint(g, r) { return [Math.cos(g.a) * r, Math.sin(g.a) * r]; }
+// 門的這一邊：沿著圍欄離門中心多遠（along）、往外多遠（out）
+function gateLocal(g, x, z) { const ux = Math.round(Math.cos(g.a)), uz = Math.round(Math.sin(g.a)), t = -uz * x + ux * z; return { t, along: Math.abs(t - (g.off || 0)), out: ux * x + uz * z }; }
+function inGate(x, z, m = 0.3) { return GATES.some(g => { const l = gateLocal(g, x, z); return l.along < g.w / 2 - m && l.out > FENCE_R - 2; }); }
+function gatePoint(g, r) { const ux = Math.round(Math.cos(g.a)), uz = Math.round(Math.sin(g.a)), o = g.off || 0; return [ux * r - uz * o, uz * r + ux * o]; }
 const fencePosts = new THREE.Group(); scene.add(fencePosts);
 function buildFence() {
   fencePosts.clear();
-  const step = 1.05 / FENCE_R;                                    // 半徑變大，柱子間距維持差不多
-  for (let a = 0; a < Math.PI * 2; a += step) {
-    if (GATES.some(g => angDiff(a, g.a) < g.half)) continue;
-    const p = box(0.22, 0.9, 0.22, mats.wood); p.position.set(Math.cos(a) * FENCE_R, 0.45, Math.sin(a) * FENCE_R); fencePosts.add(p);
+  const n = Math.round(FENCE_R * 2 / 1.05);                       // 邊變長，柱子間距維持差不多
+  for (let s = 0; s < 4; s++) for (let i = 0; i <= n; i++) {
+    const t = -FENCE_R + i * FENCE_R * 2 / n, [x, z] = [[t, -FENCE_R], [t, FENCE_R], [-FENCE_R, t], [FENCE_R, t]][s];
+    if (inGate(x, z, 0)) continue;
+    const p = box(0.22, 0.9, 0.22, mats.wood); p.position.set(x, 0.45, z); fencePosts.add(p);
   }
 }
 buildFence();
@@ -189,10 +221,10 @@ buildFence();
 const doors = [];
 function makeDoors(g, tall) {
   const group = new THREE.Group();
-  const [mx, mz] = gatePoint(g, FENCE_R * Math.cos(g.half));
+  const [mx, mz] = gatePoint(g, FENCE_R), tx = -Math.round(Math.sin(g.a)), tz = Math.round(Math.cos(g.a)); // 門中心、沿著圍欄的方向
   const leaves = [];
   [-1, 1].forEach(side => {
-    const ex = Math.cos(g.a + side * g.half) * FENCE_R, ez = Math.sin(g.a + side * g.half) * FENCE_R;
+    const ex = mx + tx * side * g.w / 2, ez = mz + tz * side * g.w / 2;
     const len = Math.hypot(mx - ex, mz - ez), base = Math.atan2(-(mz - ez), mx - ex);
     const pivot = new THREE.Group(); pivot.position.set(ex, 0, ez); pivot.rotation.y = base;
     for (let x = 0.3; x < len; x += 0.55) {
@@ -271,7 +303,7 @@ function updateBears(dt) {
       else {
         prey = buildings.filter(o => !o.dead).sort((p, q) => Math.hypot(p.x - b.x, p.z - b.z) - Math.hypot(q.x - b.x, q.z - b.z))[0];
         if (prey) { tx = prey.x; tz = prey.z; reach = prey.r + 0.9; } else { tx = CX; tz = CZ - 1.5; }
-        const bearIn = Math.hypot(b.x, b.z) < FENCE_R, preyIn = Math.hypot(tx, tz) < FENCE_R;
+        const bearIn = fd(b.x, b.z) < FENCE_R, preyIn = fd(tx, tz) < FENCE_R;
         const inGateBand = Math.abs(b.x) < 3 && b.z > -FENCE_R - 1.9 && b.z < -FENCE_R + 2.1;
         if (bearIn !== preyIn && !inGateBand) { tx = Math.max(-2.5, Math.min(2.5, b.x)); tz = bearIn ? -FENCE_R + 1.7 : -FENCE_R - 1.3; reach = 0.3; prey = null; } // 進出營地都走北門
       }

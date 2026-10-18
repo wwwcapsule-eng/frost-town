@@ -1,5 +1,5 @@
 'use strict';
-const VERSION = '0.63';
+const VERSION = '0.67';
 
 // ===== 數值（之後平衡都改這裡） =====
 const CFG = {
@@ -35,6 +35,7 @@ const CFG = {
   snowEvery: 7, snowMax: 10, snowHp: 3, snowSlow: 0.45, shovelPrice: 60, // 雪堆（村莊開始）：幾秒積一堆、最多幾堆、鏟幾下、踩到剩幾成速度、鏟雪工價錢
   heaterPrice: 120, heaterR: 7, cell: 3, mill2Price: 80, grill2Price: 150, smithPrice: 200, coalValue: 6, truckPrice: 150, truckEvery: 4, storeMax: 150, // 自動運輸：價錢、每幾秒送一趟、倉庫每樣最多存多少（木材存滿，鋸木廠多做的才換錢）； // 鐵匠鋪：價錢、一塊煤打成工具賣幾元； 規劃模式：暖氣塔價錢、暖氣範圍半徑、格子大小；正式關：第二台鋸木機、第二座烤肉攤價錢
   whLogs: 10, plankRate: 0.3, fuelKeep: 20, foodKeep: 20, whFood: 10, eatEvery: 90, // 倉庫（第 2 時代）：揹幾根木頭蓋；建築價錢換成🧱木材的比例（原本的錢 ×0.3）；倉庫留幾根木頭當柴（多的送鋸木廠）；存多少烤肉（多的才賣村民）；蓋好送幾份食物；工人幾秒吃一次
+  gatePrice: 30, gateW: 3.6, gateMax: 4, // 自己開的圍欄門：價錢（換成木材 ×0.3）、門寬、最多幾個
   coldFirst: 120, coldEvery: 150, coldLen: 30, coldBurn: 3, coldShrink: 0.75, coldReward: 30, // 寒潮（村莊開始）：第一次幾秒後、之後每幾秒、持續幾秒、火爐燒幾倍快、暖氣圈縮成幾成、撐過去的獎金 // 火爐升級（村莊解鎖）：暖氣圈最大半徑 +7
 };
 // 城市等級：人口到門檻就升級（藍圖見 docs/企劃評估.md 第 8 節）；houses＝這一級最多能蓋幾間民房
@@ -51,9 +52,10 @@ const P = cash => Math.ceil(cash * CFG.plankRate); // 建築用木材蓋（企�
 // 領地等級：營火升級一次，圍欄往外推（r＝圍欄半徑）、暖氣圈變大（heat）、鏡頭拉遠一點（cam）
 const TERR = [ { r: 10 * TS, heat: 0, cam: 1.15 }, { r: 14 * TS, heat: 3, cam: 1.28 }, { r: 18.5 * TS, heat: 7, cam: 1.42 } ];
 // 地塊配置（作者 10/17 第二次回饋：每個建築、付款格都有自己的位置，不互擋）
+// v0.64（作者 10/18）：升級格放在它升級的東西旁邊——營火升級貼著營火、雇伐木工在倉庫旁（木頭送倉庫）、雇鏟雪工在村民櫃台旁
 // 營火廣場在 (0,-3)；N-S 主路 x≈0；東路 z≈0；民房在南邊一圈圈的地塊上，門朝營火
 const LOT = {
-  bag: [-2.8, -5.6], axe: [2.8, -5.6], terr: [-3.2, 1.6], worker: [3.2, 1.6], shovel: [3.2, 4.4], store: [6.7, 3.1], tower1: [3.6, -7.4], tower2: [-3.6, -7.4],
+  bag: [-2.8, -5.6], axe: [2.8, -5.6], terr: [-1.9, -1.2], worker: [4.7, 5.1], shovel: [1.9, 6.4], store: [6.7, 3.1], tower1: [3.6, -7.4], tower2: [-3.6, -7.4],
   mill: [6.4, -4], mill2: [-6.4, -4], bbq: [-4.6, 3.8], minePad: [-8, 3], truckCash: [-8, 3], truckStore: [-8.6, -0.4],
 };
 for (const k in LOT) if (!/^tower/.test(k)) LOT[k] = LOT[k].map(v => +(v * TS).toFixed(2)); // 弩砲塔貼著北門（門寬不變），不放大

@@ -8,12 +8,13 @@ const clock = new THREE.Clock();
 const hero = { hp: CFG.playerHp, hit: 0 };
 let hurtCd = 0;
 function huntable(b) {
-  return !b.aggro && hurtCd <= 0 && Math.hypot(player.position.x, player.position.z) > FENCE_R + 0.3 &&
+  return !b.aggro && hurtCd <= 0 && fd(player.position.x, player.position.z) > FENCE_R + 0.3 &&
     Math.hypot(player.position.x - b.x, player.position.z - b.z) < (b.hunting ? CFG.bearChase + 2 : CFG.bearChase);
 }
 // 離暖氣圈邊緣多遠（≤0 表示在暖氣裡）：火爐的圈和暖氣塔的圈取最近的那個
 function coldOver(x, z) {
   let over = Math.hypot(x - FX, z - FZ) - furnace.r;
+  if (furnace.r >= FENCE_R) over = Math.min(over, fd(x, z) - FENCE_R); // 火夠旺：整個方形領地都溫暖
   const hr = furnace.fuel > 0 ? CFG.heaterR * (coldWave.on > 0 ? CFG.coldShrink : 1) : 0;
   for (const h of heaters) if (!h.bld.dead) over = Math.min(over, Math.hypot(x - h.x, z - h.z) - hr);
   return over;
@@ -149,9 +150,9 @@ function step(dt) {
       if (d < 0.7 && d > 0) { nx = t.x + dx / d * 0.7; nz = t.z + dz / d * 0.7; }
     }
     [nx, nz] = pushOut(nx, nz, 0.4);                  // 不要穿過建築
-    const r1 = Math.hypot(nx, nz);                     // 圍欄擋住，只有門口過得去
+    const r1 = fd(nx, nz);                              // 圍欄擋住，只有門口過得去
     if (Math.abs(r1 - FENCE_R) < 0.4 && !inGate(nx, nz)) {
-      const k = (Math.hypot(player.position.x, player.position.z) < FENCE_R ? FENCE_R - 0.4 : FENCE_R + 0.4) / r1;
+      const k = (fd(player.position.x, player.position.z) < FENCE_R ? FENCE_R - 0.4 : FENCE_R + 0.4) / r1;
       nx *= k; nz *= k;
     }
     player.position.x = nx; player.position.z = nz;

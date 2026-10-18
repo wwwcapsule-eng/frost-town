@@ -70,7 +70,7 @@ function updateVillagers(dt) {
     else v.g.position.y = 0;
   });
   const front = villagers[0];
-  const scared = bears.some(b => b.alive && b.aggro && Math.hypot(b.x, b.z) < FENCE_R + 0.3); // 熊進營地，村民不敢買
+  const scared = bears.some(b => b.alive && b.aggro && fd(b.x, b.z) < FENCE_R + 0.3); // 熊進營地，村民不敢買
   const blocked = piles.some(p => Math.hypot(p.x - CX, p.z - CZ - 1) < 1.6); // 雪堆擋在櫃台前，村民不買
   blockWarn -= dt; if (blocked && bbq.cookedMeshes.length && blockWarn <= 0) { toast('❄️ 雪堆擋住櫃台了！快去鏟'); blockWarn = 8; }
   if (front && !scared && !blocked && bbq.cookedMeshes.length && front.g.position.distanceTo(QUEUE(0)) < 0.3) {
@@ -120,7 +120,7 @@ if (save.mill2 && !PRO) addMill2(); // 正式關的第二台鋸木機在 save.pl
 if (!PRO) makeUnlock({ x: LOT.tower1[0], z: LOT.tower1[1], icon: '🏹', name: () => '弩砲塔', mat: 'plank',
   price: () => save.tower ? null : P(40), buy: () => { save.tower = true; buildTower(); addTower2Unlock(); toast('弩砲塔會自動射熊！'); } });
 const towers = [];
-const towerZ = x => -Math.sqrt((FENCE_R + 1.8) ** 2 - x * x); // 弩砲塔站在圍欄外 1.8、北門門板旁邊，不跟圍欄或門板穿模
+const towerZ = x => -FENCE_R - 1.8; // 弩砲塔站在圍欄外 1.8、北門門板旁邊，不跟圍欄或門板穿模
 const nearTower = (x, z) => towers.some(tw => Math.hypot(x - tw.g.position.x, z - tw.g.position.z) < 2.4);
 function buildTower(x = 6.4, z = towerZ(x), fixed = false) {
   const g = new THREE.Group();
@@ -265,6 +265,7 @@ const stoveG = new THREE.Group(); fg.add(stoveG);
 const sBase = new THREE.Mesh(new THREE.BoxGeometry(2.2, 1, 2.2), M(0x6f747d)); sBase.position.y = 0.5; sBase.castShadow = sBase.receiveShadow = true; stoveG.add(sBase);
 const sChim = new THREE.Mesh(new THREE.BoxGeometry(0.5, 1.6, 0.5), M(0x5a5f68)); sChim.position.set(0.65, 1.6, -0.65); sChim.castShadow = true; stoveG.add(sChim);
 fg.position.set(FX, 0, FZ); scene.add(fg);
+loadModel('campfire', 'assets/models/survival/campfire-pit.glb', 0.7, () => { const m = MODELS.campfire.clone(); m.position.y = -0.35; stone.material = new THREE.MeshBasicMaterial({ visible: false }); stone.add(m); }); // 石圈隱形、模型掛在它底下，石爐時一起藏起來
 const fireLv = () => 1 + save.territory + save.stove;              // 營火等級：Lv1～3 營火（＝領地）、Lv4～6 石爐（企劃 9.3）
 const fireName = () => save.stove ? '石爐' : '營火';
 function updateStoveLook() { stoveG.visible = save.stove > 0; stone.visible = !save.stove; flame.position.y = save.stove ? 1.4 + 0.15 * save.stove : 1.2; }
@@ -318,10 +319,13 @@ function updateFurnace(dt) {
   f.r = f.fuel > 0 ? CFG.heat[0] + (rMax - CFG.heat[0]) * Math.min(1, pct / 50) : 0;
   if (coldWave.on > 0) f.r *= CFG.coldShrink; // 寒潮：暖氣圈縮小
   heatRing.scale.setScalar(Math.max(0.001, f.r)); heatFill.scale.setScalar(Math.max(0.001, f.r));
+  heatRing.visible = heatFill.visible = f.r < FENCE_R;       // 作者 10/18：暖氣蓋得住整個領地就不畫，免得跟領地邊界看起來像兩個範圍；火變小縮進領地才出現
+
   flame.visible = f.fuel > 0; flame.scale.setScalar(0.4 + 0.6 * pct / 100); flame.scale.y *= 1 + Math.sin(guideT * 20) * 0.12;
   const hr = f.fuel > 0 ? CFG.heaterR * (coldWave.on > 0 ? CFG.coldShrink : 1) : 0; // 暖氣塔靠火爐供熱，火熄了也沒用
   for (const h of heaters) { const v = h.bld.dead ? 0.001 : Math.max(0.001, hr); h.ring.scale.setScalar(v); h.fill.scale.setScalar(v); }
-  for (const b of buildings) b.cold = Math.hypot(b.x - FX, b.z - FZ) > f.r && !heaters.some(h => !h.bld.dead && Math.hypot(b.x - h.x, b.z - h.z) <= hr);
+  const warmCamp = f.r >= FENCE_R;                                     // 火夠旺：整個方形領地都算溫暖（跟地面看到的範圍一致）
+  for (const b of buildings) b.cold = !(warmCamp && fd(b.x, b.z) < FENCE_R) && Math.hypot(b.x - FX, b.z - FZ) > f.r && !heaters.some(h => !h.bld.dead && Math.hypot(b.x - h.x, b.z - h.z) <= hr);
   if (f.fuel <= 0 && !f.out) { toast('🔥 火爐熄了！建築都凍住了，快加柴！'); beep(180, 0.4, 'sawtooth', 0.06, 0.6); }
   f.out = f.fuel <= 0;
   furnaceLabel.visible = pct < 50 || Math.hypot(player.position.x - FX, player.position.z - FZ) < 5;
