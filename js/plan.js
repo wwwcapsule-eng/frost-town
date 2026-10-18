@@ -163,7 +163,7 @@ save.moved = save.moved || {};
 const KIND_OF = { 鋸木廠: 'mill', 第二台鋸木機: 'mill', 烤肉攤: 'grill', 第二座烤肉攤: 'grill', 鐵匠鋪: 'smith', 倉庫: 'mill' }; // 倉庫門口也有格子，跟鋸木廠一樣檢查 // 建築名 → 能蓋在哪一區、怎麼檢查空地
 function kindOf(b) {
   const i = planBld.indexOf(b); if (i >= 0) return save.plan[i].k;
-  return KIND_OF[b.key] || (houses.includes(b) ? 'house' : towers.some(t => t.bld === b) ? 'tower' : 'heater');
+  return KIND_OF[b.key] || (houses.includes(b) || tentHouses.includes(b) ? 'house' : towers.some(t => t.bld === b) ? 'tower' : 'heater');
 }
 function remember(b) {                                            // 搬過的建築把新位置存起來
   const i = planBld.indexOf(b);
@@ -258,10 +258,11 @@ function updateStore(dt) {
     wh.t = 0;
     const hurt = buildings.find(b => !b.dead && b.hp < CFG.buildHp), mill = mills[0];
     if (porters.length) ; // 有搬運工：補火、修門、修建築改成小人走過去才生效（updatePorters）
-    else if (f.fuel < CFG.fuelMax * 0.7 && (st.coal || st.log)) { const c = st.coal > 0; if (c) st.coal--; else st.log--; f.fuel = Math.min(CFG.fuelMax, f.fuel + (c ? CFG.fuelPerCoal : CFG.fuelPerLog)); }
+    // v0.80（作者）：開了煤礦，倉庫才自動補營火；之前只自動修門和建築
+    else if (save.mine && f.fuel < CFG.fuelMax * 0.7 && (st.coal || st.log)) { const c = st.coal > 0; if (c) st.coal--; else st.log--; f.fuel = Math.min(CFG.fuelMax, f.fuel + (c ? CFG.fuelPerCoal : CFG.fuelPerLog)); }
     else if (gate.hp < CFG.gateHp && st.plank) { st.plank--; gate.hp = Math.min(CFG.gateHp, gate.hp + 10); }
     else if (hurt && st.plank) { st.plank--; hurt.hp = Math.min(CFG.buildHp, hurt.hp + 10); }
-    if (st.log > CFG.fuelKeep && mill.queue < 3 && !mill.bld.dead) { st.log--; mill.queue++; }
+    if (st.log > (save.mine ? CFG.fuelKeep : 0) && mill.queue < 3 && !mill.bld.dead) { st.log--; mill.queue++; } // 還沒開煤礦：木頭全部送鋸木廠
   }
   const meal = mealSize();                                        // v0.76：所有居民都要吃，人越多吃越多
   wh.eatT += dt;
@@ -275,7 +276,13 @@ function updateStore(dt) {
     }
   }
   if (wh.hungry && st.food > 0) { st.food--; wh.hungry = false; toast('😋 工人吃飽，復工了！'); }
-  wh.label.set(wh.hungry ? ['📦 倉庫', '😩 沒食物，工人罷工'] : ['📦 倉庫', '🪚' + st.plank + ' 🔥' + (st.log + st.coal) + ' 🍖' + st.food], wh.hungry ? '#ff6a5a' : '#fff');
+  wh.label.set(wh.hungry ? ['📦 倉庫', '😩 沒食物，工人罷工'] : ['📦 倉庫', '🪚' + st.plank + '/' + plankNeed() + ' 🍖' + st.food + (save.mine ? ' ⚫' + st.coal : '')], wh.hungry ? '#ff6a5a' : '#fff');
+}
+// 倉庫要留多少🪚木材（v0.79～0.80）：至少 40，還要夠付眼前最貴的一筆（民房、升級伐木場…）；多的鋸木廠直接換錢
+function plankNeed() {
+  let n = Math.max(CFG.plankKeep, P(housePrice()) + 10);
+  for (const u of unlocks) if (!u.done && u.mat === 'plank') { const p = u.price(); if (p != null) n = Math.max(n, p - u.paid + 10); }
+  return Math.min(CFG.storeMax, n);
 }
 // 搬運工：營火要柴 → 北門要修 → 建築要修 → 綠框有錢；先回倉庫格子拿東西（一趟最多 3 個），走到目的地才生效
 function updatePorters(dt) {
@@ -284,7 +291,7 @@ function updatePorters(dt) {
   porters.forEach((p, i) => {
     if (!p.job) {
       const hurt = buildings.find(b => !b.dead && b.hp < CFG.buildHp && !taken(b)), cash = mills.find(m => m.out.length && !taken(m));
-      if (furnace.fuel < CFG.fuelMax * 0.7 && st.coal + st.log && !taken('fuel')) p.job = { k: 'fuel' };
+      if (save.mine && furnace.fuel < CFG.fuelMax * 0.7 && st.coal + st.log && !taken('fuel')) p.job = { k: 'fuel' };
       else if (gate.hp < CFG.gateHp && st.plank && !taken('gate')) p.job = { k: 'gate' };
       else if (hurt && st.plank) p.job = { k: 'fix', b: hurt };
       else if (cash) p.job = { k: 'cash', m: cash, got: true };
@@ -337,7 +344,7 @@ function levelUnlocks() {
     price: () => save.mill2 ? null : P(80), buy: () => { save.mill2 = true; addMill2(); toast('加工速度翻倍！'); } });
   if (!PRO && save.east && houseUnlock.done && houses.length < LEVELS[save.level].houses && houseLotOpen()) houseUnlock = addHouseUnlock();
   if (save.level >= 1 && save.territory >= 1 && !save.mine && !mineUnlock) mineUnlock = makeUnlock({ x: LOT.minePad[0], z: LOT.minePad[1], icon: '⛏️', name: () => '開採煤礦',
-    price: () => save.mine ? null : CFG.minePrice, buy: () => { save.mine = 1; openMine(); sparkle(MINE_FX, MINE.z); toast('⛏️ 西邊的礦坑打開了！到坑口挖煤，煤丟進火爐很耐燒'); } });
+    price: () => save.mine ? null : CFG.minePrice, buy: () => { save.mine = 1; openMine(); sparkle(MINE_FX, MINE.z); toast('⛏️ 礦坑打開了！煤很耐燒，放進倉庫後，營火低於 7 成會自動補'); } });
   if (save.mine && !save.cart && !cartUnlock) cartUnlock = makeUnlock({ x: LOT.cart[0], z: LOT.cart[1], icon: '🛤️', name: () => '雇礦工＋木軌礦車', mat: 'plank',
     price: () => save.cart ? null : P(CFG.cartPrice), buy: () => { save.cart = 1; buildCart(); sparkle(MINE_BIN[0], MINE_BIN[1]); toast('🛤️ 礦工在坑裡挖，礦車會把煤推出來倒在煤堆！'); } });
   if (save.level >= 1 && !save.shovel && !shovelUnlock) shovelUnlock = makeUnlock({ x: LOT.shovel[0], z: LOT.shovel[1], icon: '🧹', name: () => '雇用鏟雪工', need: () => needHand(),
@@ -486,7 +493,7 @@ function addHunter() {
   const c = box(0.5, 0.18, 0.48, M(0x2f5d3a)); c.position.y = 1.48; g.add(c);
   const bow = box(0.08, 0.9, 0.08, mats.trunk); bow.position.set(0.38, 0.75, 0.15); g.add(bow);
   const back = new THREE.Group(); back.position.set(0, 1.0, -0.4); g.add(back);
-  g.position.set(LOT.hunter[0] - 1.4, 0, LOT.hunter[1]); scene.add(g);
+  g.position.set(LOT.hunter[0] + 1.4, 0, towerPadZ() + 1.2); scene.add(g);
   hunters.push({ g, back, load: 0, bear: null, cd: 0, walk: 0 });
 }
 for (let i = 0; i < save.hunters; i++) addHunter();
@@ -499,14 +506,14 @@ function updateHunters(dt) {
       if (routeTo(h, ip.x, ip.z, dt)) { bbq.queue += h.load; h.load = 0; h.back.clear(); }
       continue;
     }
-    if (!h.bear || !h.bear.alive || h.bear.aggro) {  // 找最近、沒人在打的野熊（來襲的熊交給弩砲塔）
+    if (!h.bear || !h.bear.alive) {                 // 找最近、沒人在打的熊（v0.80：來襲撞門的熊也打）
       let best = 1e9; h.bear = null;
       for (const b of bears) {
-        if (!b.alive || b.aggro || b.wolf || hunters.some(o => o !== h && o.bear === b)) continue;
+        if (!b.alive || b.wolf || hunters.some(o => o !== h && o.bear === b)) continue;
         const d = (b.x - p.x) ** 2 + (b.z - p.z) ** 2;
         if (d < best) { best = d; h.bear = b; }
       }
-      if (!h.bear) { routeTo(h, LOT.hunter[0] - 1.4, LOT.hunter[1], dt); continue; }
+      if (!h.bear) { routeTo(h, LOT.hunter[0] + 1.4, towerPadZ() + 1.2, dt); continue; } // 沒熊：在北門旁的付款格邊等
     }
     const b = h.bear, d = Math.hypot(b.x - p.x, b.z - p.z);
     if (d > CFG.huntRange) { routeTo(h, b.x, b.z, dt); continue; }

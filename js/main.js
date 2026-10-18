@@ -231,7 +231,7 @@ function step(dt) {
     const ip = mill.inPad.position, op = mill.outPad.position;
     if (mill.bld.dead) { mill.label.set([mill.name]); continue; }
     const k = carried.map(m => m.userData.type).lastIndexOf(mill.accept); // 只收這個站要的東西
-    if (k >= 0 && dropTimer <= 0 && Math.hypot(player.position.x - ip.x, player.position.z - ip.z) < 1.3) {
+    if (k >= 0 && dropTimer <= 0 && mill.inPad.visible && Math.hypot(player.position.x - ip.x, player.position.z - ip.z) < 1.3) { // 投放格收起來（有倉庫）就不收
       dropTimer = 0.07;
       const m = carried.splice(k, 1)[0]; const wp = m.getWorldPosition(new THREE.Vector3());
       stackRoot.remove(m); restack();
@@ -245,7 +245,8 @@ function step(dt) {
         mill.timer = 0; mill.queue--;
         const st = save.store;                    // 有倉庫：木頭做成🪚木材、烤肉先存給工人吃，存滿了多的才換錢
         if (mill.customers) { if (save.wh && st.food < Math.max(6, mealSize() * CFG.meals)) toStore('food', mill); else addCooked(mill); }
-        else if (save.wh && mill.accept === 'log' && st.plank < Math.max(CFG.plankKeep, P(housePrice()) + 10)) toStore('plank', mill); // v0.79：木材留夠蓋下一間民房的量就好，多的換錢（不然有倉庫後錢沒來源）
+        else if (save.wh && mill.accept === 'log' && st.plank < plankNeed()) toStore('plank', mill); // v0.79：木材留夠就好，多的換錢（不然有倉庫後錢沒來源）
+        else if (!mill.outPad.visible) { save.cash += mill.value; sfx.coin(); } // v0.80：收錢格收起來了，錢直接入帳
         else spawnBill(mill, mill.g.position.clone().add(tmp.set(1.2, 1, 1)));
       }
     } else if (!cold) mill.timer = 0;

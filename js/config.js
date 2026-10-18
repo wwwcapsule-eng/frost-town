@@ -1,5 +1,5 @@
 'use strict';
-const VERSION = '0.79';
+const VERSION = '0.80';
 
 // ===== 數值（之後平衡都改這裡） =====
 const CFG = {
@@ -26,7 +26,7 @@ const CFG = {
   hunterPrice: [80, 160, 260, 380], huntRange: 5, huntEvery: 1.2, // 獵人（v0.79）：第 1～4 個的價錢、幾格內開弓、幾秒射一箭（熊 5 血）
   payRate: 1.1, padDelay: 0.6, // padDelay：站在付款格上幾秒後才開始付錢             // 付款格：幾秒內付完整筆
   popBase: 2,               // 新遊戲一開始的居民（主角的夥伴）
-  tentBeds: 3, tentPrice: [6, 10, 14], // 帳篷：一頂幾張床；第 2～4 頂要揹幾根木頭來搭（第 1 頂一開始就有）
+  tentBeds: 3, tentPrice: [6, 10, 14], tentUpPrice: 30, // 帳篷：一頂幾張床；第 2～4 頂要揹幾根木頭來搭（第 1 頂一開始就有）；改建木屋的價錢（換成木材 ×0.3）
   refEvery: 9, refCold: 3, refMax: 12, refLeave: 6, // 流民（v0.76）：平常每 9 秒來一個、寒潮時每 3 秒（逃難的變多）、隊伍最多 12 人、營火變弱時每 6 秒走掉一個
   perMeat: 5, meals: 3, leaveEvery: 15, // v0.79（作者）：每 5 位居民一餐吃 1 份烤肉、也才能雇 1 個工人；倉庫留幾餐的烤肉給居民，多的才給流民；床不夠時每 15 秒走掉一位沒工作的居民
   housePop: 5, housePrice: [25, 15], // 每間民房住幾人；民房價錢：第一間 25，之後每間多 15
@@ -65,7 +65,7 @@ const TERR = [ { r: 10 * TS, heat: 0, cam: 1.15 }, { r: 14 * TS, heat: 3, cam: 1
 // v0.64（作者 10/18）：升級格放在它升級的東西旁邊——營火升級貼著營火、雇伐木工在倉庫旁（木頭送倉庫）、雇鏟雪工在村民櫃台旁
 // 營火廣場在 (0,-3)；N-S 主路 x≈0；東路 z≈0；民房在南邊一圈圈的地塊上，門朝營火
 const LOT = {
-  bag: [-2.8, -5.6], axe: [2.8, -5.6], terr: [-1.9, -1.2], worker: [8.7, 2.3], porter: [8.7, 3.9], hunter: [8.7, 5.5], shovel: [-1.9, 6.6], store: [6.7, 3.1], tower1: [4.4, 0], tower2: [-4.4, 0],
+  bag: [-2.8, -5.6], axe: [2.8, -5.6], terr: [-1.9, -1.2], worker: [8.7, 2.3], porter: [8.7, 3.9], hunter: [-6.3, 0], shovel: [-1.9, 6.6], store: [6.7, 3.1], tower1: [4.4, 0], tower2: [-4.4, 0],
   mill: [6.4, -4], mill2: [-6.4, -4], bbq: [2.7, 6.3], minePad: [-8, 3], cart: [-10.81, 1.33], truckCash: [-8, 3], truckStore: [-8.6, -0.4],
 };
 for (const k in LOT) if (!/^tower/.test(k)) LOT[k] = LOT[k].map(v => +(v * TS).toFixed(2)); // 弩砲塔付款格貼著北門兩側（門寬不變），x 不放大；z 跟著圍欄（towerPadZ）

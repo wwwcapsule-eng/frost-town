@@ -121,10 +121,14 @@ function makeLabel(w = 256, h = 128) {
     const key = lines.join('|') + color + sizes; if (key === last) return; last = key; // 文字沒變就不重畫
     const g = cv.getContext('2d'); g.clearRect(0, 0, w, h);
     g.textAlign = 'center'; g.textBaseline = 'middle';
-    const fs = lines.map((t, i) => sizes[Math.min(i, sizes.length - 1)]);
+    const font = (i, s) => (i === 0 ? '900 ' : '800 ') + s + 'px "Noto Sans TC","Microsoft JhengHei",sans-serif';
+    const fs = lines.map((t, i) => {                                 // v0.80（作者：字被切掉）：太寬就把這一行縮小到放得下
+      const s = sizes[Math.min(i, sizes.length - 1)]; g.font = font(i, s);
+      return Math.min(s, Math.floor(s * (w - 20) / Math.max(1, g.measureText(t).width)));
+    });
     let y = h / 2 - fs.reduce((a, b) => a + b * 1.05, 0) / 2;
     lines.forEach((t, i) => {
-      g.font = (i === 0 ? '900 ' : '800 ') + fs[i] + 'px "Noto Sans TC","Microsoft JhengHei",sans-serif';
+      g.font = font(i, fs[i]);
       g.lineWidth = Math.max(8, fs[i] / 6); g.strokeStyle = 'rgba(30,40,60,.85)';
       y += fs[i] * 0.525;
       g.strokeText(t, w / 2, y); g.fillStyle = color; g.fillText(t, w / 2, y);
