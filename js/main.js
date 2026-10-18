@@ -129,8 +129,10 @@ function quietLabels() {
   list.map(l => [l, Math.hypot(l.position.x - px, l.position.z - pz)]).sort((a, b) => a[1] - b[1])
     .forEach(([l, d], i) => l.visible = d < CFG.labelNear && i < CFG.labelMax);
 }
+let inkT = 0;
 function step(dt) {
   if (gameOver || paused) return;
+  if ((inkT -= dt) <= 0) { inkT = 0.5; inkAll(scene); }          // 新出現的建築、人物、模型補上描邊
   // 移動
   let ix = joy.x, iy = joy.y;
   if (keys.KeyA || keys.ArrowLeft) ix -= 1; if (keys.KeyD || keys.ArrowRight) ix += 1;

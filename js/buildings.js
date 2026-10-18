@@ -260,6 +260,16 @@ else makeUnlock({ x: LOT.store[0], z: LOT.store[1] + 2.7, icon: '📦', mat: 'lo
     toast('📦 倉庫蓋好了！工人的木頭送來這裡，自動補營火、修門；鋸木廠做的🧱木材拿來蓋建築');
   } });
 
+// ===== 營地帳篷（v0.77）：CFG.tentBeds 張床，還沒蓋民房前留下來的居民住這裡；Kenney 帳篷模型，載好前先用三角帳 =====
+const TENTS = [[-5.6 * TS, 1.2 * TS], [-5.6 * TS, 3.4 * TS]];
+const tentGs = TENTS.map(([x, z]) => {
+  const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = Math.PI / 2; scene.add(g); // 門朝東邊主路
+  const c = new THREE.Mesh(new THREE.ConeGeometry(1.1, 1.3, 4), M(0xc9a36b)); c.position.y = 0.65; c.rotation.y = Math.PI / 4; c.castShadow = true; g.add(c);
+  props.push({ x, z, r: 1 });
+  return g;
+});
+loadModel('tent', 'assets/models/survival/tent-canvas.glb', 1.5, () => tentGs.forEach(g => { g.clear(); g.add(MODELS.tent.clone()); }));
+
 // ===== 民房：在南門外一間間往外蓋，每間 +5 人口；付款格蓋好後會移到下一塊空地 =====
 const houses = [], FX0 = 0, FZ0 = -3; // 營火位置（跟下面的 FX, FZ 一樣）
 function houseSpot(i) { const l = HOUSE_LOTS[Math.min(i, HOUSE_LOTS.length - 1)]; return [l.x, l.z]; }
@@ -293,7 +303,7 @@ let houseUnlock = save.east && !PRO ? addHouseUnlock() : { done: true }; // 民�
 const FX = 0, FZ = -3 * TS; props.push({ x: FX, z: FZ, r: 0.6 }); // 營火不能穿過去
 const furnace = { fuel: save.fuel ?? CFG.fuelMax, pend: 0, r: 0, out: false };
 const fg = new THREE.Group();
-const stone = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 1.1, 0.7, 8), M(0x8a8f99)); stone.position.y = 0.35; stone.castShadow = stone.receiveShadow = true; fg.add(stone);
+const stone = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 1.1, 0.7, 8), M(0x8a8f99)); stone.userData.ink = true; stone.position.y = 0.35; stone.castShadow = stone.receiveShadow = true; fg.add(stone);
 const flame = new THREE.Mesh(new THREE.ConeGeometry(0.55, 1.2, 6), new THREE.MeshBasicMaterial({ color: 0xff8a1f })); flame.position.y = 1.2; fg.add(flame);
 // 石爐（營火 Lv4～6）：石砌方爐＋煙囪，換掉原本的石圈
 const stoveG = new THREE.Group(); fg.add(stoveG);
@@ -311,8 +321,8 @@ const heatFill = new THREE.Mesh(new THREE.CircleGeometry(1, 64), new THREE.MeshB
 const furnaceLabel = makeLabel(); furnaceLabel.scale.set(2.6, 1.3, 1); furnaceLabel.position.set(FX + 1.2, 2.4, FZ + 1.2); scene.add(furnaceLabel); // 放在火爐靠鏡頭那側，不蓋住後面背包付款格的標籤
 // 營火分段（作者 10/17 回饋第 5 項）：不同 % 有不同畫面；火越小，熊群來得越多
 const FIRE_STAGES = [ // min：營火 % 以上就是這一段；light：整體亮度；frost：畫面四周結霜；glow：火光；bears：熊群多來幾隻
-  { min: 70, name: '旺', light: 1, frost: 0, glow: 1.15, sky: 0xcfe3f2, bears: 0 },
-  { min: 40, name: '普通', light: 0.88, frost: 0.15, glow: 0.85, sky: 0xc4d9ea, bears: 0 },
+  { min: 70, name: '旺', light: 1, frost: 0, glow: 0.7, sky: 0xcfe3f2, bears: 0 },
+  { min: 40, name: '普通', light: 0.88, frost: 0.15, glow: 0.6, sky: 0xc4d9ea, bears: 0 },
   { min: 20, name: '變弱', light: 0.72, frost: 0.45, glow: 0.55, sky: 0xaec6dc, bears: 1, msg: '🔥 營火變弱了，天氣變冷，熊會多來一隻' },
   { min: 1, name: '快熄', light: 0.58, frost: 0.75, glow: 0.35, sky: 0x93aac2, bears: 2, msg: '🥶 營火快熄了！快加柴，熊群會更多' },
   { min: -1, name: '熄滅', light: 0.48, frost: 1, glow: 0, sky: 0x7f93a8, bears: 2 },

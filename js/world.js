@@ -46,6 +46,23 @@ function loadModel(key, url, height, onLoad) {                    // height：�
     o.scale.setScalar(height / s.y); MODELS[key] = o; onLoad();
   }, undefined, () => {});
 }
+// 賽璐璐描邊（v0.77，作者 10/18）：每個卡通著色的東西外面套一層深色、只畫背面的殼，看起來像動畫的線稿
+// 方塊用放大殼（角不會斷線）；模型、圓柱沿法線往外推固定粗細；樹太多不描（userData.noInk，手機效能）
+const INK = new THREE.MeshBasicMaterial({ color: 0x27303d, side: THREE.BackSide });
+const INK_N = new THREE.MeshBasicMaterial({ color: 0x27303d, side: THREE.BackSide });
+INK_N.onBeforeCompile = sh => { sh.vertexShader = sh.vertexShader.replace('#include <project_vertex>', 'vec4 mvPosition = modelViewMatrix * vec4(transformed, 1.0); mvPosition.xyz += normalize(normalMatrix * normal) * 0.035; gl_Position = projectionMatrix * mvPosition;'); };
+const FLAT = /Plane|Circle|Ring/;
+function inkAll(o) {
+  if (o.userData.noInk || o.userData.isInk || !o.visible) return;
+  if (o.isMesh && !o.userData.ink && o.material.isMeshToonMaterial && !o.material.transparent && !FLAT.test(o.geometry.type)) {
+    o.userData.ink = true;
+    const bx = o.geometry.type === 'BoxGeometry', p = o.geometry.parameters, t = 0.07;
+    const h = new THREE.Mesh(o.geometry, bx ? INK : INK_N); h.userData.isInk = true;
+    if (bx) h.scale.set(1 + t / p.width, 1 + t / p.height, 1 + t / p.depth);
+    o.add(h);
+  }
+  for (let i = 0; i < o.children.length; i++) inkAll(o.children[i]);
+}
 function box(w, h, d, mat) { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.castShadow = m.receiveShadow = true; return m; }
 
 // 地面：雪地＋營地泥土圓
@@ -192,7 +209,7 @@ let treesLoaded = 0;
   if (++treesLoaded === 3) trees.forEach(t => { if (t.kind === 'fir') treeLook(t.g, 'fir'); });
 }));
 function addTree(x, z, locked, kind = pickWood(z, locked)) {
-  const g = new THREE.Group(); treeLook(g, kind);
+  const g = new THREE.Group(); g.userData.noInk = true; treeLook(g, kind);
   g.position.set(x, 0, z); g.rotation.y = Math.random() * 6;
   const sc = 0.85 + Math.random() * 0.35; g.scale.setScalar(sc);
   scene.add(g);
