@@ -147,9 +147,9 @@ function makeUnlock(def) {
   return u;
 }
 makeUnlock({ x: LOT.bag[0], z: LOT.bag[1], icon: '🎒', name: () => '背包擴充',
-  price: () => [12, 35, 90][save.bag], buy: () => { save.bag++; toast('背包容量 ' + CFG.capacity[save.bag] + '！'); } });
+  price: () => [12, 35, 90][save.bag], buy: () => { save.bag++; toast('背包容量 ' + CFG.capacity[save.bag] + '！伐木工也一次揹 ' + CFG.workerLoadLv[save.bag] + ' 根'); } });
 makeUnlock({ x: LOT.axe[0], z: LOT.axe[1], icon: '🪓', name: () => '斧頭升級',
-  price: () => [20, 60, 140][save.axe], buy: () => { save.axe++; toast('砍得更快了！'); } });
+  price: () => [20, 60, 140][save.axe], buy: () => { save.axe++; toast('砍得更快了！伐木工的斧頭也一起升級'); } });
 function openEast() { roadsDirty = true; scene.remove(iceWall); trees.forEach(t => { if (!t.coal) t.locked = false; }); }
 if (save.east) openEast();
 
@@ -473,7 +473,7 @@ function updateFurnace(dt) {
   f.fuel = Math.max(0, f.fuel - CFG.fuelBurn * CFG.stoveBurn ** save.stove * (coldWave.on > 0 ? CFG.coldBurn : 1) * dt); save.fuel = Math.round(f.fuel * 10) / 10;
   // 揹木頭站到火爐旁，一根根丟進去
   feedCd -= dt;
-  const types = carried.map(m => m.userData.type), kc = types.lastIndexOf('coal'), k = kc >= 0 ? kc : types.lastIndexOf('log'); // 有煤先丟煤
+  const types = carried.map(m => m.userData.type), kc = types.lastIndexOf('coal'), k = kc >= 0 || save.stove ? kc : types.lastIndexOf('log'); // 有煤先丟煤；v0.84（作者）：石爐只燒煤
   const per = kc >= 0 ? CFG.fuelPerCoal : CFG.fuelPerLog;
   if (k >= 0 && feedCd <= 0 && f.fuel + f.pend < CFG.fuelMax && Math.hypot(player.position.x - FX, player.position.z - FZ) < 1.5) {
     feedCd = 0.12; f.pend += per; // pend：還在半空中、等一下會加進去的柴量
@@ -496,7 +496,7 @@ function updateFurnace(dt) {
   if (f.fuel <= 0 && !f.out) { toast('🔥 火爐熄了！建築都凍住了，快加柴！'); beep(180, 0.4, 'sawtooth', 0.06, 0.6); }
   f.out = f.fuel <= 0;
   furnaceLabel.visible = pct < 50 || Math.hypot(player.position.x - FX, player.position.z - FZ) < 5;
-  furnaceLabel.set([fireName() + ' Lv' + fireLv() + ' ' + pct + '%', pct < 50 ? (save.mine ? '🪵⚫ 揹木頭或煤來加' : '🪵 揹木頭來加柴') : '🔥 暖氣範圍'], pct > 50 ? '#ffd34d' : pct > 20 ? '#ffa040' : '#ff6a5a');
+  furnaceLabel.set([fireName() + ' Lv' + fireLv() + ' ' + pct + '%', pct < 50 ? (save.stove ? '⚫ 石爐只燒煤，揹煤來加' : save.mine ? '🪵⚫ 揹木頭或煤來加' : '🪵 揹木頭來加柴') : '🔥 暖氣範圍'], pct > 50 ? '#ffd34d' : pct > 20 ? '#ffa040' : '#ff6a5a');
   updateFireLook(dt, pct);
   $('fuel').textContent = pct; $('fireName').textContent = fireName(); $('fuelBar').firstElementChild.style.width = pct + '%'; $('fuelBar').classList.toggle('danger', pct < 20);
 }

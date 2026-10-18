@@ -236,7 +236,7 @@ function updateStore(dt) {
     const hurt = buildings.find(b => !b.dead && b.hp < CFG.buildHp), mill = mills[0];
     if (porters.length) ; // 有搬運工：補火、修門、修建築改成小人走過去才生效（updatePorters）
     // v0.80（作者）：開了煤礦，倉庫才自動補營火；之前只自動修門和建築
-    else if (save.mine && f.fuel < CFG.fuelMax * 0.7 && (st.coal || st.log)) { const c = st.coal > 0; if (c) st.coal--; else st.log--; f.fuel = Math.min(CFG.fuelMax, f.fuel + (c ? CFG.fuelPerCoal : CFG.fuelPerLog)); }
+    else if (save.mine && f.fuel < CFG.fuelMax * 0.7 && (st.coal || (st.log && !save.stove))) { const c = st.coal > 0; if (c) st.coal--; else st.log--; f.fuel = Math.min(CFG.fuelMax, f.fuel + (c ? CFG.fuelPerCoal : CFG.fuelPerLog)); }
     else if (gate.hp < CFG.gateHp && st.plank) { st.plank--; gate.hp = Math.min(CFG.gateHp, gate.hp + 10); }
     else if (hurt && st.plank) { st.plank--; hurt.hp = Math.min(CFG.buildHp, hurt.hp + 10); }
     for (let n = 1 + save.millLv; n > 0 && st.log > (save.mine ? CFG.fuelKeep : 0) && mill.queue < 3 * (1 + save.millLv) && !mill.bld.dead; n--) { st.log--; mill.queue++; } // 還沒開煤礦：木頭全部送鋸木廠；伐木場每升 1 級每秒多送 1 根
@@ -270,7 +270,7 @@ function updatePorters(dt) {
     if (!p.job) {
       const haul = ['food', 'plank'].find(k => save.pile[k] > 0 && !taken('haul-' + k));
       const hurt = buildings.find(b => !b.dead && b.hp < CFG.buildHp && !taken(b)), cash = mills.find(m => m.out.length && !taken(m));
-      if (save.mine && furnace.fuel < CFG.fuelMax * 0.7 && st.coal + st.log && !taken('fuel')) p.job = { k: 'fuel' };
+      if (save.mine && furnace.fuel < CFG.fuelMax * 0.7 && (st.coal || (st.log && !save.stove)) && !taken('fuel')) p.job = { k: 'fuel' };
       else if (gate.hp < CFG.gateHp && st.plank && !taken('gate')) p.job = { k: 'gate' };
       else if (haul) p.job = { k: 'haul-' + haul, kind: haul };
       else if (hurt && st.plank) p.job = { k: 'fix', b: hurt };
@@ -292,7 +292,7 @@ function updatePorters(dt) {
     if (!j.got) {                                                    // 先回倉庫拿
       routeTo(p, home.x, home.z, dt);
       if (Math.hypot(p.g.position.x - home.x, p.g.position.z - home.z) > 0.8) return;
-      if (j.k === 'fuel') { j.coal = Math.min(3, st.coal); j.log = Math.min(3 - j.coal, st.log); st.coal -= j.coal; st.log -= j.log; j.n = j.coal + j.log; }
+      if (j.k === 'fuel') { j.coal = Math.min(3, st.coal); j.log = save.stove ? 0 : Math.min(3 - j.coal, st.log); st.coal -= j.coal; st.log -= j.log; j.n = j.coal + j.log; }
       else { const lack = j.k === 'gate' ? CFG.gateHp - gate.hp : CFG.buildHp - j.b.hp; j.n = Math.min(3, st.plank, Math.ceil(lack / 10)); st.plank -= j.n; }
       if (!j.n) { p.job = null; return; }
       j.got = true; p.cargo.material = j.k === 'fuel' ? (j.coal ? mats.coal : mats.trunk) : mats.wood; p.cargo.visible = true;
@@ -338,7 +338,7 @@ function levelUnlocks() {
   if (!stoveUnlock && save.stove < 3 && save.territory >= 2 && save.mine && (!terrUnlock || terrUnlock.waiting)) {
     stoveUnlock = makeUnlock({ x: LOT.terr[0], z: LOT.terr[1], icon: '🪨', name: () => (save.stove ? '石爐升級' : '蓋石爐') + ' Lv' + (fireLv() + 1),
       price: () => CFG.stovePrice[save.stove] ?? null, buy: () => { save.stove++; updateStoveLook(); sparkle(FX, FZ);
-        toast(save.stove === 1 ? '🪨 營火進化成石爐！更耐燒、暖氣更大、暖氣塔 +1 座' : '🪨 石爐升級！更耐燒、暖氣更大'); } });
+        toast(save.stove === 1 ? '🪨 營火進化成石爐！更耐燒、暖氣更大、暖氣塔 +1 座；石爐只燒⚫煤' : '🪨 石爐升級！更耐燒、暖氣更大'); } });
     stoveUnlock.cool = CFG.buildCool;
   }
   if (!eastUnlock && !save.east && save.territory >= 1) eastUnlock = makeUnlock({ x: FENCE_R - 2.2, z: 0, icon: '🌲', name: () => '開拓東邊',
@@ -459,7 +459,7 @@ function updateWorkers(dt) {
   if (wh.hungry) return;                            // 倉庫沒食物：罷工
   const toWh = save.wh && !wh.bld.dead;
   for (const w of workers) {
-    if (w.load >= CFG.workerLoad) {                 // 揹滿了：有倉庫送倉庫，沒有就送鋸木廠
+    if (w.load >= CFG.workerLoadLv[save.bag]) {                 // 揹滿了：有倉庫送倉庫，沒有就送鋸木廠
       const ip = (toWh ? wh.pad : mills[0].inPad).position;
       if (routeTo(w, ip.x, ip.z, dt)) {
         if (toWh) save.store.log = Math.min(CFG.storeMax, save.store.log + w.load); else mills[0].queue += w.load;
@@ -468,7 +468,7 @@ function updateWorkers(dt) {
       }
       continue;
     }
-    if (seekPickup(w, 'log', CFG.workerLoad, dt)) continue; // v0.81（作者）：地上有木頭先撿
+    if (seekPickup(w, 'log', CFG.workerLoadLv[save.bag], dt)) continue; // v0.81（作者）：地上有木頭先撿
     if (!w.tree || !w.tree.alive) {                  // 找最近、沒人在砍的樹
       let best = 1e9; w.tree = null;
       for (const t of trees) {
@@ -484,11 +484,11 @@ function updateWorkers(dt) {
       w.g.rotation.y = ang + Math.PI; w.g.position.y = 0;
       w.cd -= dt;
       if (w.cd <= 0) {
-        w.cd = CFG.workerChop;
+        w.cd = CFG.workerChopLv[save.axe];
         t.hp--; t.shake = 0.25; t.pop = 0.15; burstChips(t.x, t.z);
         if (t.hp <= 0) {
           t.alive = false; t.regrow = CFG.treeRegrow; w.tree = null;
-          const n = Math.min(WOODS[t.kind].logs, CFG.workerLoad - w.load);
+          const n = Math.min(WOODS[t.kind].logs, CFG.workerLoadLv[save.bag] - w.load);
           for (let i = 0; i < n; i++) addLoad(w, 'log');
           if (WOODS[t.kind].logs > n) dropItems('log', WOODS[t.kind].logs - n, t.x, t.z); // 揹不下的留在地上，下一趟或別人來撿
         }
@@ -515,10 +515,13 @@ function updateHunters(dt) {
   if (wh.hungry) return;                            // 倉庫沒食物：罷工
   for (const h of hunters) {
     const p = h.g.position;
+    // v0.84（作者）：怪物來攻營地時先殺來襲的熊、狼，肉晚點再撿、再搬
+    const raid = bears.filter(b => b.alive && b.aggro).sort((a, c) => Math.hypot(a.x - p.x, a.z - p.z) - Math.hypot(c.x - p.x, c.z - p.z))[0];
+    if (raid) h.bear = raid;
     // v0.81（作者）：地上有肉（弩砲塔射倒的、自己射倒的）先撿；揹滿 CFG.hunterLoad 塊（兩隻熊）才回去，沒熊可打也先回去
     const home = () => { const ip = bbq.inPad.position; if (routeTo(h, ip.x, ip.z, dt)) { bbq.queue += h.load; h.load = 0; h.back.clear(); } };
-    if (h.load >= CFG.hunterLoad) { home(); continue; }
-    if (seekPickup(h, 'meat', CFG.hunterLoad, dt)) continue;
+    if (!raid && h.load >= CFG.hunterLoad) { home(); continue; }
+    if (!raid && seekPickup(h, 'meat', CFG.hunterLoad, dt)) continue;
     if (!h.bear || !h.bear.alive) {                 // 找最近、沒人在打的熊（v0.80：來襲撞門的熊也打）
       let best = 1e9; h.bear = null;
       for (const b of bears) {

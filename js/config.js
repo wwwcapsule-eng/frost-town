@@ -1,5 +1,5 @@
 'use strict';
-const VERSION = '0.83';
+const VERSION = '0.84';
 
 // ===== 數值（之後平衡都改這裡） =====
 const CFG = {
@@ -22,7 +22,8 @@ const CFG = {
   playerHp: 100, bearHitDps: 14, bearChase: 6, heal: 20, // 主角血量、熊每秒打人多少、熊幾格內會追人、在營地裡每秒回血
   buildHp: 100, bearBuildDps: 2.5, // 建築血量、熊每秒對建築的傷害
   gateHp: 100, raidEvery: 60, raidFirst: 90, raidBears: 2, bearDps: 1.5, // 北門血量、熊群幾秒來一次、一次幾隻、每隻每秒傷害
-  workerSpeed: 3.6, workerChop: 0.6, workerLoad: 6, hunterLoad: 4, // 伐木工：速度約主角 60%、出手間隔、一次揹幾根（＝兩棵冷杉）；獵人一次揹幾塊肉（＝兩隻熊）
+  workerSpeed: 3.6, workerChop: 0.6, hunterLoad: 4, workerChopLv: [0.6, 0.48, 0.38, 0.3], workerLoadLv: [6, 8, 10, 12], // v0.84（作者：木頭不夠）：斧頭每升 1 級，伐木工也砍得更快；背包每升 1 級，伐木工也揹得更多（比主角少）
+  // 伐木工：速度約主角 60%、煤礦工出手間隔；獵人一次揹幾塊肉（＝兩隻熊）；伐木工一開始一次揹 6 根（＝兩棵冷杉）
   hunterPrice: [80, 160, 260, 380], huntRange: 5, huntEvery: 1.2, // 獵人（v0.79）：第 1～4 個的價錢、幾格內開弓、幾秒射一箭（熊 5 血）
   payRate: 1.1, padDelay: 0.6, // padDelay：站在付款格上幾秒後才開始付錢             // 付款格：幾秒內付完整筆
   popBase: 2,               // 新遊戲一開始的居民（主角的夥伴）
