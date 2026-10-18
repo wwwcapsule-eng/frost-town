@@ -18,8 +18,8 @@ function makeMill(x, z, opt = {}) {
 const mills = [makeMill(LOT.mill[0], LOT.mill[1], { inX: LOT.mill[0] - 1.3, inZ: LOT.mill[1] + 2.7, outX: LOT.mill[0] + 1.3, outZ: LOT.mill[1] + 2.7 })];
 function addMill2() { const [x, z] = LOT.mill2; mills.push(makeMill(x, z, { key: '第二台鋸木機', inX: x - 1.3, inZ: z + 2.7, outX: x + 1.3, outZ: z + 2.7 })); }
 const GRILL = { name: '烤肉攤', accept: 'meat', value: CFG.meatValue, time: 0.8, roof: M(0xe07b22), customers: true };
-// v0.68（作者 10/18）：烤肉攤貼著南邊主路，櫃台在攤子左邊（路那側）、揹肉格和收錢格在攤子右邊，整組擠在一起
-mills.push(makeMill(LOT.bbq[0], LOT.bbq[1], Object.assign({ inX: LOT.bbq[0] + 2.4, inZ: LOT.bbq[1] - 1, outX: LOT.bbq[0] + 2.4, outZ: LOT.bbq[1] + 1 }, GRILL)));
+// v0.75（作者 10/18：不同類型的格子放台子不同邊）：櫃台在左邊（主路那側），揹肉格在右邊、收錢格在前面靠櫃台（村民在櫃台付錢）；北邊被攤子擋住看不到，不放
+mills.push(makeMill(LOT.bbq[0], LOT.bbq[1], Object.assign({ inX: LOT.bbq[0] + 2.4, inZ: LOT.bbq[1] - 0.6, outX: LOT.bbq[0] - 0.7, outZ: LOT.bbq[1] + 2.4 }, GRILL)));
 // 正式關：規劃模式蓋的加工建築，付款格在門口前；第二座烤肉攤烤好的肉一樣送到村民排隊的櫃台
 const SMITH = { name: '鐵匠鋪', accept: 'coal', value: CFG.coalValue, time: 1.5, roof: M(0x4a4f5a) }; // 工業區：煤打成工具賣錢
 function addProc(k, x, z) {
@@ -41,7 +41,7 @@ function spawnBill(mill, from) {
 const bbq = mills[1];
 // 櫃台貼在烤肉攤左邊、靠主路；村民在主路上（QX）往南門排隊，遠離北邊森林的熊
 const CX = LOT.bbq[0] - 2.3, CZ = LOT.bbq[1], QX = CX - 1.1;
-const counter = box(1, 0.8, 1.4, mats.wood); counter.position.set(CX, 0.4, CZ); scene.add(counter);
+const counter = box(1, 0.8, 1.4, mats.wood); counter.position.set(CX, 0.4, CZ); scene.add(counter); props.push({ x: CX, z: CZ, r: 0.75 });
 bbq.cookedMeshes = [];
 function addCooked(mill) {
   const m = new THREE.Mesh(logGeo, mats.meat); m.castShadow = true;
@@ -273,7 +273,7 @@ function addHouseUnlock() {
 let houseUnlock = save.east && !PRO ? addHouseUnlock() : { done: true }; // 民房要先開拓東邊（作者 10/17 回饋第 2 項）
 
 // ===== 中央火爐＋暖氣圈：圈內的建築才會運作；柴剩不到一半圈子開始縮小，燒光就全部凍住 =====
-const FX = 0, FZ = -3 * TS;
+const FX = 0, FZ = -3 * TS; props.push({ x: FX, z: FZ, r: 0.6 }); // 營火不能穿過去
 const furnace = { fuel: save.fuel ?? CFG.fuelMax, pend: 0, r: 0, out: false };
 const fg = new THREE.Group();
 const stone = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 1.1, 0.7, 8), M(0x8a8f99)); stone.position.y = 0.35; stone.castShadow = stone.receiveShadow = true; fg.add(stone);

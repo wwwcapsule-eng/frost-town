@@ -232,7 +232,7 @@ save.gates.forEach(c => GATES.push({ a: c.a, w: CFG.gateW, off: c.off, own: true
 function angDiff(a, b) { let d = (a - b) % (Math.PI * 2); if (d > Math.PI) d -= Math.PI * 2; if (d < -Math.PI) d += Math.PI * 2; return Math.abs(d); }
 // 門的這一邊：沿著圍欄離門中心多遠（along）、往外多遠（out）
 function gateLocal(g, x, z) { const ux = Math.round(Math.cos(g.a)), uz = Math.round(Math.sin(g.a)), t = -uz * x + ux * z; return { t, along: Math.abs(t - (g.off || 0)), out: ux * x + uz * z }; }
-function inGate(x, z, m = 0.3) { return GATES.some(g => { const l = gateLocal(g, x, z); return l.along < g.w / 2 - m && l.out > FENCE_R - 2; }); }
+function inGate(x, z, m = 0.3, open = false) { return GATES.some(g => { if (open && g === GATES[2] && !save.east) return false; const l = gateLocal(g, x, z); return l.along < g.w / 2 - m && l.out > FENCE_R - 2; }); }
 function gatePoint(g, r) { const ux = Math.round(Math.cos(g.a)), uz = Math.round(Math.sin(g.a)), o = g.off || 0; return [ux * r - uz * o, uz * r + ux * o]; }
 const fencePosts = new THREE.Group(); scene.add(fencePosts);
 function buildFence() {
@@ -374,8 +374,9 @@ function addBuilding(key, g, r) {
 }
 // 建築碰撞（v0.59，作者第三次回饋第 3 點）：人物走進建築的圓圈就推回圈邊；拆掉的瓦礫可以走過去
 // slide＞0：順便往目標那一側滑一點，工人才會繞過建築而不是卡住；目的地本身在圈內（門口付款格）就不擋
+const props = [];                                                // 沒有血量、但人走不過去的東西（櫃台、營火）
 function pushOut(x, z, pad, slide = 0, tx = null, tz = null) {
-  for (const b of buildings) {
+  for (const b of buildings.concat(props)) {
     if (b.dead) continue;
     const R = b.r + pad, dx = x - b.x, dz = z - b.z, d = Math.hypot(dx, dz);
     if (d >= R || d === 0 || (tx !== null && Math.hypot(tx - b.x, tz - b.z) < R)) continue;
