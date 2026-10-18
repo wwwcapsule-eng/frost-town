@@ -369,16 +369,35 @@ function makeMob(wolf) {
   bears.push(b); return b;
 }
 for (let i = 0; i < CFG.bearCount; i++) makeMob(false);
+// 👑 熊王（v0.87）：只在來襲時出現，打倒不重生，下次輪到再叫出來；比熊大 1.6 倍、冰藍色毛、頭上金色王冠
+let king = null;
+function callKing() {
+  if (!king) {
+    king = makeMob(false); king.king = true;
+    const fur = M(0xbcd8ee);
+    king.g.children.forEach(c => { c.position.multiplyScalar(1.6); c.scale.multiplyScalar(1.6); if (c.material === mats.fur) c.material = fur; });
+    const crown = box(0.7, 0.35, 0.7, M(0xffc83a)); crown.position.set(0, 2.45, 1.45); king.g.add(crown);
+    [-0.25, 0, 0.25].forEach(o => { const s = box(0.14, 0.3, 0.14, crown.material); s.position.set(o, 2.75, 1.45); king.g.add(s); });
+  }
+  [king.x, king.z] = bearSpot(); king.alive = true; king.g.scale.setScalar(1); king.hp = mobHp(king);
+  return king;
+}
+// 打倒怪物掉幾塊肉；熊王另外直接給錢
+function mobMeat(b) {
+  if (!b.king) return CFG.meatPerBear;
+  save.cash += CFG.kingCash; sfx.coin(); floatText('👑 +' + CFG.kingCash + ' 💵', b.x, b.z); toast('👑 打倒熊王了！掉了一大堆肉，快去撿');
+  return CFG.kingMeat;
+}
 // 怪物跟著營火等級變強（企劃 10.1）：Lv1 是原本的熊，之後每級血量、傷害往上加
 const mobLv = () => fireLv() - 1;
-const mobHp = b => Math.round((b.wolf ? CFG.wolfHp : CFG.bearHp) * (1 + CFG.lvBearHp * mobLv()));
-const mobDmg = b => (1 + CFG.lvBearDmg * mobLv()) * (b.wolf ? 0.15 : 1); // 狼咬門比熊弱很多，威脅在數量多、跑得快
+const mobHp = b => Math.round((b.wolf ? CFG.wolfHp : CFG.bearHp) * (1 + CFG.lvBearHp * mobLv()) * (b.king ? CFG.kingHp : 1));
+const mobDmg = b => (1 + CFG.lvBearDmg * mobLv()) * (b.wolf ? 0.15 : b.king ? CFG.kingDmg : 1); // 狼咬門比熊弱很多，威脅在數量多、跑得快
 function updateBears(dt) {
   for (const b of bears) {
     if (!b.alive) {
       b.g.scale.setScalar(Math.max(0.001, b.g.scale.x - dt * 4));
       b.respawn -= dt;
-      if (b.wolf) continue;                         // 冰狼打倒就不重生，下次來襲再叫出來
+      if (b.wolf || b.king) continue;               // 冰狼、熊王打倒就不重生，下次來襲再叫出來
       if (b.respawn <= 0) { [b.x, b.z] = bearSpot(); b.alive = true; b.hp = mobHp(b); b.aggro = false; }
       b.g.position.set(b.x, 0, b.z);
       continue;

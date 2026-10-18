@@ -92,7 +92,7 @@ function updateAlert() {
   if (gate.raiding) { t = '🐻 熊群來襲！守住北門'; }
   else if (save.level >= 1 && coldWave.on > 0) { t = '❄️ 寒潮中 ' + Math.ceil(coldWave.on) + ' 秒，顧好營火'; cls = 'cold'; }
   else if (hero.over > 0 && hero.hp < 60) { t = '🥶 好冷！回營火旁取暖'; cls = 'cold'; }
-  else if (gate.raidT <= 15) { t = '🐻 ' + raidCount() + ' 隻熊' + (wolvesCome() ? '＋🐺 狼群' : '') + ' ' + Math.ceil(gate.raidT) + ' 秒後來襲'; cls = 'warn'; }
+  else if (gate.raidT <= 15) { t = '🐻 ' + raidCount() + ' 隻熊' + (wolvesCome() ? '＋🐺 狼群' : '') + (kingNext() ? '＋👑 熊王' : '') + ' ' + Math.ceil(gate.raidT) + ' 秒後來襲'; cls = 'warn'; }
   else if (save.level >= 1 && coldWave.t <= 15) { t = '❄️ 寒潮 ' + Math.ceil(coldWave.t) + ' 秒後來，先加柴'; cls = 'cold'; }
   const key = t + cls; if (key === shownAlert) return; shownAlert = key;
   $('alert').textContent = t; $('alert').className = cls; $('alert').style.display = t ? 'block' : 'none';
@@ -192,7 +192,7 @@ function step(dt) {
         if (target.hp <= 0) {
           target.alive = false;
           if (target.isBear) target.respawn = CFG.bearRespawn; else target.regrow = target.ore ? target.regrowT : CFG.treeRegrow;
-          const n = target.isBear ? CFG.meatPerBear : target.ore ? target.per : WOODS[target.kind].logs;
+          const n = target.isBear ? mobMeat(target) : target.ore ? target.per : WOODS[target.kind].logs;
           const room = Math.max(0, Math.min(n, capacity() - countOf(kind)));
           for (let i = 0; i < room; i++) toBack(kind, target.x, 1 + i * 0.3, target.z, i * 0.08);
           if (n > room && !target.ore) dropItems(kind, n - room, target.x, target.z); // v0.81：揹不下的掉在地上，之後再撿（獵人、伐木工也會來撿）

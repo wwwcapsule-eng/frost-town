@@ -200,8 +200,10 @@ function updateGate(dt) {
       const w = bears.find(b => b.wolf && !b.alive && !pool.includes(b)) || makeMob(true);
       [w.x, w.z] = bearSpot(); w.alive = true; w.g.scale.setScalar(1); pool.push(w);
     }
+    const k = kingNext(); save.raidN = (save.raidN || 0) + 1;
+    if (k) pool.push(callKing());
     pool.forEach(b => { b.aggro = true; b.hp = Math.max(b.hp, mobHp(b)); });
-    if (pool.length) { toast(wolvesCome() ? '🐺 冰狼群跟熊一起來了！守住北門！' : '🐻 熊群來襲！守住北門！'); beep(220, 0.4, 'sawtooth', 0.06, 0.6); }
+    if (pool.length) { toast(k ? '👑 熊王帶著熊群來了！血很多，集中火力守住北門！' : wolvesCome() ? '🐺 冰狼群跟熊一起來了！守住北門！' : '🐻 熊群來襲！守住北門！'); beep(220, 0.4, 'sawtooth', 0.06, 0.6); }
   }
   // 北門狀態
   gate.hp = Math.max(0, gate.hp);
@@ -478,6 +480,7 @@ let fireStage = 0;
 function fireStageOf(pct) { return FIRE_STAGES.findIndex(st => pct >= st.min); }
 function raidCount() { return CFG.raidBears + Math.floor(mobLv() / 2) + FIRE_STAGES[fireStage].bears; } // 營火每升 2 級多來一隻熊
 const wolvesCome = () => fireLv() >= CFG.wolfLv;
+const kingNext = () => wolvesCome() && (save.raidN || 0) % CFG.kingEvery === CFG.kingEvery - 1 && !(king && king.alive); // 石爐時代每 3 波的第 3 波
 function updateFireLook(dt, pct) {
   const i = fireStageOf(pct), st = FIRE_STAGES[i];
   if (i > fireStage && st.msg) { toast(st.msg); beep(260, 0.3, 'triangle', 0.05, 0.6); }

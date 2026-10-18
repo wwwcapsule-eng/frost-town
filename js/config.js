@@ -1,5 +1,5 @@
 'use strict';
-const VERSION = '0.86';
+const VERSION = '0.87';
 
 // ===== 數值（之後平衡都改這裡） =====
 const CFG = {
@@ -14,6 +14,7 @@ const CFG = {
   meatValue: 3,             // 一塊肉換幾元
   bearHp: 5, bearCount: 8, bearRespawn: 20, meatPerBear: 2, // v0.81（作者：北邊猛獸多）：北邊森林平常 8 隻熊
   lvBearHp: 0.3, lvBearDmg: 0.2, bearMax: 14, // 營火每升 1 級：熊血量 +30%、撞門／拆建築傷害 +20%；森林裡最多幾隻熊（企劃 10.1）
+  kingHp: 5, kingDmg: 3, kingEvery: 3, kingMeat: 10, kingCash: 60, // v0.87 👑 熊王（企劃 10.1）：石爐時代每 3 波來一次，血是熊的 5 倍、撞門 3 倍；打倒掉 10 塊肉＋60 元
   wolfHp: 1, wolfSpeed: 4.4, wolfLv: 4, // 冰狼：石爐時代（營火 Lv4）起跟熊群一起來，一次 4～6 隻、跑很快、血少
   towerRange: 11, towerInterval: 1.1, // 弩砲塔射程與射速
   buildCool: 2,             // 升級完要等幾秒才能再升級

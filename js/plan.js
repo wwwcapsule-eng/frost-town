@@ -546,7 +546,7 @@ function updateHunters(dt) {
       scene.remove(arrow);
       if (!b.alive) return;
       b.hp--; b.shake = 0.25; b.pop = 0.15; burstChips(b.x, b.z, true);
-      if (b.hp <= 0) { b.alive = false; b.respawn = CFG.bearRespawn; h.bear = null; dropItems('meat', CFG.meatPerBear, b.x, b.z); } // 肉掉在地上，走過去撿
+      if (b.hp <= 0) { b.alive = false; b.respawn = CFG.bearRespawn; h.bear = null; dropItems('meat', mobMeat(b), b.x, b.z); } // 肉掉在地上，走過去撿
     }, 0.8);
     flies[flies.length - 1].spin = false;
   }
@@ -646,7 +646,7 @@ function updateTower(dt) {
           scene.remove(arrow);
           if (!tgt.alive) return;
           tgt.hp--; tgt.shake = 0.25; tgt.pop = 0.15; burstChips(tgt.x, tgt.z, true);
-          if (tgt.hp <= 0) { tgt.alive = false; tgt.respawn = CFG.bearRespawn; dropItems('meat', CFG.meatPerBear, tgt.x, tgt.z); }
+          if (tgt.hp <= 0) { tgt.alive = false; tgt.respawn = CFG.bearRespawn; dropItems('meat', mobMeat(tgt), tgt.x, tgt.z); }
         }, 0.8);
         flies[flies.length - 1].spin = false;
       }
