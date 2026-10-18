@@ -287,17 +287,17 @@ function updateStoveLook() { stoveG.visible = save.stove > 0; stone.visible = !s
 updateStoveLook();
 const heatRing = new THREE.Mesh(new THREE.RingGeometry(0.985, 1, 96), new THREE.MeshBasicMaterial({ color: 0xff9a3c, transparent: true, opacity: 0.8, depthWrite: false }));
 const heatFill = new THREE.Mesh(new THREE.CircleGeometry(1, 64), new THREE.MeshBasicMaterial({ color: 0xffb060, transparent: true, opacity: 0.1, depthWrite: false }));
-[heatRing, heatFill].forEach(m => { m.rotation.x = -Math.PI / 2; m.position.set(FX, 0.025, FZ); scene.add(m); });
+[heatRing, heatFill].forEach(m => { m.rotation.x = -Math.PI / 2; m.position.set(FX, 0.025, FZ); scene.add(decal(m, 3)); });
 const furnaceLabel = makeLabel(); furnaceLabel.scale.set(2.6, 1.3, 1); furnaceLabel.position.set(FX + 1.2, 2.4, FZ + 1.2); scene.add(furnaceLabel); // 放在火爐靠鏡頭那側，不蓋住後面背包付款格的標籤
 // 營火分段（作者 10/17 回饋第 5 項）：不同 % 有不同畫面；火越小，熊群來得越多
 const FIRE_STAGES = [ // min：營火 % 以上就是這一段；light：整體亮度；frost：畫面四周結霜；glow：火光；bears：熊群多來幾隻
-  { min: 70, name: '旺', light: 1, frost: 0, glow: 1.6, sky: 0xcfe3f2, bears: 0 },
-  { min: 40, name: '普通', light: 0.88, frost: 0.15, glow: 1.1, sky: 0xc4d9ea, bears: 0 },
-  { min: 20, name: '變弱', light: 0.72, frost: 0.45, glow: 0.7, sky: 0xaec6dc, bears: 1, msg: '🔥 營火變弱了，天氣變冷，熊會多來一隻' },
+  { min: 70, name: '旺', light: 1, frost: 0, glow: 1.15, sky: 0xcfe3f2, bears: 0 },
+  { min: 40, name: '普通', light: 0.88, frost: 0.15, glow: 0.85, sky: 0xc4d9ea, bears: 0 },
+  { min: 20, name: '變弱', light: 0.72, frost: 0.45, glow: 0.55, sky: 0xaec6dc, bears: 1, msg: '🔥 營火變弱了，天氣變冷，熊會多來一隻' },
   { min: 1, name: '快熄', light: 0.58, frost: 0.75, glow: 0.35, sky: 0x93aac2, bears: 2, msg: '🥶 營火快熄了！快加柴，熊群會更多' },
   { min: -1, name: '熄滅', light: 0.48, frost: 1, glow: 0, sky: 0x7f93a8, bears: 2 },
 ];
-const fireLight = new THREE.PointLight(0xff9a3c, 1.2, 14, 1.5); fireLight.position.set(FX, 2.5, FZ); scene.add(fireLight);
+const fireLight = new THREE.PointLight(0xff9a3c, 1.2, 14, 1.5); fireLight.position.set(FX, 4, FZ); scene.add(fireLight); // v0.70：抬高一點，地上的光散開、不會在營火旁亮成一塊白斑
 const skyCol = new THREE.Color(0xcfe3f2), tmpCol = new THREE.Color();
 let fireStage = 0;
 function fireStageOf(pct) { return FIRE_STAGES.findIndex(st => pct >= st.min); }
@@ -446,7 +446,7 @@ function buildHeater(x, z, i) {
   const fl = new THREE.Mesh(new THREE.ConeGeometry(0.4, 0.8, 6), new THREE.MeshBasicMaterial({ color: 0xff8a1f })); fl.position.y = 2.85; g.add(fl);
   g.position.set(x, 0, z); scene.add(g);
   const ring = new THREE.Mesh(heatRing.geometry, heatRing.material), fill = new THREE.Mesh(heatFill.geometry, heatFill.material);
-  [ring, fill].forEach(m => { m.rotation.x = -Math.PI / 2; m.position.set(x, 0.026, z); scene.add(m); });
+  [ring, fill].forEach(m => { m.rotation.x = -Math.PI / 2; m.position.set(x, 0.026, z); scene.add(decal(m, 3)); });
   heaters.push({ x, z, ring, fill, bld: addBuilding('暖氣塔' + i, g, 0.8) });
 }
 
