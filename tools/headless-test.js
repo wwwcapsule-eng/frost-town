@@ -67,6 +67,6 @@ vm.createContext(ctx);
 const pre = /^\/\/ SAVE (.*)$/m.exec(test);
 if (pre) store['frost-town-save-v1'] = pre[1];
 const html = fs.readFileSync(path.join(dir, 'index.html'), 'utf8');
-const files = [...html.matchAll(/<script src="(js\/[^"]+)"/g)].map(m => m[1]);
+const files = [...html.matchAll(/<script src="(js\/[^"]+)"/g)].map(m => m[1]).filter(f => !f.startsWith("js/lib/")); // three.js 用上面的假版本
 let all = files.map(f => fs.readFileSync(path.join(dir, f), 'utf8')).join('\n;\n'); // 同一個 script 範圍（let/const 彼此看得到，跟瀏覽器一樣）
 vm.runInContext(all + '\n;\n' + test, ctx, { filename: 'game+test' });

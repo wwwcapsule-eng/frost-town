@@ -96,7 +96,7 @@ function hud() {
 }
 function bump(id) { const e = $(id); e.classList.remove('bump'); void e.offsetWidth; e.classList.add('bump'); }
 let toastT = 0;
-function toast(msg) { $('toast').innerHTML = plankHtml(msg); $('toast').style.opacity = 1; toastT = 1.6; }
+function toast(msg) { $('toast').innerHTML = (msg); $('toast').style.opacity = 1; toastT = 1.6; }
 
 // ===== 音效（用程式合成，不需要音檔；手機要先碰一下畫面才能出聲） =====
 let actx = null;
@@ -121,7 +121,7 @@ const sfx = {
 };
 const isTouch = matchMedia('(pointer: coarse)').matches;
 let hintOn = save.cash === 0 && !save.bag && !save.axe;
-$('hint').textContent = isTouch ? '按住畫面拖曳來移動\n走到樹旁邊會自動砍' : 'WASD／方向鍵移動\n滑鼠滾輪縮放';
+$('hint').textContent = isTouch ? '按住畫面拖曳來移動\n走到樹旁邊會自動砍' : 'WASD／方向鍵移動\n滾輪縮放、按住右鍵拖曳轉視角';
 $('hint').style.whiteSpace = 'pre-line';
 if (!hintOn) $('hint').style.display = 'none';
 
@@ -131,6 +131,7 @@ const joyEl = $('joy'), knob = $('knob');
 addEventListener('pointerdown', e => {
   if (e.target.id === 'camBtn') return;
   if (camMode.on) return camPointer('down', e);
+  if (e.button === 2 && !plan.on) { camMode.pts.set(e.pointerId, { x: e.clientX, y: e.clientY }); return; } // v0.90 電腦：按住右鍵拖曳轉視角
   if (e.target.id === 'reset' || e.target.id === 'mute' || e.target.closest('#planBar, #planBtn, #menu')) return;
   if (plan.on) return planPointer('down', e);
   if (joy.active) return;
@@ -139,7 +140,7 @@ addEventListener('pointerdown', e => {
   knob.style.transform = '';
 });
 addEventListener('pointermove', e => {
-  if (camMode.on) return camPointer('move', e);
+  if (camMode.on || camMode.pts.has(e.pointerId)) return camPointer('move', e);
   if (plan.on) return planPointer('move', e);
   if (!joy.active || e.pointerId !== joy.id) return;
   let dx = e.clientX - joy.ox, dy = e.clientY - joy.oy;

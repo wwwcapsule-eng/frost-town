@@ -125,32 +125,6 @@ function rebuildRoads() {
   }
 }
 
-// v0.88（作者：圖示不統一，🪚 鋸子不像材料）：🪚木板的圖示改成自己畫的「一疊木板」，標籤、付款格、畫面上的字都換成這張圖
-const PLANK = (() => {
-  const cv = document.createElement('canvas'); cv.width = cv.height = 64; const c = cv.getContext('2d');
-  [[6, 40, 0], [10, 26, -0.12], [8, 12, 0.08]].forEach(([x, y, r]) => {
-    c.save(); c.translate(32, y + 6); c.rotate(r); c.translate(-32, -(y + 6));
-    c.fillStyle = '#8a5a2b'; c.fillRect(x - 2, y - 2, 56, 16);           // 深色邊
-    c.fillStyle = '#d9a35c'; c.fillRect(x, y, 52, 12);                   // 木板
-    c.strokeStyle = '#b07a3a'; c.lineWidth = 2; c.beginPath(); c.moveTo(x + 4, y + 4); c.lineTo(x + 30, y + 5); c.moveTo(x + 22, y + 8); c.lineTo(x + 48, y + 8); c.stroke(); // 木紋
-    c.restore();
-  });
-  return cv;
-})();
-const PLANK_HTML = '<img src="' + PLANK.toDataURL() + '" style="width:1.15em;height:1.15em;vertical-align:-0.2em">';
-const plankHtml = t => String(t).replaceAll('🪚', PLANK_HTML);
-document.querySelectorAll('i.pk').forEach(e => e.outerHTML = PLANK_HTML);
-// 在畫布上寫字，遇到 🪚 就畫木板圖（字級 s，置中在 cx）
-const textW = (g, t, s) => g.measureText(t.replaceAll('🪚', '')).width + (t.split('🪚').length - 1) * s * 1.1;
-function drawText(g, t, cx, y, s, fill) {
-  const parts = t.split('🪚'); let x = cx - textW(g, t, s) / 2;
-  g.textAlign = 'left';
-  parts.forEach((p, i) => {
-    if (i) { g.drawImage(PLANK, x + s * 0.05, y - s * 0.5, s, s); x += s * 1.1; }
-    g.strokeText(p, x, y); g.fillStyle = fill; g.fillText(p, x, y); x += g.measureText(p).width;
-  });
-  g.textAlign = 'center';
-}
 // 文字標籤（價格、名稱）
 const labelK = new THREE.Vector3(1, 1, 1);
 function makeLabel(w = 256, h = 128) {
@@ -167,14 +141,14 @@ function makeLabel(w = 256, h = 128) {
     const font = (i, s) => (i === 0 ? '900 ' : '800 ') + s + 'px "Noto Sans TC","Microsoft JhengHei",sans-serif';
     const fs = lines.map((t, i) => {                                 // v0.80（作者：字被切掉）：太寬就把這一行縮小到放得下
       const s = sizes[Math.min(i, sizes.length - 1)]; g.font = font(i, s);
-      return Math.min(s, Math.floor(s * (w - 20) / Math.max(1, textW(g, t, s))));
+      return Math.min(s, Math.floor(s * (w - 20) / Math.max(1, g.measureText(t).width)));
     });
     let y = h / 2 - fs.reduce((a, b) => a + b * 1.05, 0) / 2;
     lines.forEach((t, i) => {
       g.font = font(i, fs[i]);
       g.lineWidth = Math.max(8, fs[i] / 6); g.strokeStyle = 'rgba(30,40,60,.85)';
       y += fs[i] * 0.525;
-      drawText(g, t, w / 2, y, fs[i], color);
+      g.strokeText(t, w / 2, y); g.fillStyle = color; g.fillText(t, w / 2, y);
       y += fs[i] * 0.525;
     });
     tex.needsUpdate = true;
@@ -207,7 +181,7 @@ function makePad(x, z, size, color, icon) {
     if (c.roundRect) c.roundRect(14, 14, 228, 228, 36); else c.rect(14, 14, 228, 228);
     c.fill();
     c.font = '150px "Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif';
-    c.fillStyle = '#fff'; c.textAlign = 'center'; c.textBaseline = 'middle'; if (icon === '🪚') c.drawImage(PLANK, 48, 48, 160, 160); else c.fillText(icon, 128, 140); // emoji 也會吃 fillStyle 的透明度
+    c.fillStyle = '#fff'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(icon, 128, 140); // emoji 也會吃 fillStyle 的透明度
     const ic = new THREE.Mesh(new THREE.PlaneGeometry(size * 0.9, size * 0.9), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(cv), transparent: true, depthWrite: false }));
     ic.rotation.x = -Math.PI / 2; ic.position.y = 0.004; g.add(ic);
   }
@@ -267,8 +241,8 @@ function rand(a, b) { return a + Math.random() * (b - a); }
 let NG_PX = 4.15, NG_PZ = -8.7, NG_LEN = NG_PX; // 北門兩片門板的門柱位置；領地擴大時重算
 function nearNorthDoors(x, z, pad) { return z < NG_PZ + 0.5 && (Math.hypot(x - NG_PX, z - NG_PZ) < NG_LEN + pad || Math.hypot(x + NG_PX, z - NG_PZ) < NG_LEN + pad); }
 // 北邊森林（一開始就能砍）；門板擺動範圍內不長樹
-for (let i = 0; i < 150; i++) {                  // v0.81（作者：樹林在畫面裡太小）：北邊森林再往外、往兩側長
-  const x = rand(-16, 14) * TS, z = rand(-26, -9) * TS;
+for (let i = 0; i < 280; i++) {                  // v0.81（作者：樹林在畫面裡太小）：北邊森林再往外、往兩側長；v0.90（作者：北邊森林不夠多）再加大加密
+  const x = rand(-22, 20) * TS, z = rand(-30, -9) * TS;
   if (!nearNorthDoors(x, z, 1.2) && trees.every(t => (t.x - x) ** 2 + (t.z - z) ** 2 > 2.6)) addTree(x, z, false);
 }
 // 東邊森林（被冰牆擋住，要開拓）；v0.81（作者：東邊樹林多）：最大、最密的一片，沒有熊

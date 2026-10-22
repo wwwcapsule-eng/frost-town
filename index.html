@@ -88,7 +88,7 @@
   <div class="pill" id="pStone" style="display:none">🪨 <b id="stone">0</b><span class="cap" id="capS"></span></div>
   <div class="pill" id="pWood">🪵 <b id="wood">0</b><span class="cap" id="capW"></span></div>
 </div>
-<div class="pill" id="pStore" style="display:none">📦 <i class="pk"></i><b id="sPlank">0</b><span class="cap" id="sNeed"></span> 🍖<b id="sFood">0</b><span id="sJerkyW" style="display:none"> 🥓<b id="sJerky">0</b></span><span id="sCoalW" style="display:none"> ⚫<b id="sCoal">0</b></span><span id="sStoneW" style="display:none"> 🪨<b id="sStone">0</b></span></div>
+<div class="pill" id="pStore" style="display:none">📦 🪵<b id="sPlank">0</b><span class="cap" id="sNeed"></span> 🍖<b id="sFood">0</b><span id="sJerkyW" style="display:none"> 🥓<b id="sJerky">0</b></span><span id="sCoalW" style="display:none"> ⚫<b id="sCoal">0</b></span><span id="sStoneW" style="display:none"> 🪨<b id="sStone">0</b></span></div>
 <div id="bars">
   <div class="bar" id="hpBar"><i></i><span>❤️ <b id="hp">100</b></span></div>
   <div class="bar" id="fuelBar"><i></i><span>🔥 <em id="fireName" style="font-style:normal">營火</em> <b id="fuel">100</b>%</span></div>
@@ -126,13 +126,14 @@
 <div id="lose"><div class="box"><div class="big">🐻 營地失守了</div><div>所有建築都被熊拆掉了</div><button id="retry">重新開始</button></div></div>
 <div id="lvup"><div class="box"><div class="big" id="lvTitle"></div><div id="lvList"></div><button id="lvOk">太好了！</button></div></div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="js/lib/three.min.js"></script><!-- v0.90 離線版：three.js r128、GLTFLoader 放在專案裡，不用連網 -->
+<script src="js/lib/GLTFLoader.js"></script>
 <script src="js/config.js"></script>
 <script src="js/world.js"></script>
 <script src="js/buildings.js"></script>
 <script src="js/plan.js"></script>
 <script src="js/player.js"></script>
 <script src="js/main.js"></script>
+<script>if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js');</script>
 </body>
 </html>
