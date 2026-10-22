@@ -224,7 +224,7 @@ function updateStore(dt) {
   const st = save.store, f = furnace, ip = wh.pad.position;
   depositCd -= dt;                                                 // 揹木頭、煤站到倉庫格子上：放進倉庫
   const k = carried.map(m => m.userData.type).findLastIndex(t => t === 'log' || t === 'coal' || t === 'stone');
-  if (k >= 0 && depositCd <= 0 && st[carried[k].userData.type === 'log' ? 'plank' : carried[k].userData.type] < CFG.storeMax && Math.hypot(player.position.x - ip.x, player.position.z - ip.z) < 1.3) {
+  if (k >= 0 && depositCd <= 0 && st[carried[k].userData.type === 'log' ? 'plank' : carried[k].userData.type] < storeCap() && Math.hypot(player.position.x - ip.x, player.position.z - ip.z) < 1.3) {
     depositCd = 0.07;
     const m = carried.splice(k, 1)[0], type = m.userData.type, wp = m.getWorldPosition(new THREE.Vector3());
     stackRoot.remove(m); restack();
@@ -259,13 +259,13 @@ function updateStore(dt) {
     }
   }
   if (wh.hungry && st.food > 0) { st.food--; wh.hungry = false; toast('😋 工人吃飽，復工了！'); }
-  wh.label.set(wh.hungry ? ['📦 倉庫', '😩 沒食物，工人罷工'] : ['📦 倉庫', '🪵' + st.plank + '/' + plankNeed() + ' 🍖' + st.food + (save.smoke ? ' 🥓' + st.jerky : '') + (save.mine ?' ⚫' + st.coal : '') + (save.quarry ? ' 🪨' + st.stone : '')], wh.hungry ? '#ff6a5a' : '#fff');
+  wh.label.set(wh.hungry ? ['📦 倉庫', '😩 沒食物，工人罷工'] : coldWave.on > 0 ? ['📦 倉庫', '❄️ 寒潮：搬運工自動補火'] : ['📦 倉庫', '🪵' + st.plank + '/' + plankNeed() + ' 🍖' + st.food + (save.smoke ? ' 🥓' + st.jerky : '') + (save.mine ?' ⚫' + st.coal : '') + (save.quarry ? ' 🪨' + st.stone : '')], wh.hungry ? '#ff6a5a' : '#fff');
 }
 // 倉庫要留多少🪵木頭（v0.79～0.80）：至少 40，還要夠付眼前最貴的一筆（民房、升級伐木場…）；多的鋸木廠直接換錢
 function plankNeed() {
   let n = Math.max(CFG.plankKeep, P(housePrice()) + 10);
   for (const u of unlocks) if (!u.done && u.mat === 'plank') { const p = u.price(); if (p != null) n = Math.max(n, p - u.paid + 10); }
-  return Math.min(CFG.storeMax, n);
+  return Math.min(storeCap(), n);
 }
 // 搬運工：營火要柴 → 北門要修 → 建築要修 → 綠框有錢；先回倉庫格子拿東西（一趟最多 3 個），走到目的地才生效
 function updatePorters(dt) {
@@ -276,7 +276,8 @@ function updatePorters(dt) {
     if (!p.job) {
       const haul = ['food', 'plank'].find(k => save.pile[k] > 0 && !taken('haul-' + k));
       const hurt = buildings.find(b => !b.dead && b.hp < CFG.buildHp && !taken(b)), cash = mills.find(m => m.out.length && !taken(m));
-      if (save.mine && furnace.fuel < CFG.fuelMax * 0.85 && (st.coal || save.bin > 0 || (st.plank && !save.stove)) && !taken('fuel')) p.job = { k: 'fuel' };
+      if ((save.mine || coldWave.on > 0) && furnace.fuel < CFG.fuelMax * (coldWave.on > 0 ? 0.97 : 0.85) && // v0.92：寒潮時倉庫一定自動補火（沒倉庫就要自己跑）
+         (st.coal || save.bin > 0 || (st.plank && !save.stove)) && !taken('fuel')) p.job = { k: 'fuel' };
       else if (gate.hp < CFG.gateHp && st.plank && !taken('gate')) p.job = { k: 'gate' };
       else if (haul) p.job = { k: 'haul-' + haul, kind: haul };
       else if (hurt && st.plank) p.job = { k: 'fix', b: hurt };
@@ -610,9 +611,21 @@ function updateCoalers(dt) {
     if (f.hp <= 0) { f.alive = false; f.regrow = f.regrowT ?? CFG.coalRegrow; for (let i = 0; i < (f.per ?? CFG.coalPerRock) && c.load < CFG.coalerLoad; i++) addLoad(c, c.kind); }
   }
 }
+const storeCap = () => CFG.storeMax * (1 + (save.whLv || 0));   // v0.92 倉庫每樣能存多少（升級變多）
+// v0.92（作者：倉庫要有非蓋不可的用處）：熊衝進營地，會搶放在倉庫外面的東西（烤肉攤等著烤的肉、鋸木廠等著鋸的木頭），倉庫裡的安全
+let stealT = 0;
+function updateThieves(dt) {
+  if ((stealT -= dt) > 0) return; stealT = 3;
+  for (const b of bears) {
+    if (!b.alive || !b.aggro || fd(b.x, b.z) > FENCE_R) continue;
+    const m = [bbq, mills[0]].find(m => m.queue > 0 && !m.bld.dead); if (!m) continue;
+    const n = Math.min(m.queue, 3); m.queue -= n;
+    floatText('🐻 搶走 ' + (m === bbq ? '🍖' : '🪵') + n, m.g.position.x, m.g.position.z, '#ff6a5a');
+  }
+}
 // 頭上飄一行字（賣煤的錢），1.2 秒後消失
-function floatText(t, x, z) {
-  const l = makeLabel(); l.scale.set(3.2, 1.6, 1); l.position.set(x, 2.4, z); l.set([t], '#9fe870'); scene.add(l);
+function floatText(t, x, z, color = '#9fe870') {
+  const l = makeLabel(); l.scale.set(3.2, 1.6, 1); l.position.set(x, 2.4, z); l.set([t], color); scene.add(l);
   fly(l, l.position.clone(), () => new THREE.Vector3(x, 3.6, z), 1.2, () => scene.remove(l), 0);
   flies[flies.length - 1].spin = false;
 }

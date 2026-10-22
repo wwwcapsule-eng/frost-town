@@ -347,8 +347,12 @@ function buildWarehouse() {
   if (!save.porters) save.porters = 1;                             // v0.82：倉庫附 1 個搬運工（揹門口做好的東西回倉庫）
   while (porters.length < save.porters) addPorter();
   addMillUnlocks(); addSmokeUnlock();
+  // v0.92 倉庫升級（作者：倉庫要有非蓋不可的用處）：每升 1 級每樣多存 150、多雇 1 個搬運工，倉庫變大
+  save.whLv = save.whLv || 0; g.scale.setScalar(1 + save.whLv * 0.15);
+  makeUnlock({ x: LOT.store[0] - 2.6, z: LOT.store[1] + 2.7, icon: '📦', mat: 'plank', name: () => '倉庫升級 Lv' + (save.whLv + 2),
+    price: () => [P(200), P(400)][save.whLv] ?? null, buy: () => { save.whLv++; g.scale.setScalar(1 + save.whLv * 0.15); toast('📦 倉庫升級：每樣能存 ' + storeCap() + '，還能多雇 1 個🛒搬運工'); } });
   makeUnlock({ x: LOT.porter[0], z: LOT.porter[1], icon: '🛒', name: () => '雇用搬運工', need: () => needHand(),
-    price: () => [0, 120, 220][save.porters], buy: () => { save.porters++; addPorter(); toast('🛒 搬運工會揹倉庫的木頭去修北門和建築、收烤肉攤的錢（開了煤礦也會補營火）'); } });
+    price: () => save.porters < 3 + (save.whLv || 0) ? [0, 120, 220, 320, 420][save.porters] : null, buy: () => { save.porters++; addPorter(); toast('🛒 搬運工會揹倉庫的木頭去修北門和建築、收烤肉攤的錢（開了煤礦也會補營火）'); } });
 }
 if (save.wh) buildWarehouse();
 else makeUnlock({ x: LOT.store[0], z: LOT.store[1] + 2.7, icon: '📦', mat: 'log', name: () => '蓋倉庫',

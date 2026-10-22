@@ -306,7 +306,7 @@ function step(dt) {
   updateGuide(dt);
   updateBears(dt);
   updateVillagers(dt);
-  updateTower(dt); updateMine(dt); updateStore(dt); updatePorters(dt);
+  updateTower(dt); updateMine(dt); updateStore(dt); updatePorters(dt); updateThieves(dt);
   updateWorkers(dt); updateHunters(dt); updateCoalers(dt);
   updateGate(dt);
   updateColdWave(dt);
