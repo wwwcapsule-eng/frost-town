@@ -96,7 +96,7 @@ function hud() {
 }
 function bump(id) { const e = $(id); e.classList.remove('bump'); void e.offsetWidth; e.classList.add('bump'); }
 let toastT = 0;
-function toast(msg) { $('toast').innerHTML = plankHtml(msg); $('toast').style.opacity = 1; toastT = 1.6; }
+function toast(msg) { $('toast').innerHTML = (msg); $('toast').style.opacity = 1; toastT = 1.6; }
 
 // ===== 音效（用程式合成，不需要音檔；手機要先碰一下畫面才能出聲） =====
 let actx = null;

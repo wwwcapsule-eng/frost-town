@@ -34,7 +34,7 @@ function autoSpot(k) {
   cells.sort((a, b) => Math.hypot(a[0] - ox, a[1] - oz) - Math.hypot(b[0] - ox, b[1] - oz));
   return cells.find(([x, z]) => canBuild(x, z, k)) || null;
 }
-function planCost(k) { if (k === 'gate') return P(CFG.gatePrice); return P(k === 'house' ? housePrice() : { mill: CFG.mill2Price, grill: CFG.grill2Price, smith: CFG.smithPrice, tower: towerPrice() }[k] || CFG.heaterPrice); } // 用倉庫的🪚木板付
+function planCost(k) { if (k === 'gate') return P(CFG.gatePrice); return P(k === 'house' ? housePrice() : { mill: CFG.mill2Price, grill: CFG.grill2Price, smith: CFG.smithPrice, tower: towerPrice() }[k] || CFG.heaterPrice); } // 用倉庫的🪵木頭付
 const towerPrice = () => 40 + 50 * towers.length;  // 正式關弩砲塔：40、90、140…
 const planned = k => save.plan.some(p => p.k === k);
 function planLimit(k) {
@@ -87,22 +87,22 @@ function canBuild(x, z, k) {
 }
 function planUi() {
   const lv = LEVELS[save.level];
-  $('pkHouse').innerHTML = plankHtml(planLimit('house') ? '🪚 ' + planCost('house') : '已滿 ' + lv.houses + ' 間');
-  $('pkMill').innerHTML = plankHtml(planLimit('mill') ? '🪚 ' + planCost('mill') : planned('mill') ? '已蓋' : '開拓東邊後');
-  $('pkTower').innerHTML = plankHtml(planLimit('tower') ? '🪚 ' + planCost('tower') : '已滿 ' + towers.length + ' 座');
-  $('pkSmith').innerHTML = plankHtml(planLimit('smith') ? '🪚 ' + planCost('smith') : planned('smith') ? '已蓋' : '開採煤礦後');
-  $('pkGrill').innerHTML = plankHtml(planLimit('grill') ? '🪚 ' + planCost('grill') : planned('grill') ? '已蓋' : '村莊解鎖');
-  $('pkGate').innerHTML = plankHtml(planLimit('gate') ? '🪚 ' + planCost('gate') : '已滿 ' + CFG.gateMax + ' 個');
-  $('pkHeater').innerHTML = plankHtml(planLimit('heater') ? '🪚 ' + planCost('heater') : lv.heaters ? '已滿 ' + (lv.heaters + (save.stove ? 1 : 0)) + ' 座' : '村莊解鎖');
+  $('pkHouse').innerHTML = (planLimit('house') ? '🪵 ' + planCost('house') : '已滿 ' + lv.houses + ' 間');
+  $('pkMill').innerHTML = (planLimit('mill') ? '🪵 ' + planCost('mill') : planned('mill') ? '已蓋' : '開拓東邊後');
+  $('pkTower').innerHTML = (planLimit('tower') ? '🪵 ' + planCost('tower') : '已滿 ' + towers.length + ' 座');
+  $('pkSmith').innerHTML = (planLimit('smith') ? '🪵 ' + planCost('smith') : planned('smith') ? '已蓋' : '開採煤礦後');
+  $('pkGrill').innerHTML = (planLimit('grill') ? '🪵 ' + planCost('grill') : planned('grill') ? '已蓋' : '村莊解鎖');
+  $('pkGate').innerHTML = (planLimit('gate') ? '🪵 ' + planCost('gate') : '已滿 ' + CFG.gateMax + ' 個');
+  $('pkHeater').innerHTML = (planLimit('heater') ? '🪵 ' + planCost('heater') : lv.heaters ? '已滿 ' + (lv.heaters + (save.stove ? 1 : 0)) + ' 座' : '村莊解鎖');
   document.querySelectorAll('#planBar [data-k]').forEach(b => b.classList.toggle('sel', b.dataset.k === plan.kind));
   let tip = '選一種建築，電腦會先放在推薦位置；新民房會自動接上道路；按住任何建築可以搬家', ok = false;
   if (plan.kind && plan.cell) {
     const [x, z] = plan.cell, cost = planCost(plan.kind);
     if (!planLimit(plan.kind)) tip = '數量已達上限，城市升級後可以蓋更多';
     else if (!canBuild(x, z, plan.kind)) tip = plan.kind === 'gate' ? '開口要點在圍欄上（不能在角落、太靠近別的門或建築）' : wrongZone(x, z, plan.kind) ? '這種建築只能蓋在' + ZONE_TXT[KIND_ZONE[plan.kind]] : '這格不能蓋（太靠近建築、圍欄、樹或路）';
-    else if (!save.wh) tip = '先蓋📦倉庫，建築要用倉庫裡的🪚木板蓋';
-    else if (save.store.plank < cost) tip = '木板不夠：需要 🪚 ' + cost + '（倉庫有 ' + save.store.plank + '）';
-    else { tip = (plan.cell === plan.rec ? '⭐ 推薦位置：' : '') + '按「✅ 蓋這裡」用掉 🪚 ' + cost; ok = true; }
+    else if (!save.wh) tip = '先蓋📦倉庫，建築要用倉庫裡的🪵木頭蓋';
+    else if (save.store.plank < cost) tip = '木頭不夠：需要 🪵 ' + cost + '（倉庫有 ' + save.store.plank + '）';
+    else { tip = (plan.cell === plan.rec ? '⭐ 推薦位置：' : '') + '按「✅ 蓋這裡」用掉 🪵 ' + cost; ok = true; }
     cursor.material.color.setHex(ok ? 0x5fd068 : 0xff5a4a);
   } else if (plan.kind) tip = true ? '附近沒有空位了，擴大領地或自己點格子試試' : '點地上的格子，選要蓋在哪';
   $('planTip').textContent = tip; $('planGo').disabled = !ok;
@@ -216,7 +216,7 @@ function planCamera(dt) {
 }
 
 // ===== 城市等級升級：人口到門檻 → 暫停、跳出「新解鎖」卡片、鏡頭拉遠、出現新付款格 =====
-// 倉庫每秒：先顧營火（有煤先用煤）→ 用木板修北門 → 修建築；柴夠了，多的木頭送去鋸木廠做成木板
+// 倉庫每秒：先顧營火（有煤先用煤）→ 用木頭修北門 → 修建築；柴夠了，多的木頭送去鋸木廠做成木頭
 // 工人（伐木工、鏟雪工）每 eatEvery 秒各吃 1 份烤肉，倉庫沒食物就罷工
 let depositCd = 0;
 function updateStore(dt) {
@@ -224,11 +224,18 @@ function updateStore(dt) {
   const st = save.store, f = furnace, ip = wh.pad.position;
   depositCd -= dt;                                                 // 揹木頭、煤站到倉庫格子上：放進倉庫
   const k = carried.map(m => m.userData.type).findLastIndex(t => t === 'log' || t === 'coal' || t === 'stone');
-  if (k >= 0 && depositCd <= 0 && st[carried[k].userData.type] < CFG.storeMax && Math.hypot(player.position.x - ip.x, player.position.z - ip.z) < 1.3) {
+  if (k >= 0 && depositCd <= 0 && st[carried[k].userData.type === 'log' ? 'plank' : carried[k].userData.type] < CFG.storeMax && Math.hypot(player.position.x - ip.x, player.position.z - ip.z) < 1.3) {
     depositCd = 0.07;
     const m = carried.splice(k, 1)[0], type = m.userData.type, wp = m.getWorldPosition(new THREE.Vector3());
     stackRoot.remove(m); restack();
-    fly(m, wp, () => wh.bld.g.position.clone().add(tmp.set(0, 1.6, 0)), 0.3, () => { scene.remove(m); st[type]++; });
+    fly(m, wp, () => wh.bld.g.position.clone().add(tmp.set(0, 1.6, 0)), 0.3, () => { scene.remove(m); st[type === 'log' ? 'plank' : type]++; }); // v0.91：木頭只有一種，放進倉庫就是庫存
+  }
+  const ml = mills[0], km = carried.map(m => m.userData.type).lastIndexOf('log'); // v0.91（作者：蓋倉庫後鋸木廠不能放木頭很怪）：揹木頭走到鋸木廠旁也能放，存進倉庫或多的賣錢
+  if (km >= 0 && depositCd <= 0 && !ml.bld.dead && Math.hypot(player.position.x - ml.bld.x, player.position.z - ml.bld.z) < ml.bld.r + 1.4) {
+    depositCd = 0.07;
+    const m = carried.splice(km, 1)[0], wp = m.getWorldPosition(new THREE.Vector3());
+    stackRoot.remove(m); restack();
+    fly(m, wp, () => ml.g.position.clone().add(tmp.set(0, 1.6, 0)), 0.3, () => { scene.remove(m); ml.queue++; });
   }
   wh.t += dt;
   if (wh.t >= 1 && !wh.bld.dead) {
@@ -236,10 +243,9 @@ function updateStore(dt) {
     const hurt = buildings.find(b => !b.dead && b.hp < CFG.buildHp), mill = mills[0];
     if (porters.length) ; // 有搬運工：補火、修門、修建築改成小人走過去才生效（updatePorters）
     // v0.80（作者）：開了煤礦，倉庫才自動補營火；之前只自動修門和建築
-    else if (save.mine && f.fuel < CFG.fuelMax * 0.7 && (st.coal || (st.log && !save.stove))) { const c = st.coal > 0; if (c) st.coal--; else st.log--; f.fuel = Math.min(CFG.fuelMax, f.fuel + (c ? CFG.fuelPerCoal : CFG.fuelPerLog)); }
+    else if (save.mine && f.fuel < CFG.fuelMax * 0.7 && (st.coal || (st.plank && !save.stove))) { const c = st.coal > 0; if (c) st.coal--; else st.plank--; f.fuel = Math.min(CFG.fuelMax, f.fuel + (c ? CFG.fuelPerCoal : CFG.fuelPerLog)); }
     else if (gate.hp < CFG.gateHp && st.plank) { st.plank--; gate.hp = Math.min(CFG.gateHp, gate.hp + 10); }
     else if (hurt && st.plank) { st.plank--; hurt.hp = Math.min(CFG.buildHp, hurt.hp + 10); }
-    for (let n = 1 + save.millLv; n > 0 && st.log > (save.mine ? CFG.fuelKeep : 0) && mill.queue < 3 * (1 + save.millLv) && !mill.bld.dead; n--) { st.log--; mill.queue++; } // 還沒開煤礦：木頭全部送鋸木廠；伐木場每升 1 級每秒多送 1 根
   }
   const meal = mealSize();                                        // v0.76：所有居民都要吃，人越多吃越多
   wh.eatT += dt;
@@ -253,9 +259,9 @@ function updateStore(dt) {
     }
   }
   if (wh.hungry && st.food > 0) { st.food--; wh.hungry = false; toast('😋 工人吃飽，復工了！'); }
-  wh.label.set(wh.hungry ? ['📦 倉庫', '😩 沒食物，工人罷工'] : ['📦 倉庫', '🪚' + st.plank + '/' + plankNeed() + ' 🍖' + st.food + (save.smoke ? ' 🥓' + st.jerky : '') + (save.mine ?' ⚫' + st.coal : '') + (save.quarry ? ' 🪨' + st.stone : '')], wh.hungry ? '#ff6a5a' : '#fff');
+  wh.label.set(wh.hungry ? ['📦 倉庫', '😩 沒食物，工人罷工'] : ['📦 倉庫', '🪵' + st.plank + '/' + plankNeed() + ' 🍖' + st.food + (save.smoke ? ' 🥓' + st.jerky : '') + (save.mine ?' ⚫' + st.coal : '') + (save.quarry ? ' 🪨' + st.stone : '')], wh.hungry ? '#ff6a5a' : '#fff');
 }
-// 倉庫要留多少🪚木板（v0.79～0.80）：至少 40，還要夠付眼前最貴的一筆（民房、升級伐木場…）；多的鋸木廠直接換錢
+// 倉庫要留多少🪵木頭（v0.79～0.80）：至少 40，還要夠付眼前最貴的一筆（民房、升級伐木場…）；多的鋸木廠直接換錢
 function plankNeed() {
   let n = Math.max(CFG.plankKeep, P(housePrice()) + 10);
   for (const u of unlocks) if (!u.done && u.mat === 'plank') { const p = u.price(); if (p != null) n = Math.max(n, p - u.paid + 10); }
@@ -265,12 +271,12 @@ function plankNeed() {
 function updatePorters(dt) {
   if (!save.wh || wh.bld.dead) return;
   const st = save.store, home = wh.pad.position, taken = k => porters.some(o => o.job && (o.job.k === k || o.job.b === k || o.job.m === k));
-  for (const k in PILES) { PILES[k].g.children.forEach((b, i) => b.visible = i < Math.ceil(save.pile[k] / CFG.pileMax * 6)); PILES[k].label.visible = save.pile[k] > 0; PILES[k].label.set([(k === 'food' ? '🍖' : '🪚') + save.pile[k] + ' → 📦'], '#fff', [40]); }
+  for (const k in PILES) { PILES[k].g.children.forEach((b, i) => b.visible = i < Math.ceil(save.pile[k] / CFG.pileMax * 6)); PILES[k].label.visible = save.pile[k] > 0; PILES[k].label.set([(k === 'food' ? '🍖' : '🪵') + save.pile[k] + ' → 📦'], '#fff', [40]); }
   porters.forEach((p, i) => {
     if (!p.job) {
       const haul = ['food', 'plank'].find(k => save.pile[k] > 0 && !taken('haul-' + k));
       const hurt = buildings.find(b => !b.dead && b.hp < CFG.buildHp && !taken(b)), cash = mills.find(m => m.out.length && !taken(m));
-      if (save.mine && furnace.fuel < CFG.fuelMax * 0.85 && (st.coal || save.bin > 0 || (st.log && !save.stove)) && !taken('fuel')) p.job = { k: 'fuel' };
+      if (save.mine && furnace.fuel < CFG.fuelMax * 0.85 && (st.coal || save.bin > 0 || (st.plank && !save.stove)) && !taken('fuel')) p.job = { k: 'fuel' };
       else if (gate.hp < CFG.gateHp && st.plank && !taken('gate')) p.job = { k: 'gate' };
       else if (haul) p.job = { k: 'haul-' + haul, kind: haul };
       else if (hurt && st.plank) p.job = { k: 'fix', b: hurt };
@@ -295,7 +301,7 @@ function updatePorters(dt) {
       routeTo(p, sx, sz, dt);
       if (Math.hypot(p.g.position.x - sx, p.g.position.z - sz) > (fromBin ? 1.2 : 0.8)) return;
       if (fromBin) { j.coal = Math.min(3, save.bin); save.bin -= j.coal; j.log = 0; j.n = j.coal; }
-      else if (j.k === 'fuel') { j.coal = Math.min(3, st.coal); j.log = save.stove ? 0 : Math.min(3 - j.coal, st.log); st.coal -= j.coal; st.log -= j.log; j.n = j.coal + j.log; }
+      else if (j.k === 'fuel') { j.coal = Math.min(3, st.coal); j.log = save.stove ? 0 : Math.min(3 - j.coal, st.plank); st.coal -= j.coal; st.plank -= j.log; j.n = j.coal + j.log; }
       else { const lack = j.k === 'gate' ? CFG.gateHp - gate.hp : CFG.buildHp - j.b.hp; j.n = Math.min(3, st.plank, Math.ceil(lack / 10)); st.plank -= j.n; }
       if (!j.n) { p.job = null; return; }
       j.got = true; p.cargo.material = j.k === 'fuel' ? (j.coal ? mats.coal : mats.trunk) : mats.wood; p.cargo.visible = true;
@@ -311,7 +317,7 @@ function updatePorters(dt) {
     p.cargo.visible = false; p.job = null;
   });
 }
-// 鋸木廠做的木板、烤肉攤烤的肉放到門口的成品堆（搬運工來揹）；肉乾掛到燻肉架上、冒煙
+// 鋸木廠做的木頭、烤肉攤烤的肉放到門口的成品堆（搬運工來揹）；肉乾掛到燻肉架上、冒煙
 function toStore(k, mill) {
   const from = mill.g.position.clone().add(tmp.set(0, 1.6, 0));
   if (k === 'jerky') {
@@ -319,7 +325,7 @@ function toStore(k, mill) {
     fly(jm, from, () => new THREE.Vector3(SMOKE[0], 0.9, SMOKE[1]), 0.6, () => { scene.remove(jm); save.store.jerky++; smokePuff(); }, 2);
     return;
   }
-  if (save.pile[k] >= CFG.pileMax) {                               // 門口堆滿了（搬運工來不及）：木板直接換錢、烤肉擺櫃台
+  if (save.pile[k] >= CFG.pileMax) {                               // 門口堆滿了（搬運工來不及）：木頭直接換錢、烤肉擺櫃台
     if (k === 'plank') { save.cash += mill.value; sfx.coin(); } else addCooked(mill);
     return;
   }
@@ -474,7 +480,7 @@ function updateWorkers(dt) {
     if (w.load >= CFG.workerLoadLv[save.bag]) {                 // 揹滿了：有倉庫送倉庫，沒有就送鋸木廠
       const ip = (toWh ? wh.pad : mills[0].inPad).position;
       if (routeTo(w, ip.x, ip.z, dt)) {
-        if (toWh) save.store.log = Math.min(CFG.storeMax, save.store.log + w.load); else mills[0].queue += w.load;
+        if (toWh && save.store.plank < plankNeed()) save.store.plank += w.load; else mills[0].queue += w.load; // 倉庫存夠了，多的給鋸木廠賣錢
         w.load = 0;
         while (w.back.children.length) w.back.remove(w.back.children[0]);
       }
