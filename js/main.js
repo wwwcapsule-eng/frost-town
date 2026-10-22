@@ -81,7 +81,7 @@ function updateGoal(dt) {
   }
   goalFlash -= dt;
   const t = '🎯 ' + GOALS[save.goal].t();
-  if (t !== shownGoal) { $('goal').textContent = t; shownGoal = t; }
+  if (t !== shownGoal) { $('goal').innerHTML = plankHtml(t); shownGoal = t; }
   $('goal').classList.toggle('done', goalFlash > 0);
 }
 
@@ -138,6 +138,7 @@ function step(dt) {
   let ix = joy.x, iy = joy.y;
   if (keys.KeyA || keys.ArrowLeft) ix -= 1; if (keys.KeyD || keys.ArrowRight) ix += 1;
   if (keys.KeyW || keys.ArrowUp) iy -= 1; if (keys.KeyS || keys.ArrowDown) iy += 1;
+  if (camMode.on) ix = iy = 0;                                  // 視角模式不能走
   const il = Math.hypot(ix, iy); if (il > 1) { ix /= il; iy /= il; }
   const mx = right.x * ix + fwd.x * -iy, mz = right.y * ix + fwd.y * -iy;
   const moving = Math.hypot(mx, mz) > 0.05;
@@ -242,21 +243,20 @@ function step(dt) {
     }
     const cold = mill.bld.cold; // 暖氣圈外：停工，但綠框裡的錢還是能收
     const st = save.store, foodLow = save.wh && st.food + save.pile.food < Math.max(6, mealSize() * CFG.meals);
-    const jam = mill.customers && !foodLow && !save.smoke && bbq.cookedMeshes.length >= CFG.counterMax; // v0.81：櫃台擺滿、倉庫也夠吃，沒有燻肉架就先不烤
     if (!cold) mill.saw.rotation.y += dt * (mill.queue ? 20 : 2);
     if (mill.saw2) mill.saw2.rotation.y = mill.saw.rotation.y;
-    if (mill.queue > 0 && !cold && !jam) {
+    if (mill.queue > 0 && !cold) {
       mill.timer += dt;
       if (mill.timer >= mill.time) {
         mill.timer = 0; mill.queue--;
         // 有倉庫：木頭做成🪚木材、烤肉先存給居民吃，存夠了才放櫃台；櫃台也擺滿就燻成🥓肉乾
-        if (mill.customers) { if (foodLow) toStore('food', mill); else if (bbq.cookedMeshes.length < CFG.counterMax) addCooked(mill); else toStore('jerky', mill); }
+        if (mill.customers) { if (foodLow) toStore('food', mill); else if (bbq.cookedMeshes.length < CFG.counterMax) addCooked(mill); else if (save.smoke && save.store.jerky < CFG.jerkyMax) toStore('jerky', mill); else { save.cash += CFG.meatSell; sfx.coin(); floatText('+' + CFG.meatSell + ' 💵 商隊', mill.g.position.x, mill.g.position.z); } } // v0.88（作者：肉越堆越高）：櫃台、燻肉架都滿了，多的肉賣給商隊
         else if (save.wh && mill.accept === 'log' && st.plank + save.pile.plank < plankNeed()) toStore('plank', mill); // v0.79：木材留夠就好，多的換錢（不然有倉庫後錢沒來源）
         else if (!mill.outPad.visible) { save.cash += mill.value; sfx.coin(); } // v0.80：收錢格收起來了，錢直接入帳
         else spawnBill(mill, mill.g.position.clone().add(tmp.set(1.2, 1, 1)));
       }
     } else if (!cold) mill.timer = 0;
-    mill.label.set(mill.queue ? [mill.name, (cold ? '凍住了 ' : jam ? '櫃台滿了 ' : '加工中 ') + mill.queue] : [mill.name]);
+    mill.label.set(mill.queue ? [mill.name, (cold ? '凍住了 ' : '加工中 ') + mill.queue] : [mill.name]);
     if (mill.out.length && Math.hypot(player.position.x - op.x, player.position.z - op.z) < 1.4) {
       const bills = mill.out.splice(0);
       bills.forEach((b, i) => {
@@ -355,7 +355,8 @@ function loop() {
   requestAnimationFrame(loop);
   const dt = Math.min(clock.getDelta(), 0.05);
   if (plan.on) planCamera(dt); else step(dt);
-  document.getElementById('planBtn').style.display = (save.level >= 1 || PRO) && !plan.on && !gameOver ? 'block' : 'none';
+  document.getElementById('planBtn').style.display = (save.level >= 1 || PRO) && !plan.on && !camMode.on && !gameOver ? 'block' : 'none';
+  document.getElementById('camBtn').style.display = !plan.on && !gameOver ? 'block' : 'none';
   renderer.render(scene, camera);
 }
 loop();

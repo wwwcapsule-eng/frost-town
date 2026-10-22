@@ -87,13 +87,13 @@ function canBuild(x, z, k) {
 }
 function planUi() {
   const lv = LEVELS[save.level];
-  $('pkHouse').textContent = planLimit('house') ? '🪚 ' + planCost('house') : '已滿 ' + lv.houses + ' 間';
-  $('pkMill').textContent = planLimit('mill') ? '🪚 ' + planCost('mill') : planned('mill') ? '已蓋' : '開拓東邊後';
-  $('pkTower').textContent = planLimit('tower') ? '🪚 ' + planCost('tower') : '已滿 ' + towers.length + ' 座';
-  $('pkSmith').textContent = planLimit('smith') ? '🪚 ' + planCost('smith') : planned('smith') ? '已蓋' : '開採煤礦後';
-  $('pkGrill').textContent = planLimit('grill') ? '🪚 ' + planCost('grill') : planned('grill') ? '已蓋' : '村莊解鎖';
-  $('pkGate').textContent = planLimit('gate') ? '🪚 ' + planCost('gate') : '已滿 ' + CFG.gateMax + ' 個';
-  $('pkHeater').textContent = planLimit('heater') ? '🪚 ' + planCost('heater') : lv.heaters ? '已滿 ' + (lv.heaters + (save.stove ? 1 : 0)) + ' 座' : '村莊解鎖';
+  $('pkHouse').innerHTML = plankHtml(planLimit('house') ? '🪚 ' + planCost('house') : '已滿 ' + lv.houses + ' 間');
+  $('pkMill').innerHTML = plankHtml(planLimit('mill') ? '🪚 ' + planCost('mill') : planned('mill') ? '已蓋' : '開拓東邊後');
+  $('pkTower').innerHTML = plankHtml(planLimit('tower') ? '🪚 ' + planCost('tower') : '已滿 ' + towers.length + ' 座');
+  $('pkSmith').innerHTML = plankHtml(planLimit('smith') ? '🪚 ' + planCost('smith') : planned('smith') ? '已蓋' : '開採煤礦後');
+  $('pkGrill').innerHTML = plankHtml(planLimit('grill') ? '🪚 ' + planCost('grill') : planned('grill') ? '已蓋' : '村莊解鎖');
+  $('pkGate').innerHTML = plankHtml(planLimit('gate') ? '🪚 ' + planCost('gate') : '已滿 ' + CFG.gateMax + ' 個');
+  $('pkHeater').innerHTML = plankHtml(planLimit('heater') ? '🪚 ' + planCost('heater') : lv.heaters ? '已滿 ' + (lv.heaters + (save.stove ? 1 : 0)) + ' 座' : '村莊解鎖');
   document.querySelectorAll('#planBar [data-k]').forEach(b => b.classList.toggle('sel', b.dataset.k === plan.kind));
   let tip = '選一種建築，電腦會先放在推薦位置；新民房會自動接上道路；按住任何建築可以搬家', ok = false;
   if (plan.kind && plan.cell) {

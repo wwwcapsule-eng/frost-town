@@ -1,5 +1,5 @@
 'use strict';
-const VERSION = '0.87';
+const VERSION = '0.88';
 
 // ===== 數值（之後平衡都改這裡） =====
 const CFG = {
@@ -42,6 +42,7 @@ const CFG = {
   stoneHouse: 20, stoneBeds: 3, stoneStove: [40, 70], // v0.86 石材的用處：民房改建石屋（🪨 20，每間 +3 床）、石爐 Lv5／Lv6 升級改收🪨石材
   coalerPrice: [80, 160], coalerLoad: 6, coalKeep: 40, coalSell: 3, // v0.82 煤礦工（取代自動運輸）：第 1、2 個價錢、一次揹幾塊、倉庫留幾塊煤，多的一塊賣幾元
   counterMax: 6, smokePrice: 100, jerkyValue: 5, // v0.81（作者：肉太多）：櫃台最多擺幾份烤肉；燻肉架價錢（換成木材 ×0.3）；一份肉乾賣流民幾元
+  jerkyMax: 20, meatSell: 4, // v0.88：倉庫肉乾最多存 20 份；櫃台、燻肉架都滿時一份烤肉賣商隊 4 元
   plankKeep: 40,            // 倉庫的🪚木材存到 40 塊（或下一間民房的價錢＋10）就夠，鋸木廠多做的換錢（v0.79，作者：有倉庫後錢沒來源）
   whLogs: 10, plankRate: 0.3, fuelKeep: 20, whFood: 10, eatEvery: 60, // 倉庫（第 2 時代）：揹幾根木頭蓋；建築價錢換成🪚木材的比例（原本的錢 ×0.3）；倉庫留幾根木頭當柴（多的送鋸木廠）；蓋好送幾份食物；居民幾秒吃一餐
   cartPrice: 120, cartEvery: 6, cartLoad: 2, binMax: 20, // 雇礦工＋木軌礦車：價錢（換成木材）、幾秒推出來一車、一車幾塊煤、煤堆最多幾塊

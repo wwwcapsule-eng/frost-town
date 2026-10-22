@@ -94,7 +94,7 @@ function hud() {
 }
 function bump(id) { const e = $(id); e.classList.remove('bump'); void e.offsetWidth; e.classList.add('bump'); }
 let toastT = 0;
-function toast(msg) { $('toast').textContent = msg; $('toast').style.opacity = 1; toastT = 1.6; }
+function toast(msg) { $('toast').innerHTML = plankHtml(msg); $('toast').style.opacity = 1; toastT = 1.6; }
 
 // ===== 音效（用程式合成，不需要音檔；手機要先碰一下畫面才能出聲） =====
 let actx = null;
@@ -127,6 +127,8 @@ if (!hintOn) $('hint').style.display = 'none';
 const joy = { active: false, id: null, ox: 0, oy: 0, x: 0, y: 0 };
 const joyEl = $('joy'), knob = $('knob');
 addEventListener('pointerdown', e => {
+  if (e.target.id === 'camBtn') return;
+  if (camMode.on) return camPointer('down', e);
   if (e.target.id === 'reset' || e.target.id === 'mute' || e.target.closest('#planBar, #planBtn, #menu')) return;
   if (plan.on) return planPointer('down', e);
   if (joy.active) return;
@@ -135,6 +137,7 @@ addEventListener('pointerdown', e => {
   knob.style.transform = '';
 });
 addEventListener('pointermove', e => {
+  if (camMode.on) return camPointer('move', e);
   if (plan.on) return planPointer('move', e);
   if (!joy.active || e.pointerId !== joy.id) return;
   let dx = e.clientX - joy.ox, dy = e.clientY - joy.oy;
@@ -144,9 +147,29 @@ addEventListener('pointermove', e => {
   joy.x = dx / R; joy.y = dy / R;
   knob.style.transform = `translate(${dx}px,${dy}px)`;
 });
-function joyEnd(e) { if (!plan.on) clearTimeout(lpTimer); if (plan.on) planPointer('up', e); if (e.pointerId === joy.id) { joy.active = false; joy.x = joy.y = 0; joyEl.style.display = 'none'; } }
+function joyEnd(e) { camPointer('up', e); if (!plan.on) clearTimeout(lpTimer); if (plan.on) planPointer('up', e); if (e.pointerId === joy.id) { joy.active = false; joy.x = joy.y = 0; joyEl.style.display = 'none'; } }
 addEventListener('pointerup', joyEnd); addEventListener('pointercancel', joyEnd);
 const keys = {};
+// v0.88 視角模式（作者：多一個按鍵，按下去不能走，一指滑動轉視角、兩指縮放，要有說明）
+const camMode = { on: false, pts: new Map(), pinch: 0 };
+function setCamMode(on) {
+  camMode.on = on; camMode.pts.clear(); joy.active = false; joy.x = joy.y = 0; joyEl.style.display = 'none';
+  $('camBtn').textContent = on ? '✅ 回去走路' : '🎥 轉視角'; $('camBtn').classList.toggle('on', on);
+  $('camHint').style.display = on ? 'block' : 'none';
+}
+$('camBtn').onclick = () => setCamMode(!camMode.on);
+function camPointer(type, e) {
+  const pts = camMode.pts;
+  if (type === 'up') { pts.delete(e.pointerId); camMode.pinch = 0; return; }
+  if (type === 'down') { pts.set(e.pointerId, { x: e.clientX, y: e.clientY }); camMode.pinch = 0; return; }
+  const p = pts.get(e.pointerId); if (!p) return;
+  const dx = e.clientX - p.x, dy = e.clientY - p.y; p.x = e.clientX; p.y = e.clientY;
+  if (pts.size >= 2) {                                           // 兩指：看兩指距離變化縮放
+    const [a, b] = [...pts.values()], d = Math.hypot(a.x - b.x, a.y - b.y);
+    if (camMode.pinch) setZoom(zoom * camMode.pinch / d);
+    camMode.pinch = d;
+  } else { cam.yaw -= dx * 0.008; cam.pitch = Math.max(-0.5, Math.min(0.5, cam.pitch - dy * 0.005)); resize(); }
+}
 addEventListener('keydown', e => keys[e.code] = true);
 addEventListener('keyup', e => keys[e.code] = false);
 addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
@@ -154,21 +177,26 @@ addEventListener('contextmenu', e => e.preventDefault());
 
 // ===== 鏡頭 =====
 const camBase = new THREE.Vector3(7, 15, 11), camOffset = camBase.clone();
+const camSph = new THREE.Spherical().setFromVector3(camBase), camRef = camBase.length() * 1.5; // camRef：標籤放大的基準距離（剛開始的手機鏡頭）
+const cam = { yaw: 0, pitch: 0 };                                // v0.88 視角模式：轉的角度
+const fwd = new THREE.Vector2(), right = new THREE.Vector2();
 function resize() {
   const w = innerWidth, h = innerHeight;
   renderer.setSize(w, h); camera.aspect = w / h;
   camera.fov = 40;
-  camOffset.copy(camBase).multiplyScalar((w < h ? Math.min(1.9, 1 + (h / w - 1) * 0.75) : 1) * zoom * LEVELS[save.level].cam * TERR[save.territory].cam); // 直式（手機）、城市等級越高，鏡頭越遠
-  scene.fog.near = camOffset.length() + 10; scene.fog.far = camOffset.length() + 55; // v0.71：霧跟著鏡頭距離走，鏡頭拉遠時整片地不會被霧蓋白
+  const r = camSph.radius * (w < h ? Math.min(1.9, 1 + (h / w - 1) * 0.75) : 1) * zoom * LEVELS[save.level].cam * TERR[save.territory].cam; // 直式（手機）、城市等級越高，鏡頭越遠
+  camOffset.setFromSphericalCoords(r, Math.max(0.25, Math.min(1.25, camSph.phi + cam.pitch)), camSph.theta + cam.yaw);
+  fwd.set(-camOffset.x, -camOffset.z).normalize(); right.set(-fwd.y, fwd.x); // 搖桿方向跟著鏡頭轉
+  const k = Math.max(1, r / camRef); labelK.set(k, k, 1); player.scale.setScalar(Math.min(1.6, Math.sqrt(k))); // v0.88（作者：營地越大人物越小）：拉遠時標籤、主角跟著放大
+  scene.fog.near = r + 10; scene.fog.far = r + 55; // v0.71：霧跟著鏡頭距離走，鏡頭拉遠時整片地不會被霧蓋白
   camera.updateProjectionMatrix();
 }
 addEventListener('resize', resize);
-// 電腦：滑鼠滾輪縮放鏡頭
+// 電腦：滑鼠滾輪縮放鏡頭；手機：視角模式兩指縮放
 let zoom = 1;
-addEventListener('wheel', e => { zoom = Math.max(0.6, Math.min(1.8, zoom * (e.deltaY > 0 ? 1.1 : 0.9))); resize(); }, { passive: true });
+const setZoom = z => { zoom = Math.max(0.45, Math.min(1.8, z)); resize(); };
+addEventListener('wheel', e => setZoom(zoom * (e.deltaY > 0 ? 1.1 : 0.9)), { passive: true });
 resize();
-const fwd = new THREE.Vector2(-camOffset.x, -camOffset.z).normalize();
-const right = new THREE.Vector2(-fwd.y, fwd.x);
 
 // ===== 下雪 =====
 const snowN = 400, snowPos = new Float32Array(snowN * 3);
