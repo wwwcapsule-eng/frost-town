@@ -38,7 +38,7 @@ function spawnBill(mill, from) {
 
 // ===== 村民排隊買烤肉：烤好的肉放櫃台，排第一個的村民拿走並付錢 =====
 const bbq = mills[1];
-// 門口的成品堆（v0.82，作者：做好的東西不要自己飛進倉庫）：鋸木廠做的🪚木材、烤肉攤要給倉庫的🍖烤肉先堆在門口，由搬運工揹去倉庫
+// 門口的成品堆（v0.82，作者：做好的東西不要自己飛進倉庫）：鋸木廠做的🪚木板、烤肉攤要給倉庫的🍖烤肉先堆在門口，由搬運工揹去倉庫
 save.pile = Object.assign({ plank: 0, food: 0 }, save.pile);
 const PILES = {};
 function addPile(kind, m, ox, oz) {
@@ -47,7 +47,8 @@ function addPile(kind, m, ox, oz) {
     const b = kind === 'plank' ? box(0.9, 0.12, 0.4, mats.wood) : box(0.9, 0.22, 0.32, mats.meat);
     b.position.set((i % 2) * 0.48 - 0.24, (kind === 'plank' ? 0.07 : 0.12) + (i >> 1) * (kind === 'plank' ? 0.14 : 0.24), 0); b.rotation.y = 1.57; g.add(b);
   }
-  PILES[kind] = { g, at: () => new THREE.Vector3(m.bld.x + ox, 0, m.bld.z + oz) };
+  const label = makeLabel(); label.scale.set(2, 1, 1); label.position.set(0, 1.4, 0); g.add(label); // v0.89（作者：烤肉飛到下方不知道去哪）：成品堆頭上寫數量和誰來揹
+  PILES[kind] = { g, label, at: () => new THREE.Vector3(m.bld.x + ox, 0, m.bld.z + oz) };
 }
 addPile('plank', mills[0], 2.3, 1.4); addPile('food', bbq, 1.0, 1.9);
 // 櫃台貼在烤肉攤左邊、靠主路；村民在主路上（QX）往南門排隊，遠離北邊森林的熊
@@ -137,7 +138,7 @@ function makeUnlock(def) {
   u.refresh = () => {
     const p = u.price();
     if (p == null) { scene.remove(pad); scene.remove(label); u.done = true; return; }
-    // blk：還不能買的原因（每格的 need()，主迴圈更新）；mat：用倉庫的木材或背上的木頭付，不是錢
+    // blk：還不能買的原因（每格的 need()，主迴圈更新）；mat：用倉庫的木板或背上的木頭付，不是錢
     const cost = u.blk || ((u.mat === 'plank' || u.mat === 'stone') && !save.wh ? '先蓋📦倉庫' : ({ plank: '🪚 ', log: '🪵 ', stone: '🪨 ' }[u.mat] || '💵 ') + (p - u.paid));
     if (u.near) { label.set([u.name(), cost], '#ffe066', [36, 68]); label.scale.set(3.2, 1.8, 1); label.position.y = 1.9; } // 錢放大，像參考影片
     else { label.set([u.blk ? '👥 人不夠' : cost], '#ffe066', [60]); label.scale.set(1.9, 1.05, 1); label.position.y = 0.9; } // 遠的只顯示小價錢，不會互相蓋住
@@ -229,7 +230,7 @@ function updateGate(dt) {
 }
 
 // ===== 伐木工：自己找樹砍、揹滿就送倉庫，一直循環 =====
-// v0.80（作者：倉庫要更簡單）：蓋了倉庫後，鋸木廠的🪵投放格、💵收錢格收起來（木頭由倉庫自動送、多的木材直接換錢），
+// v0.80（作者：倉庫要更簡單）：蓋了倉庫後，鋸木廠的🪵投放格、💵收錢格收起來（木頭由倉庫自動送、多的木板直接換錢），
 // 鋸木廠旁邊只剩兩格：👷 雇用伐木工、🪚 升級伐木場（每升 1 級多雇 1 個伐木工）
 save.millLv = save.millLv || (save.mill2 && !PRO ? 1 : 0);          // v0.81：拿掉第二台鋸木機，舊存檔蓋過的當作升過 1 級
 function addMillUnlocks() {
@@ -275,7 +276,7 @@ makeUnlock({ x: LOT.hunter[0], z: towerPadZ(), north: true, icon: '🎯', name: 
   price: () => CFG.hunterPrice[save.hunters || 0], buy: () => { save.hunters++; addHunter(); toast('🎯 獵人會去打野熊，把肉揹去烤肉攤！'); } });
 
 // ===== 倉庫（企劃 11.3～11.5，第 2 時代第一棟）：揹 10 根木頭來蓋；工人採的木頭送進來，
-// 倉庫自動補營火、用木材修門和建築、多的木頭送去鋸木廠做成🪚木材；烤肉先存進來給工人吃，多的才賣村民 =====
+// 倉庫自動補營火、用木板修門和建築、多的木頭送去鋸木廠做成🪚木板；烤肉先存進來給工人吃，多的才賣村民 =====
 save.store = Object.assign({ log: 0, coal: 0, plank: 0, food: CFG.whFood, jerky: 0, stone: 0 }, save.store);
 save.store.log += (save.store.pine || 0) + (save.store.birch || 0); delete save.store.pine; delete save.store.birch; // v0.73 舊存檔分開放的松木、白樺併回木頭
 if (save.truck === 'store') save.wh = true;                       // 舊存檔：買過「自動運輸：進倉庫」的直接有倉庫
@@ -319,7 +320,7 @@ function addSmokeUnlock() {
   makeUnlock({ x: SMOKE[0], z: SMOKE[1], icon: '🥓', mat: 'plank', name: () => '烤肉攤升級：燻肉架',
     price: () => save.smoke ? null : P(CFG.smokePrice), buy: () => { save.smoke = true; buildRack(); toast('🥓 櫃台擺滿後，多的肉會燻成肉乾存進倉庫，路過的流民會買！'); } });
 }
-// 搬運工（v0.69，作者 10/18）：倉庫蓋好後旁邊可以雇；小人把倉庫的柴送去營火、木材送去修門和建築、去綠框收錢（updatePorters）
+// 搬運工（v0.69，作者 10/18）：倉庫蓋好後旁邊可以雇；小人把倉庫的柴送去營火、木板送去修門和建築、去綠框收錢（updatePorters）
 save.porters = save.porters || 0;
 const porters = [];
 function addPorter() {
@@ -346,13 +347,13 @@ function buildWarehouse() {
   while (porters.length < save.porters) addPorter();
   addMillUnlocks(); addSmokeUnlock();
   makeUnlock({ x: LOT.porter[0], z: LOT.porter[1], icon: '🛒', name: () => '雇用搬運工', need: () => needHand(),
-    price: () => [0, 120, 220][save.porters], buy: () => { save.porters++; addPorter(); toast('🛒 搬運工會揹倉庫的木材去修北門和建築、收烤肉攤的錢（開了煤礦也會補營火）'); } });
+    price: () => [0, 120, 220][save.porters], buy: () => { save.porters++; addPorter(); toast('🛒 搬運工會揹倉庫的木板去修北門和建築、收烤肉攤的錢（開了煤礦也會補營火）'); } });
 }
 if (save.wh) buildWarehouse();
 else makeUnlock({ x: LOT.store[0], z: LOT.store[1] + 2.7, icon: '📦', mat: 'log', name: () => '蓋倉庫',
   price: () => save.wh ? null : CFG.whLogs, buy: () => {
-    save.wh = true; buildWarehouse(); unlocks.forEach(u => !u.done && u.refresh()); // 用木材付的付款格改顯示價錢
-    addTentUpUnlock(); toast('📦 倉庫附 1 個搬運工：做好的木材、烤肉由他揹回倉庫，也會修北門和建築');
+    save.wh = true; buildWarehouse(); unlocks.forEach(u => !u.done && u.refresh()); // 用木板付的付款格改顯示價錢
+    addTentUpUnlock(); toast('📦 倉庫附 1 個搬運工：做好的木板、烤肉由他揹回倉庫，也會修北門和建築');
   } });
 
 // ===== 民房：在南門外一間間往外蓋，每間 +5 人口；付款格蓋好後會移到下一塊空地 =====
@@ -409,7 +410,7 @@ function addHouseUnlock() {
 let houseUnlock = save.east && !PRO ? addHouseUnlock() : { done: true }; // 民房要先開拓東邊（作者 10/17 回饋第 2 項）
 
 // ===== 營地帳篷（v0.77；v0.79 要自己搭；v0.80 作者：後期要有意義 → 可以改建成木屋）=====
-// 一頂 CFG.tentBeds 張床；第 1 頂一開始就有，第 2～4 頂揹木頭來搭；蓋了倉庫後，帳篷可以用🪚木材改建成木屋（跟民房一樣 CFG.housePop 張床）
+// 一頂 CFG.tentBeds 張床；第 1 頂一開始就有，第 2～4 頂揹木頭來搭；蓋了倉庫後，帳篷可以用🪚木板改建成木屋（跟民房一樣 CFG.housePop 張床）
 const TENTS = [[-5.6 * TS, 1.2 * TS], [-5.6 * TS, 3.4 * TS], [-5.6 * TS, 5.6 * TS], [-5.6 * TS, -1 * TS]];
 save.tents = save.tents || 1; save.tentUp = save.tentUp || 0;
 const tentGs = [], tentHouses = [];

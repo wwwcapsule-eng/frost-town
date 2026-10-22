@@ -125,7 +125,7 @@ function rebuildRoads() {
   }
 }
 
-// v0.88（作者：圖示不統一，🪚 鋸子不像材料）：🪚木材的圖示改成自己畫的「一疊木板」，標籤、付款格、畫面上的字都換成這張圖
+// v0.88（作者：圖示不統一，🪚 鋸子不像材料）：🪚木板的圖示改成自己畫的「一疊木板」，標籤、付款格、畫面上的字都換成這張圖
 const PLANK = (() => {
   const cv = document.createElement('canvas'); cv.width = cv.height = 64; const c = cv.getContext('2d');
   [[6, 40, 0], [10, 26, -0.12], [8, 12, 0.08]].forEach(([x, y, r]) => {
