@@ -59,7 +59,7 @@ const GOALS = PRO ? [ // 正式關：建築要自己用規劃模式選位置，�
   { t: () => '城市的新玩法製作中，繼續擴張吧！', done: () => false },
 ] : [
   { t: () => '升級任意 3 個項目（' + Math.min(save.buys, 3) + '/3）', done: () => save.buys >= 3 },
-  { t: () => '揹 ' + CFG.whLogs + ' 根木頭蓋📦倉庫（建築要用倉庫的🪚木材蓋）', done: () => !!save.wh },
+  { t: () => '揹 ' + CFG.whLogs + ' 根木頭蓋📦倉庫（建築要用倉庫的🪚木板蓋）', done: () => !!save.wh },
   { t: () => '升級營火，擴大領地', done: () => save.territory >= 1 },
   { t: () => '開拓東邊，打開新場地', done: () => !!save.east },
   { t: () => '蓋民房、給流民烤肉留人，居民到 20（' + population() + '/20）', done: () => save.level >= 1 },
@@ -69,6 +69,7 @@ const GOALS = PRO ? [ // 正式關：建築要自己用規劃模式選位置，�
   { t: () => '營火升級 Lv2，領地再擴大', done: () => save.territory >= 2 },
   { t: () => '蓋民房、留住流民，居民到 80（' + population() + '/80）', done: () => save.level >= 2 },
   { t: () => '把營火進化成石爐（營火 Lv4）', done: () => save.stove >= 1 },
+  { t: () => '開採石場，揹🪨石材回倉庫', done: () => !!save.quarry },
   { t: () => '城市的新玩法製作中，繼續擴張吧！', done: () => false },
 ];
 save.goal = Math.min(save.goal || 0, GOALS.length - 1); // 匯入的存檔碼可能不對，不要超出範圍
@@ -80,7 +81,7 @@ function updateGoal(dt) {
   }
   goalFlash -= dt;
   const t = '🎯 ' + GOALS[save.goal].t();
-  if (t !== shownGoal) { $('goal').textContent = t; shownGoal = t; }
+  if (t !== shownGoal) { $('goal').innerHTML = plankHtml(t); shownGoal = t; }
   $('goal').classList.toggle('done', goalFlash > 0);
 }
 
@@ -91,7 +92,7 @@ function updateAlert() {
   if (gate.raiding) { t = '🐻 熊群來襲！守住北門'; }
   else if (save.level >= 1 && coldWave.on > 0) { t = '❄️ 寒潮中 ' + Math.ceil(coldWave.on) + ' 秒，顧好營火'; cls = 'cold'; }
   else if (hero.over > 0 && hero.hp < 60) { t = '🥶 好冷！回營火旁取暖'; cls = 'cold'; }
-  else if (gate.raidT <= 15) { t = '🐻 ' + raidCount() + ' 隻熊' + (wolvesCome() ? '＋🐺 狼群' : '') + ' ' + Math.ceil(gate.raidT) + ' 秒後來襲'; cls = 'warn'; }
+  else if (gate.raidT <= 15) { t = '🐻 ' + raidCount() + ' 隻熊' + (wolvesCome() ? '＋🐺 狼群' : '') + (kingNext() ? '＋👑 熊王' : '') + ' ' + Math.ceil(gate.raidT) + ' 秒後來襲'; cls = 'warn'; }
   else if (save.level >= 1 && coldWave.t <= 15) { t = '❄️ 寒潮 ' + Math.ceil(coldWave.t) + ' 秒後來，先加柴'; cls = 'cold'; }
   const key = t + cls; if (key === shownAlert) return; shownAlert = key;
   $('alert').textContent = t; $('alert').className = cls; $('alert').style.display = t ? 'block' : 'none';
@@ -125,7 +126,7 @@ function updateBuildings(dt) {
 // 血量、北門、營火這些警告不在這裡管，永遠會顯示；地上的付款格圖示一直都在
 function quietLabels() {
   const px = player.position.x, pz = player.position.z;
-  const list = [...mills.map(m => m.label), ...unlocks.filter(u => !u.done && !(u.cool > 0)).map(u => u.label), repairLabel, wh.label, mine.label].filter(Boolean);
+  const list = [...mills.map(m => m.label), ...unlocks.filter(u => !u.done && !(u.cool > 0)).map(u => u.label), repairLabel, wh.label, mine.label, quarry.label].filter(Boolean);
   list.map(l => [l, Math.hypot(l.position.x - px, l.position.z - pz)]).sort((a, b) => a[1] - b[1])
     .forEach(([l, d], i) => l.visible = d < CFG.labelNear && i < CFG.labelMax);
 }
@@ -137,6 +138,7 @@ function step(dt) {
   let ix = joy.x, iy = joy.y;
   if (keys.KeyA || keys.ArrowLeft) ix -= 1; if (keys.KeyD || keys.ArrowRight) ix += 1;
   if (keys.KeyW || keys.ArrowUp) iy -= 1; if (keys.KeyS || keys.ArrowDown) iy += 1;
+  if (camMode.on) ix = iy = 0;                                  // 視角模式不能走
   const il = Math.hypot(ix, iy); if (il > 1) { ix /= il; iy /= il; }
   const mx = right.x * ix + fwd.x * -iy, mz = right.y * ix + fwd.y * -iy;
   const moving = Math.hypot(mx, mz) > 0.05;
@@ -147,7 +149,7 @@ function step(dt) {
     if (!save.east && nx > 16 * TS - 0.8) nx = 16 * TS - 0.8;           // 冰牆擋住
     nx = Math.max(-40 * TS, Math.min(40 * TS, nx)); nz = Math.max(-40 * TS, Math.min(40 * TS, nz));
     for (const t of trees) {                          // 不要穿過樹幹
-      if (!t.alive || (t.coal && t.locked)) continue;
+      if (!t.alive || (t.ore && t.locked)) continue;
       const dx = nx - t.x, dz = nz - t.z, d = Math.hypot(dx, dz);
       if (d < 0.7 && d > 0) { nx = t.x + dx / d * 0.7; nz = t.z + dz / d * 0.7; }
     }
@@ -179,9 +181,9 @@ function step(dt) {
     if (Math.hypot(b.x - player.position.x, b.z - player.position.z) < CFG.chopRange + 0.4) { target = b; break; }
   }
   if (target) {
-    const kind = target.isBear ? 'meat' : target.coal ? 'coal' : 'log';
+    const kind = target.isBear ? 'meat' : target.ore || 'log';
     if (countOf(kind) >= capacity()) {
-      fullWarn -= dt; if (fullWarn <= 0) { toast(kind === 'meat' ? '肉滿了！拿去烤肉攤' : kind === 'coal' ? '煤滿了！拿去火爐' : '木頭滿了！拿去鋸木廠'); fullWarn = 3; }
+      fullWarn -= dt; if (fullWarn <= 0) { toast(kind === 'meat' ? '肉滿了！拿去烤肉攤' : kind === 'coal' ? '煤滿了！拿去火爐' : kind === 'stone' ? '石材滿了！拿去📦倉庫' : '木頭滿了！拿去鋸木廠'); fullWarn = 3; }
     } else {
       axeShow = 0.3;
       if (chopTimer <= 0) {
@@ -190,11 +192,11 @@ function step(dt) {
         burstChips(target.x, target.z, target.isBear); sfx.chop();
         if (target.hp <= 0) {
           target.alive = false;
-          if (target.isBear) target.respawn = CFG.bearRespawn; else target.regrow = target.coal ? CFG.coalRegrow : CFG.treeRegrow;
-          const n = target.isBear ? CFG.meatPerBear : target.coal ? CFG.coalPerRock : WOODS[target.kind].logs;
+          if (target.isBear) target.respawn = CFG.bearRespawn; else target.regrow = target.ore ? target.regrowT : CFG.treeRegrow;
+          const n = target.isBear ? mobMeat(target) : target.ore ? target.per : WOODS[target.kind].logs;
           const room = Math.max(0, Math.min(n, capacity() - countOf(kind)));
           for (let i = 0; i < room; i++) toBack(kind, target.x, 1 + i * 0.3, target.z, i * 0.08);
-          if (n > room && kind !== 'coal') dropItems(kind, n - room, target.x, target.z); // v0.81：揹不下的掉在地上，之後再撿（獵人、伐木工也會來撿）
+          if (n > room && !target.ore) dropItems(kind, n - room, target.x, target.z); // v0.81：揹不下的掉在地上，之後再撿（獵人、伐木工也會來撿）
         }
       }
     }
@@ -205,7 +207,7 @@ function step(dt) {
   if (axe.visible) {
     axeSpin += dt * (12 + save.axe * 3);
     axe.position.set(player.position.x, 1.2, player.position.z);
-    axeArm.rotation.y = axeSpin;
+    axeArms.forEach((a, i) => { a.visible = i <= save.axe; a.rotation.y = axeSpin + i * Math.PI * 2 / (save.axe + 1); });
     swooshG.rotation.y = axeSpin - Math.PI / 2 - 2.4; // 刀光拖在斧頭後面
     swooshMat.opacity = Math.min(0.55, axeShow * 3);
     axeHeadMat.color.setHex(AXE_COLORS[save.axe]);
@@ -223,7 +225,7 @@ function step(dt) {
     if (!t.alive) {
       t.g.scale.setScalar(Math.max(0.001, t.g.scale.x - dt * 4));
       t.regrow -= dt;
-      if (t.regrow <= 0) { t.alive = true; t.hp = t.coal ? CFG.coalHp : WOODS[t.kind].hp; }
+      if (t.regrow <= 0) { t.alive = true; t.hp = t.ore ? t.maxHp : WOODS[t.kind].hp; }
     } else if (t.g.scale.x < t.sc) t.g.scale.setScalar(Math.min(t.sc, t.g.scale.x + dt * 1.5));
   }
 
@@ -241,21 +243,20 @@ function step(dt) {
     }
     const cold = mill.bld.cold; // 暖氣圈外：停工，但綠框裡的錢還是能收
     const st = save.store, foodLow = save.wh && st.food + save.pile.food < Math.max(6, mealSize() * CFG.meals);
-    const jam = mill.customers && !foodLow && !save.smoke && bbq.cookedMeshes.length >= CFG.counterMax; // v0.81：櫃台擺滿、倉庫也夠吃，沒有燻肉架就先不烤
     if (!cold) mill.saw.rotation.y += dt * (mill.queue ? 20 : 2);
     if (mill.saw2) mill.saw2.rotation.y = mill.saw.rotation.y;
-    if (mill.queue > 0 && !cold && !jam) {
+    if (mill.queue > 0 && !cold) {
       mill.timer += dt;
       if (mill.timer >= mill.time) {
         mill.timer = 0; mill.queue--;
-        // 有倉庫：木頭做成🪚木材、烤肉先存給居民吃，存夠了才放櫃台；櫃台也擺滿就燻成🥓肉乾
-        if (mill.customers) { if (foodLow) toStore('food', mill); else if (bbq.cookedMeshes.length < CFG.counterMax) addCooked(mill); else toStore('jerky', mill); }
-        else if (save.wh && mill.accept === 'log' && st.plank + save.pile.plank < plankNeed()) toStore('plank', mill); // v0.79：木材留夠就好，多的換錢（不然有倉庫後錢沒來源）
+        // 有倉庫：木頭做成🪚木板、烤肉先存給居民吃，存夠了才放櫃台；櫃台也擺滿就燻成🥓肉乾
+        if (mill.customers) { if (foodLow) toStore('food', mill); else if (bbq.cookedMeshes.length < CFG.counterMax) addCooked(mill); else if (save.smoke && save.store.jerky < CFG.jerkyMax) toStore('jerky', mill); else { save.cash += CFG.meatSell; sfx.coin(); floatText('+' + CFG.meatSell + ' 💵 商隊', mill.g.position.x, mill.g.position.z); } } // v0.88（作者：肉越堆越高）：櫃台、燻肉架都滿了，多的肉賣給商隊
+        else if (save.wh && mill.accept === 'log' && st.plank + save.pile.plank < plankNeed()) toStore('plank', mill); // v0.79：木板留夠就好，多的換錢（不然有倉庫後錢沒來源）
         else if (!mill.outPad.visible) { save.cash += mill.value; sfx.coin(); } // v0.80：收錢格收起來了，錢直接入帳
         else spawnBill(mill, mill.g.position.clone().add(tmp.set(1.2, 1, 1)));
       }
     } else if (!cold) mill.timer = 0;
-    mill.label.set(mill.queue ? [mill.name, (cold ? '凍住了 ' : jam ? '櫃台滿了 ' : '加工中 ') + mill.queue] : [mill.name]);
+    mill.label.set(mill.queue ? [mill.name, (cold ? '凍住了 ' : '加工中 ') + mill.queue] : [mill.name]);
     if (mill.out.length && Math.hypot(player.position.x - op.x, player.position.z - op.z) < 1.4) {
       const bills = mill.out.splice(0);
       bills.forEach((b, i) => {
@@ -280,8 +281,8 @@ function step(dt) {
     if (near !== u.near || blk !== u.blk) { u.near = near; u.blk = blk; u.refresh(); }
     if (blk) { u.payAcc = 0; continue; }
     u.stand = on ? (u.stand || 0) + dt : 0;                     // 站穩 0.6 秒才開始付錢，路過不會誤買
-    // 付什麼：錢、倉庫的🪚木材（mat: 'plank'）、背上的木頭（mat: 'log'）
-    const have = u.mat === 'plank' ? (save.wh ? save.store.plank : 0) : u.mat === 'log' ? carried.filter(m => m.userData.type === 'log').length : save.cash;
+    // 付什麼：錢、倉庫的🪚木板（mat: 'plank'）、背上的木頭（mat: 'log'）
+    const have = u.mat === 'plank' || u.mat === 'stone' ? (save.wh ? save.store[u.mat] : 0) : u.mat === 'log' ? carried.filter(m => m.userData.type === 'log').length : save.cash;
     if (on && u.stand > CFG.padDelay && have > 0 && u.paid < p) {
       u.payAcc += dt * p / CFG.payRate;
       const pay = Math.min(Math.floor(u.payAcc), have, p - u.paid);
@@ -291,8 +292,8 @@ function step(dt) {
           const m = carried.splice(carried.map(m => m.userData.type).lastIndexOf('log'), 1)[0], wp = m.getWorldPosition(new THREE.Vector3());
           stackRoot.remove(m); restack(); fly(m, wp, () => new THREE.Vector3(u.x, 0.1, u.z), 0.25, () => scene.remove(m), 1);
         } else {
-          if (u.mat === 'plank') save.store.plank -= pay; else save.cash -= pay;
-          const b = box(0.5, 0.1, 0.3, u.mat ? mats.wood : mats.cash);
+          if (u.mat) save.store[u.mat] -= pay; else save.cash -= pay;    // 倉庫的🪚木板、🪨石材
+          const b = box(0.5, 0.1, 0.3, u.mat === 'stone' ? mats.stone : u.mat ? mats.wood : mats.cash);
           fly(b, player.position.clone().add(tmp.set(0, 2, 0)), () => new THREE.Vector3(u.x, 0.1, u.z), 0.25, () => scene.remove(b), 1);
         }
       }
@@ -354,7 +355,8 @@ function loop() {
   requestAnimationFrame(loop);
   const dt = Math.min(clock.getDelta(), 0.05);
   if (plan.on) planCamera(dt); else step(dt);
-  document.getElementById('planBtn').style.display = (save.level >= 1 || PRO) && !plan.on && !gameOver ? 'block' : 'none';
+  document.getElementById('planBtn').style.display = (save.level >= 1 || PRO) && !plan.on && !camMode.on && !gameOver ? 'block' : 'none';
+  document.getElementById('camBtn').style.display = !plan.on && !gameOver ? 'block' : 'none';
   renderer.render(scene, camera);
 }
 loop();

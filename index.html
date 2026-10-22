@@ -46,6 +46,11 @@
     background:rgba(30,40,60,.72);color:#fff;z-index:5}
   #planBtn{position:fixed;right:12px;bottom:calc(14px + env(safe-area-inset-bottom));font-size:18px;font-weight:900;border:0;border-radius:14px;
     padding:12px 16px;background:#ffd34d;color:#333;box-shadow:0 3px 0 rgba(0,0,0,.25);display:none;z-index:5}
+  #camBtn{position:fixed;right:12px;bottom:calc(76px + env(safe-area-inset-bottom));font-size:18px;font-weight:900;border:0;border-radius:14px;
+    padding:12px 16px;background:#fff;color:#333;box-shadow:0 3px 0 rgba(0,0,0,.25);z-index:5}
+  #camBtn.on{background:#5ab0ff;color:#fff}
+  #camHint{position:fixed;left:50%;top:calc(120px + env(safe-area-inset-top));transform:translateX(-50%);width:min(88vw,360px);text-align:center;
+    background:rgba(20,35,60,.88);color:#fff;font-size:18px;font-weight:800;line-height:1.5;padding:12px 14px;border-radius:14px;display:none;z-index:6;pointer-events:none}
   #planBar{position:fixed;left:0;right:0;bottom:0;padding:10px 10px calc(10px + env(safe-area-inset-bottom));background:rgba(30,40,60,.88);
     color:#fff;font-weight:700;display:none;z-index:6;text-align:center}
   #planTip{font-size:14px;margin-bottom:8px;min-height:20px}
@@ -80,9 +85,10 @@
 <div id="bag">
   <div class="pill" id="pMeat">🍖 <b id="meat">0</b><span class="cap" id="capM"></span></div>
   <div class="pill" id="pCoal" style="display:none">⚫ <b id="coal">0</b><span class="cap" id="capC"></span></div>
+  <div class="pill" id="pStone" style="display:none">🪨 <b id="stone">0</b><span class="cap" id="capS"></span></div>
   <div class="pill" id="pWood">🪵 <b id="wood">0</b><span class="cap" id="capW"></span></div>
 </div>
-<div class="pill" id="pStore" style="display:none">📦 🪚<b id="sPlank">0</b><span class="cap" id="sNeed"></span> 🍖<b id="sFood">0</b><span id="sJerkyW" style="display:none"> 🥓<b id="sJerky">0</b></span><span id="sCoalW" style="display:none"> ⚫<b id="sCoal">0</b></span></div>
+<div class="pill" id="pStore" style="display:none">📦 <i class="pk"></i><b id="sPlank">0</b><span class="cap" id="sNeed"></span> 🍖<b id="sFood">0</b><span id="sJerkyW" style="display:none"> 🥓<b id="sJerky">0</b></span><span id="sCoalW" style="display:none"> ⚫<b id="sCoal">0</b></span><span id="sStoneW" style="display:none"> 🪨<b id="sStone">0</b></span></div>
 <div id="bars">
   <div class="bar" id="hpBar"><i></i><span>❤️ <b id="hp">100</b></span></div>
   <div class="bar" id="fuelBar"><i></i><span>🔥 <em id="fireName" style="font-style:normal">營火</em> <b id="fuel">100</b>%</span></div>
@@ -96,6 +102,8 @@
 <div id="joy"><div id="knob"></div></div>
 <button id="reset" aria-label="選單">☰</button>
 <button id="planBtn">🏗️ 規劃</button>
+<button id="camBtn">🎥 轉視角</button>
+<div id="camHint">🎥 視角模式（不能走路）<br>☝️ 一指滑動：轉方向<br>✌️ 兩指捏開／捏合：放大縮小<br>再按「✅ 回去走路」就能走</div>
 <div id="planBar"><div id="planTip"></div><div class="row">
   <button data-k="house">🏠 民房<br><small id="pkHouse"></small></button>
   <button data-k="heater">🔥 暖氣塔<br><small id="pkHeater"></small></button>

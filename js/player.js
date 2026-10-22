@@ -17,6 +17,8 @@ const handle = topBox(0.16, 0.16, 1.5, onTop(0x7a4a2a)); handle.position.z = 0.7
 const axeHeadMat = onTop(0x5d6b7c);
 const axeHead = topBox(0.9, 0.16, 0.6, axeHeadMat); axeHead.position.set(0.25, 0, 1.45); axeArm.add(axeHead);
 const axeEdge = topBox(0.14, 0.18, 0.75, onTop(0xc9d4e0)); axeEdge.position.set(0.72, 0, 1.45); axeArm.add(axeEdge);
+const axeArms = [axeArm]; // v0.89（作者：後期看不出斧頭升級）：斧頭每升 1 級多一把一起轉（最多 4 把）
+for (let i = 1; i < 4; i++) { const a = axeArm.clone(); axe.add(a); axeArms.push(a); }
 const AXE_COLORS = [0x5d6b7c, 0x1f86d6, 0xe8a800, 0xff4f1f]; // 鐵灰→藍→金→橘（深一點，在雪地上才看得清楚）
 const swooshMat = new THREE.MeshBasicMaterial({ color: 0x5fc0ff, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false, depthTest: false });
 const swoosh = new THREE.Mesh(new THREE.RingGeometry(0.7, 1.9, 32, 1, 0, 2.4), swooshMat);
@@ -69,8 +71,8 @@ const $ = id => document.getElementById(id);
 let shownCash = -1, shownWood = -1;
 // 人口（v0.76，作者 10/18）：人口＝真的留下來的居民 save.res；流民吃到烤肉、而且有空床才會留下；工人都從居民裡雇
 // v0.79（作者）：每 5 位居民一餐吃 1 份烤肉，也才能雇 1 個工人 → 等於一個工人背後要 1 份肉
-const employed = () => save.workers + Math.max(0, (save.porters || 0) - 1) + (save.shovel ? 1 : 0) + (save.hunters || 0) + (save.coalers || 0);
-const beds = () => (save.tents - save.tentUp) * CFG.tentBeds + [...houses, ...tentHouses].filter(h => !h.dead && !h.cold).length * CFG.housePop; // 帳篷＋民房＋帳篷改建的木屋
+const employed = () => save.workers + Math.max(0, (save.porters || 0) - 1) + (save.shovel ? 1 : 0) + (save.hunters || 0) + (save.coalers || 0) + (save.quarriers || 0);
+const beds = () => (save.tents - save.tentUp) * CFG.tentBeds + [...houses, ...tentHouses].filter(h => !h.dead && !h.cold).reduce((n, h) => n + CFG.housePop + (isStone(h) ? CFG.stoneBeds : 0), 0); // 帳篷＋民房＋帳篷改建的木屋；v0.86 石屋多 3 床
 if (save.res == null) save.res = Math.max(employed(), Math.min(beds(), CFG.popBase + save.workers + houses.length * CFG.housePop)); // 舊存檔：民房當作住滿
 function population() { return save.res; }
 const idle = () => save.res - employed();
@@ -82,17 +84,19 @@ function hud() {
   $('pop').textContent = population(); $('capP').textContent = next ? '/' + next.need : ''; $('beds').textContent = ' 🛏️' + Math.max(0, beds() - save.res);
   $('ver').textContent = lv.icon + ' ' + lv.name; $('menuVer').textContent = '寒霜小鎮 v' + VERSION;
   if (shownCash !== save.cash) { $('cash').textContent = save.cash; bump('pCash'); shownCash = save.cash; }
-  const nMeat = countOf('meat') - flies.filter(f => f.toBack === 'meat').length, nCoal = carried.filter(m => m.userData.type === 'coal').length, nLog = carried.length - nMeat - nCoal;
-  if (shownWood !== carried.length * 10000 + nMeat * 100 + nCoal) { $('wood').textContent = nLog; $('meat').textContent = nMeat; $('coal').textContent = nCoal; shownWood = carried.length * 10000 + nMeat * 100 + nCoal; }
-  if (save.wh) { const st = save.store; $('sPlank').textContent = st.plank; $('sNeed').textContent = '/' + plankNeed(); $('sFood').textContent = st.food; $('sCoal').textContent = st.coal; $('sCoalW').style.display = save.mine ? '' : 'none'; $('sJerky').textContent = st.jerky; $('sJerkyW').style.display = save.smoke ? '' : 'none'; $('pStore').classList.toggle('danger', wh.hungry); }
-  $('capW').textContent = '/' + capacity(); $('capM').textContent = '/' + capacity(); $('capC').textContent = '/' + capacity();
+  const nMeat = countOf('meat') - flies.filter(f => f.toBack === 'meat').length, nCoal = carried.filter(m => m.userData.type === 'coal').length, nStone = carried.filter(m => m.userData.type === 'stone').length, nLog = carried.length - nMeat - nCoal - nStone;
+  const key = [carried.length, nMeat, nCoal, nStone].join();
+  if (shownWood !== key) { $('wood').textContent = nLog; $('meat').textContent = nMeat; $('coal').textContent = nCoal; $('stone').textContent = nStone; shownWood = key; }
+  if (save.wh) { const st = save.store; $('sPlank').textContent = st.plank; $('sNeed').textContent = '/' + plankNeed(); $('sFood').textContent = st.food; $('sCoal').textContent = st.coal; $('sCoalW').style.display = save.mine ? '' : 'none'; $('sJerky').textContent = st.jerky; $('sJerkyW').style.display = save.smoke ? '' : 'none'; $('sStone').textContent = st.stone; $('sStoneW').style.display = save.quarry ? '' : 'none'; $('pStore').classList.toggle('danger', wh.hungry); }
+  $('capW').textContent = '/' + capacity(); $('capM').textContent = '/' + capacity(); $('capC').textContent = '/' + capacity(); $('capS').textContent = '/' + capacity();
+  $('pStone').classList.toggle('full', countOf('stone') >= capacity());
   $('pCoal').classList.toggle('full', countOf('coal') >= capacity());
   if (!save.coalTip && countOf('coal') > 0) { save.coalTip = true; toast('⚫ 煤比木頭耐燒 4 倍！丟進火爐，或在🏗️規劃蓋🔨鐵匠鋪拿去賣'); }
   $('pWood').classList.toggle('full', countOf('log') >= capacity()); $('pMeat').classList.toggle('full', countOf('meat') >= capacity());
 }
 function bump(id) { const e = $(id); e.classList.remove('bump'); void e.offsetWidth; e.classList.add('bump'); }
 let toastT = 0;
-function toast(msg) { $('toast').textContent = msg; $('toast').style.opacity = 1; toastT = 1.6; }
+function toast(msg) { $('toast').innerHTML = plankHtml(msg); $('toast').style.opacity = 1; toastT = 1.6; }
 
 // ===== 音效（用程式合成，不需要音檔；手機要先碰一下畫面才能出聲） =====
 let actx = null;
@@ -125,6 +129,8 @@ if (!hintOn) $('hint').style.display = 'none';
 const joy = { active: false, id: null, ox: 0, oy: 0, x: 0, y: 0 };
 const joyEl = $('joy'), knob = $('knob');
 addEventListener('pointerdown', e => {
+  if (e.target.id === 'camBtn') return;
+  if (camMode.on) return camPointer('down', e);
   if (e.target.id === 'reset' || e.target.id === 'mute' || e.target.closest('#planBar, #planBtn, #menu')) return;
   if (plan.on) return planPointer('down', e);
   if (joy.active) return;
@@ -133,6 +139,7 @@ addEventListener('pointerdown', e => {
   knob.style.transform = '';
 });
 addEventListener('pointermove', e => {
+  if (camMode.on) return camPointer('move', e);
   if (plan.on) return planPointer('move', e);
   if (!joy.active || e.pointerId !== joy.id) return;
   let dx = e.clientX - joy.ox, dy = e.clientY - joy.oy;
@@ -142,9 +149,29 @@ addEventListener('pointermove', e => {
   joy.x = dx / R; joy.y = dy / R;
   knob.style.transform = `translate(${dx}px,${dy}px)`;
 });
-function joyEnd(e) { if (!plan.on) clearTimeout(lpTimer); if (plan.on) planPointer('up', e); if (e.pointerId === joy.id) { joy.active = false; joy.x = joy.y = 0; joyEl.style.display = 'none'; } }
+function joyEnd(e) { camPointer('up', e); if (!plan.on) clearTimeout(lpTimer); if (plan.on) planPointer('up', e); if (e.pointerId === joy.id) { joy.active = false; joy.x = joy.y = 0; joyEl.style.display = 'none'; } }
 addEventListener('pointerup', joyEnd); addEventListener('pointercancel', joyEnd);
 const keys = {};
+// v0.88 視角模式（作者：多一個按鍵，按下去不能走，一指滑動轉視角、兩指縮放，要有說明）
+const camMode = { on: false, pts: new Map(), pinch: 0 };
+function setCamMode(on) {
+  camMode.on = on; camMode.pts.clear(); joy.active = false; joy.x = joy.y = 0; joyEl.style.display = 'none';
+  $('camBtn').textContent = on ? '✅ 回去走路' : '🎥 轉視角'; $('camBtn').classList.toggle('on', on);
+  $('camHint').style.display = on ? 'block' : 'none';
+}
+$('camBtn').onclick = () => setCamMode(!camMode.on);
+function camPointer(type, e) {
+  const pts = camMode.pts;
+  if (type === 'up') { pts.delete(e.pointerId); camMode.pinch = 0; return; }
+  if (type === 'down') { pts.set(e.pointerId, { x: e.clientX, y: e.clientY }); camMode.pinch = 0; return; }
+  const p = pts.get(e.pointerId); if (!p) return;
+  const dx = e.clientX - p.x, dy = e.clientY - p.y; p.x = e.clientX; p.y = e.clientY;
+  if (pts.size >= 2) {                                           // 兩指：看兩指距離變化縮放
+    const [a, b] = [...pts.values()], d = Math.hypot(a.x - b.x, a.y - b.y);
+    if (camMode.pinch) setZoom(zoom * camMode.pinch / d);
+    camMode.pinch = d;
+  } else { cam.yaw -= dx * 0.008; cam.pitch = Math.max(-0.5, Math.min(0.5, cam.pitch - dy * 0.005)); resize(); }
+}
 addEventListener('keydown', e => keys[e.code] = true);
 addEventListener('keyup', e => keys[e.code] = false);
 addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
@@ -152,21 +179,26 @@ addEventListener('contextmenu', e => e.preventDefault());
 
 // ===== 鏡頭 =====
 const camBase = new THREE.Vector3(7, 15, 11), camOffset = camBase.clone();
+const camSph = new THREE.Spherical().setFromVector3(camBase), camRef = camBase.length() * 1.5; // camRef：標籤放大的基準距離（剛開始的手機鏡頭）
+const cam = { yaw: 0, pitch: 0 };                                // v0.88 視角模式：轉的角度
+const fwd = new THREE.Vector2(), right = new THREE.Vector2();
 function resize() {
   const w = innerWidth, h = innerHeight;
   renderer.setSize(w, h); camera.aspect = w / h;
   camera.fov = 40;
-  camOffset.copy(camBase).multiplyScalar((w < h ? Math.min(1.9, 1 + (h / w - 1) * 0.75) : 1) * zoom * LEVELS[save.level].cam * TERR[save.territory].cam); // 直式（手機）、城市等級越高，鏡頭越遠
-  scene.fog.near = camOffset.length() + 10; scene.fog.far = camOffset.length() + 55; // v0.71：霧跟著鏡頭距離走，鏡頭拉遠時整片地不會被霧蓋白
+  const r = camSph.radius * (w < h ? Math.min(1.9, 1 + (h / w - 1) * 0.75) : 1) * zoom * LEVELS[save.level].cam * TERR[save.territory].cam; // 直式（手機）、城市等級越高，鏡頭越遠
+  camOffset.setFromSphericalCoords(r, Math.max(0.25, Math.min(1.25, camSph.phi + cam.pitch)), camSph.theta + cam.yaw);
+  fwd.set(-camOffset.x, -camOffset.z).normalize(); right.set(-fwd.y, fwd.x); // 搖桿方向跟著鏡頭轉
+  const k = Math.max(1, r / camRef); labelK.set(k, k, 1); player.scale.setScalar(Math.min(1.6, Math.sqrt(k))); // v0.88（作者：營地越大人物越小）：拉遠時標籤、主角跟著放大
+  scene.fog.near = r + 10; scene.fog.far = r + 55; // v0.71：霧跟著鏡頭距離走，鏡頭拉遠時整片地不會被霧蓋白
   camera.updateProjectionMatrix();
 }
 addEventListener('resize', resize);
-// 電腦：滑鼠滾輪縮放鏡頭
+// 電腦：滑鼠滾輪縮放鏡頭；手機：視角模式兩指縮放
 let zoom = 1;
-addEventListener('wheel', e => { zoom = Math.max(0.6, Math.min(1.8, zoom * (e.deltaY > 0 ? 1.1 : 0.9))); resize(); }, { passive: true });
+const setZoom = z => { zoom = Math.max(0.45, Math.min(1.8, z)); resize(); };
+addEventListener('wheel', e => setZoom(zoom * (e.deltaY > 0 ? 1.1 : 0.9)), { passive: true });
 resize();
-const fwd = new THREE.Vector2(-camOffset.x, -camOffset.z).normalize();
-const right = new THREE.Vector2(-fwd.y, fwd.x);
 
 // ===== 下雪 =====
 const snowN = 400, snowPos = new Float32Array(snowN * 3);

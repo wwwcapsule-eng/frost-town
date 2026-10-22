@@ -38,7 +38,7 @@ function spawnBill(mill, from) {
 
 // ===== 村民排隊買烤肉：烤好的肉放櫃台，排第一個的村民拿走並付錢 =====
 const bbq = mills[1];
-// 門口的成品堆（v0.82，作者：做好的東西不要自己飛進倉庫）：鋸木廠做的🪚木材、烤肉攤要給倉庫的🍖烤肉先堆在門口，由搬運工揹去倉庫
+// 門口的成品堆（v0.82，作者：做好的東西不要自己飛進倉庫）：鋸木廠做的🪚木板、烤肉攤要給倉庫的🍖烤肉先堆在門口，由搬運工揹去倉庫
 save.pile = Object.assign({ plank: 0, food: 0 }, save.pile);
 const PILES = {};
 function addPile(kind, m, ox, oz) {
@@ -47,7 +47,8 @@ function addPile(kind, m, ox, oz) {
     const b = kind === 'plank' ? box(0.9, 0.12, 0.4, mats.wood) : box(0.9, 0.22, 0.32, mats.meat);
     b.position.set((i % 2) * 0.48 - 0.24, (kind === 'plank' ? 0.07 : 0.12) + (i >> 1) * (kind === 'plank' ? 0.14 : 0.24), 0); b.rotation.y = 1.57; g.add(b);
   }
-  PILES[kind] = { g, at: () => new THREE.Vector3(m.bld.x + ox, 0, m.bld.z + oz) };
+  const label = makeLabel(); label.scale.set(2, 1, 1); label.position.set(0, 1.4, 0); g.add(label); // v0.89（作者：烤肉飛到下方不知道去哪）：成品堆頭上寫數量和誰來揹
+  PILES[kind] = { g, label, at: () => new THREE.Vector3(m.bld.x + ox, 0, m.bld.z + oz) };
 }
 addPile('plank', mills[0], 2.3, 1.4); addPile('food', bbq, 1.0, 1.9);
 // 櫃台貼在烤肉攤左邊、靠主路；村民在主路上（QX）往南門排隊，遠離北邊森林的熊
@@ -137,8 +138,8 @@ function makeUnlock(def) {
   u.refresh = () => {
     const p = u.price();
     if (p == null) { scene.remove(pad); scene.remove(label); u.done = true; return; }
-    // blk：還不能買的原因（每格的 need()，主迴圈更新）；mat：用倉庫的木材或背上的木頭付，不是錢
-    const cost = u.blk || (u.mat === 'plank' && !save.wh ? '先蓋📦倉庫' : ({ plank: '🪚 ', log: '🪵 ' }[u.mat] || '💵 ') + (p - u.paid));
+    // blk：還不能買的原因（每格的 need()，主迴圈更新）；mat：用倉庫的木板或背上的木頭付，不是錢
+    const cost = u.blk || ((u.mat === 'plank' || u.mat === 'stone') && !save.wh ? '先蓋📦倉庫' : ({ plank: '🪚 ', log: '🪵 ', stone: '🪨 ' }[u.mat] || '💵 ') + (p - u.paid));
     if (u.near) { label.set([u.name(), cost], '#ffe066', [36, 68]); label.scale.set(3.2, 1.8, 1); label.position.y = 1.9; } // 錢放大，像參考影片
     else { label.set([u.blk ? '👥 人不夠' : cost], '#ffe066', [60]); label.scale.set(1.9, 1.05, 1); label.position.y = 0.9; } // 遠的只顯示小價錢，不會互相蓋住
     pad.fill.scale.y = Math.max(0.0001, u.paid / p);
@@ -150,7 +151,7 @@ makeUnlock({ x: LOT.bag[0], z: LOT.bag[1], icon: '🎒', name: () => '背包擴�
   price: () => [12, 35, 90][save.bag], buy: () => { save.bag++; toast('背包容量 ' + CFG.capacity[save.bag] + '！伐木工也一次揹 ' + CFG.workerLoadLv[save.bag] + ' 根'); } });
 makeUnlock({ x: LOT.axe[0], z: LOT.axe[1], icon: '🪓', name: () => '斧頭升級',
   price: () => [20, 60, 140][save.axe], buy: () => { save.axe++; toast('砍得更快了！伐木工的斧頭也一起升級'); } });
-function openEast() { roadsDirty = true; scene.remove(iceWall); trees.forEach(t => { if (!t.coal) t.locked = false; }); }
+function openEast() { roadsDirty = true; scene.remove(iceWall); trees.forEach(t => { if (!t.ore) t.locked = false; }); }
 if (save.east) openEast();
 
 // ===== 弩砲塔：自動射北邊的熊，熊倒下的肉掉在地上，走過去撿 =====
@@ -170,7 +171,7 @@ function buildTower(x = 6.4, z = towerZ(x), fixed = false) {
   const arms = box(1.6, 0.14, 0.18, M(0x3c4a5a)); arms.position.z = 0.5; bow.add(arms);
   g.position.set(x, 0, z); scene.add(g);
   towers.push({ g, bow, cd: 0, fixed, bld: addBuilding('弩砲塔' + towers.length, g, 1.0) });
-  trees.forEach(t => { if (!t.gone && !t.coal && nearTower(t.x, t.z)) { t.gone = true; t.alive = false; t.regrow = Infinity; scene.remove(t.g); } }); // 塔旁邊的樹移走，不穿模
+  trees.forEach(t => { if (!t.gone && !t.ore && nearTower(t.x, t.z)) { t.gone = true; t.alive = false; t.regrow = Infinity; scene.remove(t.g); } }); // 塔旁邊的樹移走，不穿模
 }
 if (save.tower) buildTower();
 // 第二座弩砲塔：要先有第一座才會出現
@@ -200,8 +201,10 @@ function updateGate(dt) {
       const w = bears.find(b => b.wolf && !b.alive && !pool.includes(b)) || makeMob(true);
       [w.x, w.z] = bearSpot(); w.alive = true; w.g.scale.setScalar(1); pool.push(w);
     }
+    const k = kingNext(); save.raidN = (save.raidN || 0) + 1;
+    if (k) pool.push(callKing());
     pool.forEach(b => { b.aggro = true; b.hp = Math.max(b.hp, mobHp(b)); });
-    if (pool.length) { toast(wolvesCome() ? '🐺 冰狼群跟熊一起來了！守住北門！' : '🐻 熊群來襲！守住北門！'); beep(220, 0.4, 'sawtooth', 0.06, 0.6); }
+    if (pool.length) { toast(k ? '👑 熊王帶著熊群來了！血很多，集中火力守住北門！' : wolvesCome() ? '🐺 冰狼群跟熊一起來了！守住北門！' : '🐻 熊群來襲！守住北門！'); beep(220, 0.4, 'sawtooth', 0.06, 0.6); }
   }
   // 北門狀態
   gate.hp = Math.max(0, gate.hp);
@@ -227,7 +230,7 @@ function updateGate(dt) {
 }
 
 // ===== 伐木工：自己找樹砍、揹滿就送倉庫，一直循環 =====
-// v0.80（作者：倉庫要更簡單）：蓋了倉庫後，鋸木廠的🪵投放格、💵收錢格收起來（木頭由倉庫自動送、多的木材直接換錢），
+// v0.80（作者：倉庫要更簡單）：蓋了倉庫後，鋸木廠的🪵投放格、💵收錢格收起來（木頭由倉庫自動送、多的木板直接換錢），
 // 鋸木廠旁邊只剩兩格：👷 雇用伐木工、🪚 升級伐木場（每升 1 級多雇 1 個伐木工）
 save.millLv = save.millLv || (save.mill2 && !PRO ? 1 : 0);          // v0.81：拿掉第二台鋸木機，舊存檔蓋過的當作升過 1 級
 function addMillUnlocks() {
@@ -273,8 +276,8 @@ makeUnlock({ x: LOT.hunter[0], z: towerPadZ(), north: true, icon: '🎯', name: 
   price: () => CFG.hunterPrice[save.hunters || 0], buy: () => { save.hunters++; addHunter(); toast('🎯 獵人會去打野熊，把肉揹去烤肉攤！'); } });
 
 // ===== 倉庫（企劃 11.3～11.5，第 2 時代第一棟）：揹 10 根木頭來蓋；工人採的木頭送進來，
-// 倉庫自動補營火、用木材修門和建築、多的木頭送去鋸木廠做成🪚木材；烤肉先存進來給工人吃，多的才賣村民 =====
-save.store = Object.assign({ log: 0, coal: 0, plank: 0, food: CFG.whFood, jerky: 0 }, save.store);
+// 倉庫自動補營火、用木板修門和建築、多的木頭送去鋸木廠做成🪚木板；烤肉先存進來給工人吃，多的才賣村民 =====
+save.store = Object.assign({ log: 0, coal: 0, plank: 0, food: CFG.whFood, jerky: 0, stone: 0 }, save.store);
 save.store.log += (save.store.pine || 0) + (save.store.birch || 0); delete save.store.pine; delete save.store.birch; // v0.73 舊存檔分開放的松木、白樺併回木頭
 if (save.truck === 'store') save.wh = true;                       // 舊存檔：買過「自動運輸：進倉庫」的直接有倉庫
 const wh = { bld: null, pad: null, label: null, t: 0, eatT: 0, hungry: false };
@@ -317,7 +320,7 @@ function addSmokeUnlock() {
   makeUnlock({ x: SMOKE[0], z: SMOKE[1], icon: '🥓', mat: 'plank', name: () => '烤肉攤升級：燻肉架',
     price: () => save.smoke ? null : P(CFG.smokePrice), buy: () => { save.smoke = true; buildRack(); toast('🥓 櫃台擺滿後，多的肉會燻成肉乾存進倉庫，路過的流民會買！'); } });
 }
-// 搬運工（v0.69，作者 10/18）：倉庫蓋好後旁邊可以雇；小人把倉庫的柴送去營火、木材送去修門和建築、去綠框收錢（updatePorters）
+// 搬運工（v0.69，作者 10/18）：倉庫蓋好後旁邊可以雇；小人把倉庫的柴送去營火、木板送去修門和建築、去綠框收錢（updatePorters）
 save.porters = save.porters || 0;
 const porters = [];
 function addPorter() {
@@ -344,13 +347,13 @@ function buildWarehouse() {
   while (porters.length < save.porters) addPorter();
   addMillUnlocks(); addSmokeUnlock();
   makeUnlock({ x: LOT.porter[0], z: LOT.porter[1], icon: '🛒', name: () => '雇用搬運工', need: () => needHand(),
-    price: () => [0, 120, 220][save.porters], buy: () => { save.porters++; addPorter(); toast('🛒 搬運工會揹倉庫的木材去修北門和建築、收烤肉攤的錢（開了煤礦也會補營火）'); } });
+    price: () => [0, 120, 220][save.porters], buy: () => { save.porters++; addPorter(); toast('🛒 搬運工會揹倉庫的木板去修北門和建築、收烤肉攤的錢（開了煤礦也會補營火）'); } });
 }
 if (save.wh) buildWarehouse();
 else makeUnlock({ x: LOT.store[0], z: LOT.store[1] + 2.7, icon: '📦', mat: 'log', name: () => '蓋倉庫',
   price: () => save.wh ? null : CFG.whLogs, buy: () => {
-    save.wh = true; buildWarehouse(); unlocks.forEach(u => !u.done && u.refresh()); // 用木材付的付款格改顯示價錢
-    addTentUpUnlock(); toast('📦 倉庫附 1 個搬運工：做好的木材、烤肉由他揹回倉庫，也會修北門和建築');
+    save.wh = true; buildWarehouse(); unlocks.forEach(u => !u.done && u.refresh()); // 用木板付的付款格改顯示價錢
+    addTentUpUnlock(); toast('📦 倉庫附 1 個搬運工：做好的木板、烤肉由他揹回倉庫，也會修北門和建築');
   } });
 
 // ===== 民房：在南門外一間間往外蓋，每間 +5 人口；付款格蓋好後會移到下一塊空地 =====
@@ -358,7 +361,7 @@ const houses = [], FX0 = 0, FZ0 = -3; // 營火位置（跟下面的 FX, FZ 一�
 function houseSpot(i) { const l = HOUSE_LOTS[Math.min(i, HOUSE_LOTS.length - 1)]; return [l.x, l.z]; }
 function houseLotOpen() { const l = HOUSE_LOTS[save.houses]; return !!l && l.ring <= save.territory; } // 下一塊民房地塊在領地裡了嗎
 function buildHouse(i) { const [x, z] = houseSpot(i); buildHouseAt(x, z, '民房' + i); }
-function buildHouseAt(x, z, key) { houses.push(addBuilding(key, houseMesh(x, z), 1.3)); }
+function buildHouseAt(x, z, key) { const h = addBuilding(key, houseMesh(x, z), 1.3); houses.push(h); if (isStone(h)) stoneLook(h); addStoneUnlock(); }
 function houseMesh(x, z) {
   const g = new THREE.Group();
   const wall = box(2.2, 1.4, 2, M(0xd8c3a0)); wall.position.y = 0.7; g.add(wall);
@@ -368,6 +371,29 @@ function houseMesh(x, z) {
   const chimney = box(0.3, 0.7, 0.3, M(0x777777)); chimney.position.set(0.5, 2.2, 0.3); g.add(chimney);
   g.position.set(x, 0, z); g.rotation.y = Math.atan2(x - FX0, z - FZ0); scene.add(g); // 門朝營火
   return g;
+}
+// 石屋（v0.86）：開了採石場後，民房一間間用🪨石材改建，每間多 CFG.stoneBeds 張床；記住改建過的民房名字（save.stoneHouses）
+save.stoneHouses = save.stoneHouses || [];
+const isStone = h => save.stoneHouses.includes(h.key);
+function stoneLook(h) { h.g.children[0].material = mats.stone; }
+let stoneUnlock = null;
+// shortcut: 付款格只在建立和改建完時對準民房，規劃模式搬走那間民房後格子不會跟著走；有人反映再在 moveAll 裡一起搬
+function addStoneUnlock() {                                       // 付款格放在下一間要改建的民房門口（朝營火那邊）
+  if ((stoneUnlock && !stoneUnlock.done) || !save.quarry) return;
+  const next = () => houses.find(h => !isStone(h));
+  const at = h => {                                               // 門口有別的付款格、建築就改放民房左右兩側
+    const d = Math.hypot(FX0 - h.x, FZ0 - h.z) || 1, ux = (FX0 - h.x) / d, uz = (FZ0 - h.z) / d;
+    const spots = [[ux * 2.4, uz * 2.4], [-uz * 2.6, ux * 2.6], [uz * 2.6, -ux * 2.6], [ux * 2.4 - uz * 2, uz * 2.4 + ux * 2]].map(([a, b]) => [h.x + a, h.z + b]);
+    return spots.find(([x, z]) => unlocks.every(o => o.done || o === stoneUnlock || Math.hypot(o.x - x, o.z - z) > 2.3) && buildings.every(b => b === h || Math.hypot(b.x - x, b.z - z) > b.r + 1.1)) || spots[0];
+  };
+  const h0 = next(); if (!h0) return;
+  const [x, z] = at(h0);
+  const u = stoneUnlock = makeUnlock({ x, z, icon: '🪨', mat: 'stone', name: () => '民房改建石屋 +' + CFG.stoneBeds + ' 床',
+    price: () => next() ? CFG.stoneHouse : null,
+    buy: () => {
+      const h = next(); save.stoneHouses.push(h.key); stoneLook(h); sparkle(h.x, h.z); toast('🪨 民房改建成石屋了！更暖、多 ' + CFG.stoneBeds + ' 張床');
+      const n = next(); if (n) { [u.x, u.z] = at(n); u.pad.position.set(u.x, 0.03, u.z); u.label.position.set(u.x, 1.9, u.z); }
+    } });
 }
 for (let i = 0; i < save.houses; i++) buildHouse(i);
 function housePrice() { return CFG.housePrice[0] + houses.length * CFG.housePrice[1]; } // 南門外的和規劃模式蓋的一起算
@@ -384,7 +410,7 @@ function addHouseUnlock() {
 let houseUnlock = save.east && !PRO ? addHouseUnlock() : { done: true }; // 民房要先開拓東邊（作者 10/17 回饋第 2 項）
 
 // ===== 營地帳篷（v0.77；v0.79 要自己搭；v0.80 作者：後期要有意義 → 可以改建成木屋）=====
-// 一頂 CFG.tentBeds 張床；第 1 頂一開始就有，第 2～4 頂揹木頭來搭；蓋了倉庫後，帳篷可以用🪚木材改建成木屋（跟民房一樣 CFG.housePop 張床）
+// 一頂 CFG.tentBeds 張床；第 1 頂一開始就有，第 2～4 頂揹木頭來搭；蓋了倉庫後，帳篷可以用🪚木板改建成木屋（跟民房一樣 CFG.housePop 張床）
 const TENTS = [[-5.6 * TS, 1.2 * TS], [-5.6 * TS, 3.4 * TS], [-5.6 * TS, 5.6 * TS], [-5.6 * TS, -1 * TS]];
 save.tents = save.tents || 1; save.tentUp = save.tentUp || 0;
 const tentGs = [], tentHouses = [];
@@ -455,6 +481,7 @@ let fireStage = 0;
 function fireStageOf(pct) { return FIRE_STAGES.findIndex(st => pct >= st.min); }
 function raidCount() { return CFG.raidBears + Math.floor(mobLv() / 2) + FIRE_STAGES[fireStage].bears; } // 營火每升 2 級多來一隻熊
 const wolvesCome = () => fireLv() >= CFG.wolfLv;
+const kingNext = () => wolvesCome() && (save.raidN || 0) % CFG.kingEvery === CFG.kingEvery - 1 && !(king && king.alive); // 石爐時代每 3 波的第 3 波
 function updateFireLook(dt, pct) {
   const i = fireStageOf(pct), st = FIRE_STAGES[i];
   if (i > fireStage && st.msg) { toast(st.msg); beep(260, 0.3, 'triangle', 0.05, 0.6); }
@@ -504,14 +531,18 @@ function updateFurnace(dt) {
 // ===== 煤礦坑（作者 10/18：礦要有礦坑的樣子，不是地上冒出一堆）：西邊的岩山、木框坑口，一直都在；
 // 開採後封口木板拆掉，主角在坑口敲煤層；雇礦工後，礦車沿木軌從坑裡推煤出來倒在煤堆，主角或運輸隊來拿（伐木工不挖煤）
 const MINE_FX = MINE.x + 2.1, MINE_RZ = MINE.z - 0.55, MINE_BIN = [MINE_FX + 2.0, MINE_RZ]; // 坑口岩壁正面的 x、木軌的 z、煤堆位置
-function inMineHill(x, z, pad) { return ((x - MINE.x) / (2.1 + pad)) ** 2 + ((z - MINE.z) / (3 + pad)) ** 2 < 1; }
-function nearMine(x, z, pad) {                                    // 規劃、砲塔不能蓋在山、坑口前、木軌和煤堆上
-  return inMineHill(x, z, pad) || (x > MINE_FX - 0.5 && x < MINE_BIN[0] + 0.8 + pad && Math.abs(z - MINE.z) < 1.4 + pad);
+const HILLS = [{ x: MINE.x, z: MINE.z, ax: 2.1, az: 3 }, { x: QUARRY.x, z: QUARRY.z, ax: 1.9, az: 2.4 }]; // 礦坑的山、v0.85 採石場的岩壁（橢圓）
+const inHill = (h, x, z, pad) => ((x - h.x) / (h.ax + pad)) ** 2 + ((z - h.z) / (h.az + pad)) ** 2 < 1;
+function inMineHill(x, z, pad) { return HILLS.some(h => inHill(h, x, z, pad)); }
+function nearMine(x, z, pad) {                                    // 規劃、砲塔不能蓋在山、坑口前、木軌和煤堆上、採石場前
+  return inMineHill(x, z, pad) || (x > MINE_FX - 0.5 && x < MINE_BIN[0] + 0.8 + pad && Math.abs(z - MINE.z) < 1.4 + pad)
+    || (x > QUARRY.x && x < QUARRY.x + 3.4 + pad && Math.abs(z - QUARRY.z) < 1.6 + pad);
 }
 function pushMine(x, z, pad) {                                   // 撞到山就沿著山邊滑開
-  if (!inMineHill(x, z, pad)) return [x, z];
-  const ax = 2.1 + pad, az = 3 + pad, dx = (x - MINE.x) / ax, dz = (z - MINE.z) / az, d = Math.hypot(dx, dz) || 1;
-  return [MINE.x + dx / d * ax, MINE.z + dz / d * az];
+  const h = HILLS.find(h => inHill(h, x, z, pad));
+  if (!h) return [x, z];
+  const ax = h.ax + pad, az = h.az + pad, dx = (x - h.x) / ax, dz = (z - h.z) / az, d = Math.hypot(dx, dz) || 1;
+  return [h.x + dx / d * ax, h.z + dz / d * az];
 }
 const mine = { g: new THREE.Group(), label: makeLabel(), binLabel: makeLabel(), cart: null, cartT: 0, cartLoaded: false };
 const darkMat = M(0x121317);
@@ -537,7 +568,7 @@ const seam = (() => {
   const g = new THREE.Group(), x = MINE_FX + 0.35, z = MINE.z + 0.55; // 煤層在鏡頭這一側，木軌在裡側
   for (let i = 0; i < 4; i++) { const c = box(rand(0.35, 0.5), rand(0.3, 0.55), rand(0.35, 0.5), mats.coal); c.position.set(rand(-0.25, 0.15), 0.2 + i * 0.12, rand(-0.25, 0.25)); c.rotation.set(rand(0, 1), rand(0, 3), 0); g.add(c); }
   g.position.set(x, 0, z); g.visible = !!save.mine; scene.add(g);
-  const t = { g, x, z, hp: CFG.coalHp, alive: true, regrow: 0, sc: 1, shake: 0, locked: !save.mine, coal: true };
+  const t = { g, x, z, hp: CFG.coalHp, alive: true, regrow: 0, sc: 1, shake: 0, locked: !save.mine, coal: true, ore: 'coal', maxHp: CFG.coalHp, per: CFG.coalPerRock, regrowT: CFG.coalRegrow };
   trees.push(t); return t;
 })();
 function buildCart() {                                           // 木軌（坑裡伸出來）＋礦車＋煤堆
@@ -577,6 +608,32 @@ function updateMine(dt) {
   mine.binLabel.visible = Math.hypot(player.position.x - MINE_BIN[0], player.position.z - MINE_BIN[1]) < 2.5; // 站在煤堆旁才顯示數量，不蓋住坑口
   mine.binLabel.set(['⚫ 煤堆 ' + save.bin + '/' + CFG.binMax]);
 }
+
+// ===== 採石場（v0.85，企劃 11.9 階段 D）：煤礦坑北邊一面切開的灰色岩壁，一直都在；開採後主角在岩壁前敲🪨石材，揹回倉庫 =====
+const quarry = { g: new THREE.Group(), label: makeLabel() };
+{
+  const g = quarry.g, fx = QUARRY.x + 1.5;                      // fx＝切平的岩壁正面
+  const hill = new THREE.Mesh(new THREE.IcosahedronGeometry(2.2, 1), new THREE.MeshToonMaterial({ color: 0x7d8490, gradientMap: TOON, flatShading: true }));
+  hill.scale.set(0.75, 0.75, 1.05); hill.position.set(QUARRY.x - 0.3, 0.2, QUARRY.z); hill.castShadow = hill.receiveShadow = true; g.add(hill);
+  [[2.2, 3.6, 0], [1.5, 2.6, 0.45], [0.8, 1.6, 0.9]].forEach(([h, w, o]) => { const s = box(0.6, h, w, mats.rock); s.position.set(fx - 0.6 + o, h / 2, QUARRY.z); g.add(s); }); // 一階一階切下來的岩壁
+  const cap = new THREE.Mesh(new THREE.IcosahedronGeometry(0.9, 1), mats.leafSnow); cap.scale.set(0.8, 0.3, 1.1); cap.position.set(QUARRY.x - 0.6, 1.75, QUARRY.z); g.add(cap);
+  quarry.blocks = new THREE.Group();                             // 開採後：岩壁前一疊切好的石塊
+  for (let i = 0; i < 4; i++) { const b = box(0.55, 0.35, 0.45, mats.stone); b.position.set(fx + 1.6 + (i % 2) * 0.6, 0.18 + (i >> 1) * 0.36, QUARRY.z + 1.7); quarry.blocks.add(b); }
+  quarry.blocks.visible = !!save.quarry; g.add(quarry.blocks); scene.add(g);
+  quarry.label.scale.set(3, 1.5, 1); quarry.label.position.set(QUARRY.x, 3.2, QUARRY.z); quarry.label.set(['🪨 採石場']); scene.add(quarry.label);
+}
+// 岩壁前的石層：跟煤層一樣放在 trees 裡，主角靠近自動敲
+const rockFace = (() => {
+  const g = new THREE.Group(), x = QUARRY.x + 2.4, z = QUARRY.z - 0.3;
+  for (let i = 0; i < 4; i++) { const c = box(rand(0.4, 0.55), rand(0.3, 0.5), rand(0.4, 0.55), mats.stone); c.position.set(rand(-0.2, 0.2), 0.2 + i * 0.12, rand(-0.25, 0.25)); c.rotation.set(0, rand(0, 3), rand(0, 0.4)); g.add(c); }
+  g.position.set(x, 0, z); g.visible = !!save.quarry; scene.add(g);
+  const t = { g, x, z, hp: CFG.stoneHp, alive: true, regrow: 0, sc: 1, shake: 0, locked: !save.quarry, ore: 'stone', maxHp: CFG.stoneHp, per: CFG.stonePerRock, regrowT: CFG.stoneRegrow };
+  trees.push(t); return t;
+})();
+trees.forEach(t => { if (!t.gone && !t.ore && inMineHill(t.x, t.z, 0.8)) { t.gone = true; t.alive = false; t.regrow = Infinity; scene.remove(t.g); } }); // 長在礦山、採石場岩壁上的樹移走，不穿模
+let quarryUnlock = null;
+function openQuarry() { rockFace.locked = false; rockFace.g.visible = true; quarry.blocks.visible = true; document.getElementById('pStone').style.display = ''; roadsDirty = true; }
+if (save.quarry) openQuarry();
 
 // ===== 雪堆：村莊開始，路上會積雪；踩到走很慢，堆在櫃台前村民就不買；主角站旁邊自動鏟，也能雇鏟雪工 =====
 const piles = [], pileMat = new THREE.MeshLambertMaterial({ color: 0xcfe3f7, flatShading: true });
