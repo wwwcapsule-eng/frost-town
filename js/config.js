@@ -1,5 +1,5 @@
 'use strict';
-const VERSION = '0.89';
+const VERSION = '0.90';
 
 // ===== 數值（之後平衡都改這裡） =====
 const CFG = {
@@ -35,7 +35,7 @@ const CFG = {
   fuelMax: 100, fuelBurn: 0.4, fuelPerLog: 5, heat: [10, 17], // 火爐：柴滿 100、每秒燒 0.4、一根木頭 +5；暖氣圈半徑（最小、最大）
   stovePrice: [250], stoveBurn: 0.8, stoveHeat: 2, // 石爐 Lv4～6（領地 Lv3＋煤礦後）：Lv4 的價錢（Lv5、6 用🪨石材，stoneStove）、每級燒柴變成幾成、每級暖氣圈 +2
   terrPrice: [60, 150], terrNeedBuys: 3, // 營火升級（擴大領地）：Lv1 60 元（升級任意 3 個項目後出現）、Lv2 150 元（村莊＋開拓東邊後）
-  minePrice: 100, coalHp: 4, coalPerRock: 2, coalRegrow: 4, fuelPerCoal: 20, // 煤礦坑（村莊＋領地 Lv1 解鎖）：價錢、敲幾下、掉幾塊、坑口煤層幾秒再露出來；一塊煤 = 火爐 +20（木頭只有 +5）
+  minePrice: 100, coalHp: 4, coalPerRock: 3, coalRegrow: 2.5, fuelPerCoal: 20, // 煤礦坑（村莊＋領地 Lv1 解鎖）：價錢、敲幾下、掉幾塊、坑口煤層幾秒再露出來；一塊煤 = 火爐 +20（木頭只有 +5）
   snowEvery: 7, snowMax: 10, snowHp: 3, snowSlow: 0.45, shovelPrice: 60, // 雪堆（村莊開始）：幾秒積一堆、最多幾堆、鏟幾下、踩到剩幾成速度、鏟雪工價錢
   heaterPrice: 120, heaterR: 7, cell: 3, mill2Price: 80, grill2Price: 150, smithPrice: 200, coalValue: 6, storeMax: 150, pileMax: 12, // 倉庫每樣最多存多少；v0.82 做好的東西在建築門口最多堆幾個（等搬運工揹去倉庫）（木板存滿，鋸木廠多做的才換錢）； // 鐵匠鋪：價錢、一塊煤打成工具賣幾元； 規劃模式：暖氣塔價錢、暖氣範圍半徑、格子大小；正式關：第二台鋸木機、第二座烤肉攤價錢
   quarrierPrice: [80, 160], stoneKeep: 60, stoneSell: 3, // v0.89 採石工（作者：沒有自動採石）：第 1、2 個價錢、倉庫留幾塊🪨，多的一塊賣幾元
@@ -46,7 +46,7 @@ const CFG = {
   jerkyMax: 20, meatSell: 4, // v0.88：倉庫肉乾最多存 20 份；櫃台、燻肉架都滿時一份烤肉賣商隊 4 元
   plankKeep: 40,            // 倉庫的🪚木板存到 40 塊（或下一間民房的價錢＋10）就夠，鋸木廠多做的換錢（v0.79，作者：有倉庫後錢沒來源）
   whLogs: 10, plankRate: 0.3, fuelKeep: 20, whFood: 10, eatEvery: 60, // 倉庫（第 2 時代）：揹幾根木頭蓋；建築價錢換成🪚木板的比例（原本的錢 ×0.3）；倉庫留幾根木頭當柴（多的送鋸木廠）；蓋好送幾份食物；居民幾秒吃一餐
-  cartPrice: 120, cartEvery: 6, cartLoad: 2, binMax: 20, // 雇礦工＋木軌礦車：價錢（換成木板）、幾秒推出來一車、一車幾塊煤、煤堆最多幾塊
+  cartPrice: 120, cartEvery: 4, cartLoad: 3, binMax: 20, // 雇礦工＋木軌礦車：價錢（換成木板）、幾秒推出來一車、一車幾塊煤、煤堆最多幾塊
   gatePrice: 30, gateW: 3.6, gateMax: 4, // 自己開的圍欄門：價錢（換成木板 ×0.3）、門寬、最多幾個
   coldFirst: 120, coldEvery: 150, coldLen: 30, coldBurn: 3, coldShrink: 0.75, coldReward: 30, // 寒潮（村莊開始）：第一次幾秒後、之後每幾秒、持續幾秒、火爐燒幾倍快、暖氣圈縮成幾成、撐過去的獎金 // 火爐升級（村莊解鎖）：暖氣圈最大半徑 +7
 };

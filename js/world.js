@@ -267,8 +267,8 @@ function rand(a, b) { return a + Math.random() * (b - a); }
 let NG_PX = 4.15, NG_PZ = -8.7, NG_LEN = NG_PX; // 北門兩片門板的門柱位置；領地擴大時重算
 function nearNorthDoors(x, z, pad) { return z < NG_PZ + 0.5 && (Math.hypot(x - NG_PX, z - NG_PZ) < NG_LEN + pad || Math.hypot(x + NG_PX, z - NG_PZ) < NG_LEN + pad); }
 // 北邊森林（一開始就能砍）；門板擺動範圍內不長樹
-for (let i = 0; i < 150; i++) {                  // v0.81（作者：樹林在畫面裡太小）：北邊森林再往外、往兩側長
-  const x = rand(-16, 14) * TS, z = rand(-26, -9) * TS;
+for (let i = 0; i < 280; i++) {                  // v0.81（作者：樹林在畫面裡太小）：北邊森林再往外、往兩側長；v0.90（作者：北邊森林不夠多）再加大加密
+  const x = rand(-22, 20) * TS, z = rand(-30, -9) * TS;
   if (!nearNorthDoors(x, z, 1.2) && trees.every(t => (t.x - x) ** 2 + (t.z - z) ** 2 > 2.6)) addTree(x, z, false);
 }
 // 東邊森林（被冰牆擋住，要開拓）；v0.81（作者：東邊樹林多）：最大、最密的一片，沒有熊

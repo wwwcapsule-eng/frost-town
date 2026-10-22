@@ -182,7 +182,7 @@ function step(dt) {
   }
   if (target) {
     const kind = target.isBear ? 'meat' : target.ore || 'log';
-    if (countOf(kind) >= capacity()) {
+    if (countOf(kind) >= capacity() && !target.isBear) {         // v0.90（作者）：肉滿了還是能打熊（自保），揹不下的肉掉地上
       fullWarn -= dt; if (fullWarn <= 0) { toast(kind === 'meat' ? '肉滿了！拿去烤肉攤' : kind === 'coal' ? '煤滿了！拿去火爐' : kind === 'stone' ? '石材滿了！拿去📦倉庫' : '木頭滿了！拿去鋸木廠'); fullWarn = 3; }
     } else {
       axeShow = 0.3;

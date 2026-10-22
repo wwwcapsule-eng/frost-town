@@ -270,7 +270,7 @@ function updatePorters(dt) {
     if (!p.job) {
       const haul = ['food', 'plank'].find(k => save.pile[k] > 0 && !taken('haul-' + k));
       const hurt = buildings.find(b => !b.dead && b.hp < CFG.buildHp && !taken(b)), cash = mills.find(m => m.out.length && !taken(m));
-      if (save.mine && furnace.fuel < CFG.fuelMax * 0.7 && (st.coal || (st.log && !save.stove)) && !taken('fuel')) p.job = { k: 'fuel' };
+      if (save.mine && furnace.fuel < CFG.fuelMax * 0.85 && (st.coal || save.bin > 0 || (st.log && !save.stove)) && !taken('fuel')) p.job = { k: 'fuel' };
       else if (gate.hp < CFG.gateHp && st.plank && !taken('gate')) p.job = { k: 'gate' };
       else if (haul) p.job = { k: 'haul-' + haul, kind: haul };
       else if (hurt && st.plank) p.job = { k: 'fix', b: hurt };
@@ -290,9 +290,12 @@ function updatePorters(dt) {
       st[j.kind] += j.n; p.cargo.visible = false; p.job = null; return;
     }
     if (!j.got) {                                                    // 先回倉庫拿
-      routeTo(p, home.x, home.z, dt);
-      if (Math.hypot(p.g.position.x - home.x, p.g.position.z - home.z) > 0.8) return;
-      if (j.k === 'fuel') { j.coal = Math.min(3, st.coal); j.log = save.stove ? 0 : Math.min(3 - j.coal, st.log); st.coal -= j.coal; st.log -= j.log; j.n = j.coal + j.log; }
+      const fromBin = j.k === 'fuel' && !st.coal && save.bin > 0;  // v0.90（作者：沒有自動加煤）：倉庫沒煤就直接去礦坑的煤堆拿
+      const sx = fromBin ? MINE_BIN[0] : home.x, sz = fromBin ? MINE_BIN[1] + 0.9 : home.z;
+      routeTo(p, sx, sz, dt);
+      if (Math.hypot(p.g.position.x - sx, p.g.position.z - sz) > (fromBin ? 1.2 : 0.8)) return;
+      if (fromBin) { j.coal = Math.min(3, save.bin); save.bin -= j.coal; j.log = 0; j.n = j.coal; }
+      else if (j.k === 'fuel') { j.coal = Math.min(3, st.coal); j.log = save.stove ? 0 : Math.min(3 - j.coal, st.log); st.coal -= j.coal; st.log -= j.log; j.n = j.coal + j.log; }
       else { const lack = j.k === 'gate' ? CFG.gateHp - gate.hp : CFG.buildHp - j.b.hp; j.n = Math.min(3, st.plank, Math.ceil(lack / 10)); st.plank -= j.n; }
       if (!j.n) { p.job = null; return; }
       j.got = true; p.cargo.material = j.k === 'fuel' ? (j.coal ? mats.coal : mats.trunk) : mats.wood; p.cargo.visible = true;

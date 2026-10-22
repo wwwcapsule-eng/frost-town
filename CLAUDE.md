@@ -3,7 +3,7 @@
 寒地揹物堆疊經營遊戲：親手做 → 雇人做 → 規劃城市。企劃見 `docs/企劃評估.md`。
 
 ## 技術
-- Three.js r128（cdnjs），不需要建置：`index.html` 只放畫面版面，程式在 `js/`，用一般 `<script>` 依序載入（config → world → buildings → plan → player → main），變數彼此共用
+- Three.js r128（v0.90 起放在 `js/lib/`，離線也能玩；`sw.js` 讓網頁版第一次上網後可離線開），不需要建置：`index.html` 只放畫面版面，程式在 `js/`，用一般 `<script>` 依序載入（config → world → buildings → plan → player → main），變數彼此共用
 - 新程式放進對應的 `js/` 檔；某個檔一載入就要用的函式，要寫在同一個檔或更前面的檔（拆檔後函式不會跨檔提前可用）
 - 本機試玩：`node tools/serve.js` 後開 http://localhost:8080
 - 3D 模型只用 CC0 素材（Kenney、Quaternius）或自製，放 `assets/`
