@@ -29,10 +29,16 @@ const pEll = (mat, rx, ry, rz, x = 0, y = 0, z = 0, par = puff) => { const m = n
   pEll(fur, 0.17, 0.17, 0.17, 0, 0.7, 0, pHead);                                                                    // 頂端毛球
 }
 player.tick = (walk, moving) => {                       // 走路時手腳前後擺、頭輕輕歪、身體輕輕彈
+  if (player.kk) return;                                // 換上 KayKit 騎士後，走路交給動畫
   const s = moving ? Math.sin(walk * 0.65) : 0;
   pArms[0].rotation.x = pLegs[1].rotation.x = s * 0.6; pArms[1].rotation.x = pLegs[0].rotation.x = -s * 0.6;
   pHead.rotation.z = s * 0.04; player.position.y = Math.abs(s) * 0.05;
 };
+// v1.09（作者想試試騎士當主角）：騎士載好就把羽絨大衣藏起來；要換回羽絨大衣，把下面這段刪掉就好
+dressKK(player, [puff], 'kkKnight', null, m => {
+  player.kk = true; player.flash = [];
+  m.traverse(o => { if (o.isMesh) { o.material = o.material.clone(); player.flash.push(o.material); } });
+});
 // v1.02（作者：最重要的是認得出主角）：腳下一圈亮藍光圈
 const heroRing = new THREE.Mesh(new THREE.RingGeometry(0.8, 1.02, 32), new THREE.MeshBasicMaterial({ color: 0x4fc3ff, transparent: true, opacity: 0.9, depthWrite: false }));
 heroRing.rotation.x = -Math.PI / 2; heroRing.position.y = 0.06; player.add(heroRing);
