@@ -6,7 +6,7 @@
 - Three.js r128（v0.90 起放在 `js/lib/`，離線也能玩；`sw.js` 讓網頁版第一次上網後可離線開），不需要建置：`index.html` 只放畫面版面，程式在 `js/`，用一般 `<script>` 依序載入（config → world → buildings → plan → player → main），變數彼此共用
 - 新程式放進對應的 `js/` 檔；某個檔一載入就要用的函式，要寫在同一個檔或更前面的檔（拆檔後函式不會跨檔提前可用）
 - 本機試玩：`node tools/serve.js` 後開 http://localhost:8080
-- 3D 模型只用 CC0 素材（Kenney、Quaternius）或自製，放 `assets/`
+- 3D 模型只用 CC0 素材（Kenney、Quaternius、KayKit）或自製，放 `assets/`；每套素材的下載位置與用途記在 `docs/素材來源.md`，新增素材先寫進去
 - 不使用《寒霜啟示錄》的名稱、角色、美術、介面
 
 ## 平台

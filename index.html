@@ -72,10 +72,10 @@
   #joy{position:fixed;width:120px;height:120px;margin:-60px 0 0 -60px;border-radius:50%;background:rgba(255,255,255,.25);
     border:3px solid rgba(255,255,255,.6);display:none;pointer-events:none}
   #knob{position:absolute;left:50%;top:50%;width:52px;height:52px;margin:-26px 0 0 -26px;border-radius:50%;background:rgba(255,255,255,.85)}
-  #menu .box button{display:block;width:100%;margin-top:10px;font-size:17px;padding:10px 16px}
+  #menu .box button,#credits .box button{display:block;width:100%;margin-top:10px;font-size:17px;padding:10px 16px}
   #menu .box button small{display:block;font-size:12px;font-weight:700;color:#666}
   #menu .box button.cur{outline:3px solid #25415e}
-  #lose,#lvup,#menu{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(20,30,50,.7);z-index:20}
+  #lose,#lvup,#menu,#credits{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(20,30,50,.7);z-index:20}
   .box{background:#fff;border-radius:18px;padding:24px 28px;text-align:center;font-weight:700;color:#333;max-width:80vw;line-height:1.7}
   .box .big{font-size:28px;font-weight:900;margin-bottom:6px}
   .box button{margin-top:16px;font-size:20px;font-weight:900;border:0;border-radius:12px;padding:12px 28px;background:#ffd34d;color:#333}
@@ -126,8 +126,19 @@
   <button data-mode="tutorial">▶ 繼續玩<small>跟著上方目標一步步蓋，按右下「規劃」自己選位置</small></button>
   <button id="mute" style="background:#eee"></button>
   <button id="saveCode" style="background:#eee">💾 存檔碼（換手機用）</button>
+  <button id="menuCredits" style="background:#eee">📜 關於／素材來源</button>
   <button id="menuReset" style="background:#eee">🔄 這一關重新開始</button>
   <button id="menuClose" style="background:#eee">✖ 關閉</button>
+</div></div>
+<div id="credits"><div class="box" style="text-align:left;max-height:80vh;overflow:auto"><div class="big" style="text-align:center">📜 關於寒霜小鎮</div>
+  <div id="credVer" style="font-size:12px;color:#888;text-align:center"></div>
+  <p><b>遊戲設計、程式、主角造型</b>：作者原創</p>
+  <p><b>3D 模型</b>（CC0 公有領域，感謝素材作者）：<br>
+  • Kenney（www.kenney.nl）：Holiday Kit、Mini Characters、Nature Kit、Survival Kit<br>
+  <span id="credKay"></span></p>
+  <p><b>程式庫</b>：three.js（MIT 授權，threejs.org）</p>
+  <p style="font-size:12px;color:#666">所有素材來源與授權記在專案的 docs/素材來源.md。</p>
+  <button id="credClose" style="background:#eee">✖ 關閉</button>
 </div></div>
 <div id="lose"><div class="box"><div class="big">🐻 營地失守了</div><div>所有建築都被熊拆掉了</div><button id="retry">重新開始</button></div></div>
 <div id="lvup"><div class="box"><div class="big" id="lvTitle"></div><div id="lvList"></div><button id="lvOk">太好了！</button></div></div>
