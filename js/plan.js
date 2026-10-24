@@ -176,7 +176,7 @@ function moveAll(b, x, z) {                                       // 建築連�
   const dx = x - b.x, dz = z - b.z;
   moveBuilding(b, x, z);
   const m = mills.find(m => m.bld === b), h = heaters.find(h => h.bld === b);
-  if (m) [m.inPad, m.outPad, ...m.out, m.label].forEach(o => { o.position.x += dx; o.position.z += dz; });
+  if (m) { [m.inPad, m.outPad, ...m.out, m.label].forEach(o => { o.position.x += dx; o.position.z += dz; }); if (m.upU && !m.upU.done) { m.upU.x += dx; m.upU.z += dz; m.upU.pad.position.x += dx; m.upU.pad.position.z += dz; m.upU.label.position.x += dx; m.upU.label.position.z += dz; } }
   if (h) { h.x = x; h.z = z; [h.ring, h.fill].forEach(o => o.position.set(x, o.position.y, z)); }
   if (b === wh.bld) [wh.pad, wh.label].forEach(o => { o.position.x += dx; o.position.z += dz; });
   roadsDirty = true;
@@ -247,6 +247,7 @@ function updateStore(dt) {
     else if (gate.hp < CFG.gateHp && st.plank) { st.plank--; gate.hp = Math.min(CFG.gateHp, gate.hp + 10); }
     else if (hurt && st.plank) { st.plank--; hurt.hp = Math.min(CFG.buildHp, hurt.hp + 10); }
   }
+  if (!porters.length) for (const k of ['food', 'plank']) { st[k] += save.pile[k]; save.pile[k] = 0; } // v0.93：沒有搬運工時成品堆直接進倉庫（不然罷工後烤肉卡在門口，永遠餓著）
   const meal = mealSize();                                        // v0.76：所有居民都要吃，人越多吃越多
   wh.eatT += dt;
   if (wh.eatT >= CFG.eatEvery) {
@@ -274,9 +275,10 @@ function updatePorters(dt) {
   for (const k in PILES) { PILES[k].g.children.forEach((b, i) => b.visible = i < Math.ceil(save.pile[k] / CFG.pileMax * 6)); PILES[k].label.visible = save.pile[k] > 0; PILES[k].label.set([(k === 'food' ? '🍖' : '🪵') + save.pile[k] + ' → 📦'], '#fff', [40]); }
   porters.forEach((p, i) => {
     if (!p.job) {
-      const haul = ['food', 'plank'].find(k => save.pile[k] > 0 && !taken('haul-' + k));
+      const haul = (wh.hungry ? ['food'] : ['food', 'plank']).find(k => save.pile[k] > 0 && !taken('haul-' + k));
       const hurt = buildings.find(b => !b.dead && b.hp < CFG.buildHp && !taken(b)), cash = mills.find(m => m.out.length && !taken(m));
-      if ((save.mine || coldWave.on > 0) && furnace.fuel < CFG.fuelMax * (coldWave.on > 0 ? 0.97 : 0.85) && // v0.92：寒潮時倉庫一定自動補火（沒倉庫就要自己跑）
+      if (wh.hungry && haul) p.job = { k: 'haul-' + haul, kind: haul };   // v0.93：餓著時先搬烤肉進倉庫
+      else if ((save.mine || coldWave.on > 0) && furnace.fuel < CFG.fuelMax * (coldWave.on > 0 ? 0.97 : 0.85) && // v0.92：寒潮時倉庫一定自動補火（沒倉庫就要自己跑）
          (st.coal || save.bin > 0 || (st.plank && !save.stove)) && !taken('fuel')) p.job = { k: 'fuel' };
       else if (gate.hp < CFG.gateHp && st.plank && !taken('gate')) p.job = { k: 'gate' };
       else if (haul) p.job = { k: 'haul-' + haul, kind: haul };
@@ -344,12 +346,12 @@ function levelUnlocks() {
   if (!coalerUnlock && save.mine) coalerUnlock = makeUnlock({ x: LOT.coaler[0], z: LOT.coaler[1], icon: '⛏️', name: () => '雇用煤礦工', need: () => save.wh ? needHand() : '先蓋📦倉庫',
     price: () => CFG.coalerPrice[save.coalers] ?? null, buy: () => { save.coalers++; addCoaler(); toast('⛏️ 煤礦工會挖煤送進倉庫，倉庫的煤夠了，多的直接賣錢！'); } });
   if (terrUnlock && terrUnlock.done) terrUnlock = null;
-  if (!terrUnlock && terrReady()) terrUnlock = makeUnlock({ x: LOT.terr[0], z: LOT.terr[1], icon: '🔥', name: () => '營火升級 Lv' + (save.territory + 1), mat: 'plank',
+  if (!terrUnlock && terrReady()) terrUnlock = makeUnlock({ x: LOT.terr[0], z: LOT.terr[1], up: true, icon: '🔥', name: () => '營火升級 Lv' + (save.territory + 1), mat: 'plank',
     price: () => terrUnlock && terrUnlock.waiting ? null : P(CFG.terrPrice[save.territory]), buy: () => { expandTerritory(); terrUnlock.waiting = true; } });
   // 石爐：領地升到最大（營火 Lv3）＋有煤礦後，同一格繼續升 Lv4～6
   if (!stoveUnlock && save.stove < 3 && save.territory >= 2 && save.mine && (!terrUnlock || terrUnlock.waiting)) {
     // v0.86：Lv4 用💵蓋，Lv5、Lv6 改用倉庫的🪨石材（要先開採石場）
-    stoveUnlock = makeUnlock({ x: LOT.terr[0], z: LOT.terr[1], icon: '🪨', name: () => (save.stove ? '石爐升級' : '蓋石爐') + ' Lv' + (fireLv() + 1), mat: save.stove ? 'stone' : undefined,
+    stoveUnlock = makeUnlock({ x: LOT.terr[0], z: LOT.terr[1], up: true, icon: '🪨', name: () => (save.stove ? '石爐升級' : '蓋石爐') + ' Lv' + (fireLv() + 1), mat: save.stove ? 'stone' : undefined,
       need: () => save.stove && !save.quarry ? '先開🪨採石場' : null,
       price: () => save.stove ? CFG.stoneStove[save.stove - 1] ?? null : CFG.stovePrice[0], buy: () => { save.stove++; stoveUnlock.mat = 'stone'; updateStoveLook(); sparkle(FX, FZ);
         toast(save.stove === 1 ? '🪨 營火進化成石爐！更耐燒、暖氣更大、暖氣塔 +1 座；石爐只燒⚫煤' : '🪨 石爐升級！更耐燒、暖氣更大'); } });
@@ -503,7 +505,7 @@ function updateWorkers(dt) {
       w.g.rotation.y = ang + Math.PI; w.g.position.y = 0;
       w.cd -= dt;
       if (w.cd <= 0) {
-        w.cd = CFG.workerChopLv[save.axe];
+        w.cd = CFG.workerChopLv[save.axe] / (1 + 0.2 * save.smithLv);
         t.hp--; t.shake = 0.25; t.pop = 0.15; burstChips(t.x, t.z);
         if (t.hp <= 0) {
           t.alive = false; t.regrow = CFG.treeRegrow; w.tree = null;
@@ -531,7 +533,7 @@ function addHunter() {
 }
 for (let i = 0; i < save.hunters; i++) addHunter();
 function updateHunters(dt) {
-  if (wh.hungry) return;                            // 倉庫沒食物：罷工
+  // v0.93：獵人是食物來源，餓了也要去打熊，不然沒人帶肉回來、永遠餓著
   for (const h of hunters) {
     const p = h.g.position;
     // v0.84（作者）：怪物來攻營地時先殺來襲的熊、狼，肉晚點再撿、再搬

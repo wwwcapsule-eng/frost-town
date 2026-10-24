@@ -20,15 +20,23 @@ const GRILL = { name: '烤肉攤', accept: 'meat', value: CFG.meatValue, time: 0
 // v0.75（作者 10/18：不同類型的格子放台子不同邊）：櫃台在左邊（主路那側），揹肉格在右邊、收錢格在前面靠櫃台（村民在櫃台付錢）；北邊被攤子擋住看不到，不放
 mills.push(makeMill(LOT.bbq[0], LOT.bbq[1], Object.assign({ inX: LOT.bbq[0] + 2.4, inZ: LOT.bbq[1] - 0.6, outX: LOT.bbq[0] - 0.7, outZ: LOT.bbq[1] + 2.4 }, GRILL)));
 // 正式關：規劃模式蓋的加工建築，付款格在門口前；第二座烤肉攤烤好的肉一樣送到村民排隊的櫃台
+save.smithLv = save.smithLv || 0;
 const SMITH = { name: '鐵匠鋪', accept: 'coal', value: CFG.coalValue, time: 1.5, roof: M(0x4a4f5a) }; // 工業區：煤打成工具賣錢
 function addProc(k, x, z) {
   const m = makeMill(x, z, Object.assign({ key: { mill: '第二台鋸木機', grill: '第二座烤肉攤', smith: '鐵匠鋪' }[k], inX: x - 1.3, inZ: z + 2.7, outX: x + 1.3, outZ: z + 2.7 }, k === 'grill' ? GRILL : k === 'smith' ? SMITH : {}));
   if (k === 'grill') m.outPad.visible = false; // 錢在櫃台收，這台不用綠框
+  if (k === 'smith') {                                            // v0.93（作者：鐵匠鋪還不能升級）：用🪨升級，煤賣更貴、打得更快，伐木工、採礦工也砍得更快
+    const look = () => { m.value = Math.round(CFG.coalValue * (1 + 0.5 * save.smithLv)); m.time = 1.5 / (1 + 0.3 * save.smithLv); };
+    look();
+    m.upU = makeUnlock({ ...freeSpot(x, z), up: true, icon: '🔨', mat: 'stone', name: () => '鐵匠鋪升級 Lv' + (save.smithLv + 2),
+      price: () => [25, 50, 80][save.smithLv] ?? null, buy: () => { save.smithLv++; look(); sparkle(x, z); toast('🔨 鐵匠鋪升級：煤賣 ' + m.value + ' 元、打得更快，伐木工也砍得更快！'); } });
+  }
   mills.push(m);
 }
 
 // 鈔票落到站的綠色框
 function spawnBill(mill, from) {
+  if (save.wh) { save.cash += mill.value; sfx.coin(); floatText('+' + mill.value + ' 💵', from.x, from.z, '#ffd34d'); return; } // v0.93（作者：錢一直堆著）：蓋了倉庫後，賣東西的錢直接進口袋，不再掉成綠色鈔票
   const op = mill.outPad.position, n = mill.out.length;
   const bill = box(0.7, 0.14, 0.45, mats.cash);
   const to = new THREE.Vector3(op.x + ((n % 4) % 2 - 0.5) * 0.75, 0.1 + Math.floor(n / 4) * 0.15, op.z + (Math.floor((n % 4) / 2) - 0.5) * 0.5);
@@ -132,7 +140,7 @@ function updateVillagers(dt) {
 // ===== 付款格（解鎖） =====
 const unlocks = [];
 function makeUnlock(def) {
-  const pad = makePad(def.x, def.z, 2, 0xffd34d, def.icon);
+  const pad = makePad(def.x, def.z, def.up ? 2.6 : 2, def.up ? 0x35d36a : 0xffd34d, def.icon, def.up); // up：升級格比較大、綠色
   const label = makeLabel(320, 180); label.scale.set(3.2, 1.8, 1); label.position.set(def.x, 1.9, def.z); scene.add(label);
   const u = Object.assign({ pad, label, paid: 0, payAcc: 0 }, def);
   u.refresh = () => {
@@ -140,7 +148,7 @@ function makeUnlock(def) {
     if (p == null) { scene.remove(pad); scene.remove(label); u.done = true; return; }
     // blk：還不能買的原因（每格的 need()，主迴圈更新）；mat：用倉庫的木頭或背上的木頭付，不是錢
     const cost = u.blk || ((u.mat === 'plank' || u.mat === 'stone') && !save.wh ? '先蓋📦倉庫' : ({ plank: '🪵 ', log: '🪵 ', stone: '🪨 ' }[u.mat] || '💵 ') + (p - u.paid));
-    if (u.near) { label.set([u.name(), cost], '#ffe066', [36, 68]); label.scale.set(3.2, 1.8, 1); label.position.y = 1.9; } // 錢放大，像參考影片
+    if (u.near) { label.set([(u.up ? '⬆ ' : '') + u.name(), cost], '#ffe066', [36, 68]); label.scale.set(3.2, 1.8, 1); label.position.y = 1.9; } // 錢放大，像參考影片
     else { label.set([u.blk ? '👥 人不夠' : cost], '#ffe066', [60]); label.scale.set(1.9, 1.05, 1); label.position.y = 0.9; } // 遠的只顯示小價錢，不會互相蓋住
     pad.fill.scale.y = Math.max(0.0001, u.paid / p);
   };
@@ -233,14 +241,23 @@ function updateGate(dt) {
 // v0.80（作者：倉庫要更簡單）：蓋了倉庫後，鋸木廠的🪵投放格、💵收錢格收起來（木頭由倉庫自動送、多的木頭直接換錢），
 // 鋸木廠旁邊只剩兩格：👷 雇用伐木工、🪵 升級伐木場（每升 1 級多雇 1 個伐木工）
 save.millLv = save.millLv || (save.mill2 && !PRO ? 1 : 0);          // v0.81：拿掉第二台鋸木機，舊存檔蓋過的當作升過 1 級
+// v0.93（作者：升級標誌太近）：在 (cx,cz) 附近一圈圈找一個離所有付款格、站、建築都 ≥ 3.4 的空位，給大的升級格用
+function freeSpot(cx, cz) {
+  for (let r = 4; r < 14; r += 1.2) for (let a = 0; a < 16; a++) {
+    const x = cx + Math.cos(a * 0.3927) * r, z = cz + Math.sin(a * 0.3927) * r;
+    if (fd(x, z) < FENCE_R - 1.5 && unlocks.every(o => o.done || Math.hypot(o.x - x, o.z - z) > 3.4) && mills.every(m => [m.inPad, m.outPad].every(p => !p.visible || Math.hypot(p.position.x - x, p.position.z - z) > 3.4))
+      && buildings.every(b => Math.hypot(b.x - x, b.z - z) > b.r + 2.2)) return { x, z };
+  }
+  return { x: cx, z: cz + 6 };
+}
 function addMillUnlocks() {
   const m = mills[0], a = m.inPad.position, b = m.outPad.position;
   m.inPad.visible = m.outPad.visible = false;
-  m.out.splice(0).forEach(bill => { scene.remove(bill); save.cash += m.value; }); // 綠框上還沒收的錢直接入帳
+  mills.forEach(o => o.out.splice(0).forEach(bill => { scene.remove(bill); save.cash += o.value; })); // 綠框上還沒收的錢（含烤肉攤）直接入帳
   makeUnlock({ x: a.x, z: a.z, icon: '👷', name: () => '雇用伐木工',
     need: () => save.workers > save.millLv ? '🪵 先升級伐木場' : needHand(),
     price: () => [60, 120, 200][save.workers], buy: () => { save.workers++; addWorker(); toast('👷 伐木工上工了！木頭會自己送進倉庫'); } });
-  makeUnlock({ x: b.x, z: b.z, icon: '🪵', mat: 'plank', name: () => '升級伐木場 Lv' + (save.millLv + 2),
+  makeUnlock({ x: b.x, z: b.z, up: true, icon: '🪵', mat: 'plank', name: () => '升級伐木場 Lv' + (save.millLv + 2),
     price: () => [P(80), P(160)][save.millLv], buy: () => { save.millLv++; millLook(); toast('🪵 伐木場升級了：多雇 1 個伐木工、鋸得更快！'); } });
 }
 // 伐木場升級的樣子（v0.81，作者：要看得出升級，不要蓋第二台）：每升 1 級鋸得快一倍（倉庫每秒多送 1 根木頭）；
@@ -349,10 +366,10 @@ function buildWarehouse() {
   addMillUnlocks(); addSmokeUnlock();
   // v0.92 倉庫升級（作者：倉庫要有非蓋不可的用處）：每升 1 級每樣多存 150、多雇 1 個搬運工，倉庫變大
   save.whLv = save.whLv || 0; g.scale.setScalar(1 + save.whLv * 0.15);
-  makeUnlock({ x: LOT.store[0] - 2.6, z: LOT.store[1] + 2.7, icon: '📦', mat: 'plank', name: () => '倉庫升級 Lv' + (save.whLv + 2),
+  makeUnlock({ ...freeSpot(wh.bld.x, wh.bld.z), up: true, icon: '📦', mat: 'plank', name: () => '倉庫升級 Lv' + (save.whLv + 2),
     price: () => [P(200), P(400)][save.whLv] ?? null, buy: () => { save.whLv++; g.scale.setScalar(1 + save.whLv * 0.15); toast('📦 倉庫升級：每樣能存 ' + storeCap() + '，還能多雇 1 個🛒搬運工'); } });
   makeUnlock({ x: LOT.porter[0], z: LOT.porter[1], icon: '🛒', name: () => '雇用搬運工', need: () => needHand(),
-    price: () => save.porters < 3 + (save.whLv || 0) ? [0, 120, 220, 320, 420][save.porters] : null, buy: () => { save.porters++; addPorter(); toast('🛒 搬運工會揹倉庫的木頭去修北門和建築、收烤肉攤的錢（開了煤礦也會補營火）'); } });
+    price: () => save.porters < 3 + (save.whLv || 0) ? [0, 120, 220, 320, 420][save.porters] : null, buy: () => { save.porters++; addPorter(); toast('🛒 搬運工會揹倉庫的木頭去修北門和建築（開了煤礦也會補營火）；賣烤肉的錢現在直接進口袋'); } });
 }
 if (save.wh) buildWarehouse();
 else makeUnlock({ x: LOT.store[0], z: LOT.store[1] + 2.7, icon: '📦', mat: 'log', name: () => '蓋倉庫',
@@ -393,7 +410,7 @@ function addStoneUnlock() {                                       // 付款格�
   };
   const h0 = next(); if (!h0) return;
   const [x, z] = at(h0);
-  const u = stoneUnlock = makeUnlock({ x, z, icon: '🪨', mat: 'stone', name: () => '民房改建石屋 +' + CFG.stoneBeds + ' 床',
+  const u = stoneUnlock = makeUnlock({ x, z, up: true, icon: '🪨', mat: 'stone', name: () => '民房改建石屋 +' + CFG.stoneBeds + ' 床',
     price: () => next() ? CFG.stoneHouse : null,
     buy: () => {
       const h = next(); save.stoneHouses.push(h.key); stoneLook(h); sparkle(h.x, h.z); toast('🪨 民房改建成石屋了！更暖、多 ' + CFG.stoneBeds + ' 張床');
@@ -434,7 +451,7 @@ function addTentUpUnlock() {                                      // 改建格�
   if ((tentUpUnlock && !tentUpUnlock.done) || !save.wh || save.tentUp >= save.tents) return;
   const at = () => [TENTS[save.tentUp][0] + 2.4, TENTS[save.tentUp][1]];
   const [x, z] = at();
-  const u = tentUpUnlock = makeUnlock({ x, z, icon: '🏠', mat: 'plank', name: () => '帳篷改建木屋 +' + (CFG.housePop - CFG.tentBeds) + ' 床',
+  const u = tentUpUnlock = makeUnlock({ x, z, up: true, icon: '🏠', mat: 'plank', name: () => '帳篷改建木屋 +' + (CFG.housePop - CFG.tentBeds) + ' 床',
     price: () => save.tentUp < save.tents ? P(CFG.tentUpPrice) : null,
     buy: () => {
       const i = save.tentUp, g = tentGs[i]; scene.remove(g); props.splice(props.indexOf(g.prop), 1); tentGs[i] = null;
