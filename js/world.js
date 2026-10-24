@@ -43,7 +43,7 @@ function loadModel(key, url, height, onLoad) {                    // height：�
     const o = r.scene;
     o.traverse(m => { if (m.isMesh) { m.material = new THREE.MeshToonMaterial({ map: m.material.map, color: m.material.color, gradientMap: TOON, skinning: !!m.isSkinnedMesh }); m.castShadow = m.receiveShadow = true; if (m.isSkinnedMesh) { m.userData.noInk = true; m.frustumCulled = false; } } }); // 人物是帶骨架的模型：材質要開 skinning、不描邊
     const s = new THREE.Box3().setFromObject(o).getSize(new THREE.Vector3());
-    o.scale.setScalar(height / s.y); MODELS[key] = o; onLoad();
+    o.scale.setScalar(height / s.y); o.animations = r.animations; MODELS[key] = o; onLoad();
   }, undefined, () => {});
 }
 // 其他 Kenney 模型（v0.81，作者：下載的模型先用上）：key → [檔案, 高度]；kit() 在 parent 底下放一個，還沒載好就等載好再放
@@ -59,7 +59,7 @@ const KIT = {
 const kitWait = {};
 // 帶骨架的人物不能直接 .clone()（會共用同一副骨架）：照 three 的 SkeletonUtils.clone 做法，複製後把每個蒙皮網格接到複製出來的骨頭上
 function cloneModel(src) {
-  const c = src.clone(), a = [], b = [];
+  const c = src.clone(), a = [], b = []; c.animations = src.animations;
   src.traverse(o => a.push(o)); c.traverse(o => b.push(o));
   const look = new Map(a.map((o, i) => [o, b[i]]));
   a.forEach((o, i) => { if (o.isSkinnedMesh) { const m = b[i]; m.skeleton = o.skeleton.clone(); m.skeleton.bones = o.skeleton.bones.map(x => look.get(x)); m.bind(m.skeleton, o.bindMatrix); } });
@@ -492,4 +492,23 @@ function setBuildingState(b) {
 
 
 // 人物換成 Kenney mini-characters：n 選哪個造型；模型載好就把舊的方塊身體、頭藏起來（帽子留著，用顏色分工種）
-function dress(g, olds, n) { kit('mc' + (n % 12), g, 0, 0, 0, 0, 1, () => olds.forEach(o => o.visible = false)); }
+// 走路動畫（v0.97）：每個人一個 AnimationMixer，看這一格移動多快決定播 walk 還是 idle；人被移出場景就不再更新
+const mixers = [];
+function dress(g, olds, n, s = 1, cb) {
+  kit('mc' + (n % 12), g, 0, 0, 0, 0, s, m => {
+    olds.forEach(o => o.visible = false);
+    const mixer = new THREE.AnimationMixer(m), clip = nm => m.animations.find(a => a.name === nm);
+    const walk = mixer.clipAction(clip('walk')), idle = mixer.clipAction(clip('idle')); walk.play(); idle.play();
+    mixers.push({ g, mixer, walk, idle, x: g.position.x, z: g.position.z });
+    if (cb) cb(m);
+  });
+}
+function updateMixers(dt) {
+  for (let i = mixers.length - 1; i >= 0; i--) {
+    const k = mixers[i];
+    if (!k.g.parent) { mixers.splice(i, 1); continue; }
+    const v = Math.hypot(k.g.position.x - k.x, k.g.position.z - k.z) / Math.max(dt, 1e-3); k.x = k.g.position.x; k.z = k.g.position.z;
+    const w = v > 0.4 ? 1 : 0; k.walk.setEffectiveWeight(w); k.idle.setEffectiveWeight(1 - w); k.walk.timeScale = Math.min(1.6, 0.6 + v * 0.25);
+    k.mixer.update(dt);
+  }
+}
