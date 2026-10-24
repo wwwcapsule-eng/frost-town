@@ -76,6 +76,13 @@
     let ok = 0; for (let x = -FENCE_R - 6; x <= FENCE_R + 6; x += CFG.cell) if (g.canBuild(x, towerZ(), 'tower')) ok++;
     if (!ok) found.add('弩砲塔：原本那一排（z=' + towerZ().toFixed(1) + '）沒有任何位置能再蓋塔');
   }
+  function checkSpacing(found) {                    // ⑩最小間距（v1.14）：格子跟格子中心至少 3.0、格子跟建築邊緣至少 1.5（格子、圖標、升級一直互相蓋住）
+    const g = __game, pads = g.unlocks.filter(u => !u.done && u.pad.parent);
+    for (let i = 0; i < pads.length; i++) {
+      for (let j = i + 1; j < pads.length; j++) { const d = Math.hypot(pads[i].x - pads[j].x, pads[i].z - pads[j].z); if (d < PAD_GAP - 0.01) found.add('格子太近：' + pads[i].name() + ' 和 ' + pads[j].name() + '（' + d.toFixed(1) + '）'); }
+      for (const b of g.buildings) if (!b.dead) { const d = Math.hypot(pads[i].x - b.x, pads[i].z - b.z) - b.r; if (d < PAD_BLD - 0.01) found.add('格子貼著建築：' + pads[i].name() + ' 和 ' + b.key + '（' + d.toFixed(1) + '）'); }
+    }
+  }
   function checkHud(found) {                         // ⑥介面互蓋：上方說明列用最長的句子強制顯示一次，跟按鈕、目標、背包列比
     const al = document.getElementById('alert'), keep = [al.textContent, al.style.display];
     al.textContent = '🐻 3 隻熊＋🐺 狼群＋👑 熊王 15 秒後來襲'; al.style.display = 'block';
@@ -101,6 +108,7 @@
     }
     checkPads(found);
     checkTowers(found);
+    checkSpacing(found);
     checkHud(found);
     g.player.position.copy(p0);
     const list = [...found];

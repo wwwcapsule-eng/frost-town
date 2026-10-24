@@ -179,6 +179,7 @@ let inkT = 0;
 function step(dt) {
   if (gameOver || paused) return;
   undeclutter();
+  if ((spreadT -= dt) <= 0) { spreadT = 1; spreadPads(); }                       // v1.14 格子保持間距
   if ((inkT -= dt) <= 0) { inkT = 0.5; inkAll(scene); }          // 新出現的建築、人物、模型補上描邊
   // 移動
   let ix = joy.x, iy = joy.y;

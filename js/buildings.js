@@ -200,6 +200,7 @@ function buildTower(x = 6.4, z = towerZ(x), fixed = false) {
   const bow = new THREE.Group(); bow.position.y = 2.8; g.add(bow);
   const stock = box(0.25, 0.25, 1.4, M(0x5a3a22)); bow.add(stock);
   const arms = box(1.6, 0.14, 0.18, M(0x3c4a5a)); arms.position.z = 0.5; bow.add(arms);
+  kit('bTower', g, 0, 0, 0, 0, 1, m => { kkSoft(m); base.visible = deck.visible = bow.visible = false; }); // v1.14：換成 KayKit 投石塔（載不到就維持方塊弩砲）
   g.position.set(x, 0, z); scene.add(g);
   towers.push({ g, bow, cd: 0, fixed, bld: addBuilding('弩砲塔' + towers.length, g, 1.0) });
   trees.forEach(t => { if (!t.gone && !t.ore && nearTower(t.x, t.z)) { t.gone = true; t.alive = false; t.regrow = Infinity; scene.remove(t.g); } }); // 塔旁邊的樹移走，不穿模
@@ -271,6 +272,27 @@ function besideSpot(b) {
   const d = b.r + 1.7, spots = [[0, d], [d, 0], [-d, 0], [2.8, d], [-2.8, d], [d, 2.8], [-d, 2.8]].map(([dx, dz]) => ({ x: b.x + dx, z: b.z + dz })); // 前、右、左，再來前排兩旁、左右兩側往前一格，都還貼著建築
   return spots.find(s => unlocks.every(o => o.done || Math.hypot(o.x - s.x, o.z - s.z) > 2.7) && buildings.every(o => o === b || Math.hypot(o.x - s.x, o.z - s.z) > o.r + 1.4)
     && mills.every(m => [m.inPad, m.outPad].every(p => !p.visible || Math.hypot(p.position.x - s.x, p.position.z - s.z) > 2.3))) || spots[0];
+}
+// v1.14（作者：升級格、圖標、建築一直互相蓋住，所有對話的遊戲都要注意，不要遮擋最重要）：定下「最小間距」並且隨時檢查——
+// 格子跟格子中心至少隔 PAD_GAP、格子跟建築邊緣至少隔 PAD_BLD、跟鋸木機收錢格至少隔 2.4；屬於某棟建築的格子（owner）一旦太擠，每秒自己找最近的空位搬過去
+const PAD_GAP = 3.0, PAD_BLD = 1.5;
+function padOk(u, x, z) {
+  return unlocks.every(o => o === u || o.done || !o.pad.parent || Math.hypot(o.x - x, o.z - z) >= PAD_GAP)
+    && buildings.every(o => o.dead || Math.hypot(o.x - x, o.z - z) >= o.r + PAD_BLD)
+    && mills.every(m => [m.inPad, m.outPad].every(p => !p.visible || Math.hypot(p.position.x - x, p.position.z - z) >= 2.4))
+    && (!wh.pad || Math.hypot(wh.pad.position.x - x, wh.pad.position.z - z) >= 2.4);
+}
+let spreadT = 0;
+function spreadPads() {
+  for (const u of unlocks) {
+    if (u.done || !u.owner || !u.pad.parent || padOk(u, u.x, u.z)) continue;
+    const o = u.owner, inFence = fd(o.x, o.z) < FENCE_R;
+    for (let r = o.r + 1.7; r <= o.r + 6; r += 0.9) for (let k = 0; k < 16; k++) {
+      const a = (k + (r * 3 | 0) % 2 * 0.5) * Math.PI / 8, x = o.x + Math.cos(a) * r, z = o.z + Math.sin(a) * r;
+      if ((fd(x, z) < FENCE_R - 0.8) !== inFence || !padOk(u, x, z)) continue;
+      u.x = x; u.z = z; u.pad.position.x = x; u.pad.position.z = z; u.label.position.x = x; u.label.position.z = z; return;
+    }
+  }
 }
 function freeSpot(cx, cz, sameZone) {
   for (let r = 4; r < 14; r += 1.2) for (let a = 0; a < 16; a++) {
@@ -500,8 +522,8 @@ function addStoneUnlock() {                                       // 付款格�
   const next = () => houses.find(h => !isStone(h));
   const at = h => {                                               // 門口有別的付款格、建築就改放民房左右兩側
     const d = Math.hypot(FX0 - h.x, FZ0 - h.z) || 1, ux = (FX0 - h.x) / d, uz = (FZ0 - h.z) / d;
-    const spots = [[ux * 2.4, uz * 2.4], [-uz * 2.6, ux * 2.6], [uz * 2.6, -ux * 2.6], [ux * 2.4 - uz * 2, uz * 2.4 + ux * 2]].map(([a, b]) => [h.x + a, h.z + b]);
-    return spots.find(([x, z]) => unlocks.every(o => o.done || o === stoneUnlock || Math.hypot(o.x - x, o.z - z) > 2.3) && buildings.every(b => b === h || Math.hypot(b.x - x, b.z - z) > b.r + 1.1)) || spots[0];
+    const spots = [[ux * 3, uz * 3], [-uz * 3.1, ux * 3.1], [uz * 3.1, -ux * 3.1], [ux * 3 - uz * 2.2, uz * 3 + ux * 2.2]].map(([a, b]) => [h.x + a, h.z + b]);
+    return spots.find(([x, z]) => unlocks.every(o => o.done || o === stoneUnlock || Math.hypot(o.x - x, o.z - z) >= PAD_GAP) && buildings.every(b => b === h ? Math.hypot(b.x - x, b.z - z) >= b.r + PAD_BLD : Math.hypot(b.x - x, b.z - z) >= b.r + PAD_BLD)) || spots[0];
   };
   const h0 = next(); if (!h0) return;
   const [x, z] = at(h0);
@@ -540,7 +562,7 @@ function addTent(i) {
   g.prop = { x, z, r: 1 }; props.push(g.prop); tentGs[i] = g;
 }
 for (let i = 0; i < save.tents; i++) addTent(i);
-loadModel('tent', 'assets/models/survival/tent-canvas.glb', 1.5, () => tentGs.forEach(g => { if (g) { g.clear(); g.add(MODELS.tent.clone()); } }));
+loadModel('tent', 'assets/models/kaykit/bld/tent.gltf', 1.5, () => tentGs.forEach(g => { if (g) { g.clear(); g.add(MODELS.tent.clone()); } }));
 let tentUpUnlock = null;
 function addTentUpUnlock() {                                      // 改建格放在帳篷東邊門口前；蓋了倉庫、還有帳篷沒改建才出現
   if ((tentUpUnlock && !tentUpUnlock.done) || !save.wh || save.tentUp >= save.tents) return;
@@ -628,15 +650,17 @@ function updateFurnace(dt) {
   const pct = Math.round(f.fuel / CFG.fuelMax * 100);
   const rMax = CFG.heat[1] + TERR[save.territory].heat + CFG.stoveHeat * save.stove;
   f.r = f.fuel > 0 ? CFG.heat[0] + (rMax - CFG.heat[0]) * Math.min(1, pct / 50) : 0;
+  const rWork = f.r * (coldWave.on > 0 ? CFG.coldWork : 1);                // v1.14（作者：寒潮不是所有都停工）：建築停不停工看「幾乎不縮」的範圍；縮小的暖氣圈只影響人在野外凍不凍
   if (coldWave.on > 0) f.r *= CFG.coldShrink; // 寒潮：暖氣圈縮小
   heatRing.scale.setScalar(Math.max(0.001, f.r)); heatFill.scale.setScalar(Math.max(0.001, f.r));
   heatRing.visible = heatFill.visible = f.r < FENCE_R;       // 作者 10/18：暖氣蓋得住整個領地就不畫，免得跟領地邊界看起來像兩個範圍；火變小縮進領地才出現
 
   flame.visible = f.fuel > 0; flame.scale.setScalar(0.4 + 0.6 * pct / 100); flame.scale.y *= 1 + Math.sin(guideT * 20) * 0.12;
   const hr = f.fuel > 0 ? CFG.heaterR * (coldWave.on > 0 ? CFG.coldShrink : 1) : 0; // 暖氣塔靠火爐供熱，火熄了也沒用
+  const hrWork = f.fuel > 0 ? CFG.heaterR * (coldWave.on > 0 ? CFG.coldWork : 1) : 0;
   for (const h of heaters) { const v = h.bld.dead ? 0.001 : Math.max(0.001, hr); h.ring.scale.setScalar(v); h.fill.scale.setScalar(v); }
-  const warmCamp = f.r >= FENCE_R;                                     // 火夠旺：整個方形領地都算溫暖（跟地面看到的範圍一致）
-  for (const b of buildings) b.cold = !(warmCamp && fd(b.x, b.z) < FENCE_R) && Math.hypot(b.x - FX, b.z - FZ) > f.r && !heaters.some(h => !h.bld.dead && Math.hypot(b.x - h.x, b.z - h.z) <= hr);
+  const warmCamp = rWork >= FENCE_R;                                     // 火夠旺：整個方形領地都算溫暖（跟地面看到的範圍一致）
+  for (const b of buildings) b.cold = !(warmCamp && fd(b.x, b.z) < FENCE_R) && Math.hypot(b.x - FX, b.z - FZ) > rWork && !heaters.some(h => !h.bld.dead && Math.hypot(b.x - h.x, b.z - h.z) <= hrWork);
   if (f.fuel <= 0 && !f.out) { toast('🔥 火爐熄了！建築都凍住了，快加柴！'); beep(180, 0.4, 'sawtooth', 0.06, 0.6); }
   f.out = f.fuel <= 0;
   furnaceLabel.visible = pct < 50 || Math.hypot(player.position.x - FX, player.position.z - FZ) < 5;
