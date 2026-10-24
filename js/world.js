@@ -123,7 +123,7 @@ function rebuildRoads() {
   if (save.mine) main.push([MINE.x + 3.3, 0, 0, 0], [MINE.x + 3.3, -1.4, MINE.x + 3.3, 0]); // 西路：通到礦坑口前（不穿過山）
   if (save.quarry) main.push([MINE.x + 3.3, -1.4, MINE.x + 3.3, QUARRY.z]); // v0.85 西路往北接到採石場前
   [[1, 9.8 * TS], [2, 14.3 * TS]].forEach(([ring, r]) => {                      // 民房環狀路：只鋪有民房的那段弧，並接到主路（90°）
-    const angs = HOUSE_LOTS.slice(0, save.houses).filter(l => l.ring === ring).map(l => Math.atan2(l.z, l.x) * 180 / Math.PI);
+    const angs = HOUSE_LOTS.slice(0, save.houses).filter(l => l.ring === ring && l.z > 0).map(l => Math.atan2(l.z, l.x) * 180 / Math.PI);
     if (!angs.length) return;
     const a0 = Math.min(90, ...angs), a1 = Math.max(90, ...angs);
     for (let a = a0; a < a1; a += 10) {
@@ -131,6 +131,7 @@ function rebuildRoads() {
       main.push([Math.cos(c) * r, Math.sin(c) * r, Math.cos(b) * r, Math.sin(b) * r]);
     }
   });
+  if (HOUSE_LOTS.slice(0, save.houses).some(l => l.z < 0)) main.push([-12, -9, Math.min(FENCE_R - 1, 24), -9]);   // 北邊有民房了：鋪一條東西向的北街，讓北邊的民房接得到路
   main.forEach(s => roadSeg(...s));
   const plaza = new THREE.Mesh(plazaGeo, roadMat); plaza.rotation.x = -Math.PI / 2; plaza.position.set(0, 0.02, -3 * TS); plaza.receiveShadow = true; roads.add(decal(plaza, 2)); // 營火廣場
   for (const b of buildings) {                                        // 每棟建築接一段路到最近的主路／環狀路

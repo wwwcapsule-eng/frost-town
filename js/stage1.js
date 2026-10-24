@@ -16,20 +16,20 @@ const stage1 = (() => {
   const cMax = () => [6, 10, 14][st.up.stall], grillTime = () => [0.8, 0.5, 0.35][st.up.stall], arriveGap = () => [12, 12, 8][st.up.stall];
   const fishTime = () => [3.0, 2.0, 1.2][st.up.rod], chopGap = () => [0.45, 0.3, 0.2][st.up.axe], logsPer = () => [3, 4, 5][st.up.axe];
   const root = new THREE.Group();
-  const RC = { x0: -15, x1: 15, z0: -3, z1: 22 };                           // 圍欄矩形
-  const GATE_W = 1.8, GATE_Z = 7.5;                                         // 門寬的一半；東西門的 z
+  const RC = { x0: -15, x1: 15, z0: -3, z1: 24 };                           // 圍欄矩形
+  const GATE_W = 1.8, GATE_Z = 8.5;                                         // 門寬的一半；東西門的 z
   // v1.27（作者：建物不能太近、不能互相遮擋，烤魚攤位置太怪，升級格也要照第 2 關的邏輯）：
   // 每棟建築有自己的一塊「地」：建築蓋在地上、操作格（付款／送魚）在建築旁、升級格貼著自己的建築；格子彼此 ≥3、離建築邊緣 ≥1.5（跟第 2 關 PAD_GAP／PAD_BLD 一樣）；
   // 冰屋的蓋屋格直接放在下一間冰屋的位置（像第 2 關民房格），蓋好就搬到下一個位置
-  const FIRE = [0, 7], PAD = [-11.8, 1.0], AXEPAD = [0, 10.2], STALL = [3.5, 14.5], RAWPAD = [0.0, 14.5], WHUP = [-4.5, 4.2], STALLUP = [7.0, 14.5], FISHUP = [5.2, -10.5], LAKE = [0, -13, 7.5];
-  const SLOTS = [[-11.8, 1.0], [11.8, 1.0], [-11.8, 15.0], [11.8, 15.0]];
+  const FIRE = [0, 8.5], PAD = [-10.5, 0.5], AXEPAD = [0, 11.7], STALL = [0, 15.6], RAWPAD = [-3.5, 15.6], WHUP = [0, 4.7], STALLUP = [3.5, 15.6], FISHUP = [5.2, -10.5], LAKE = [0, -13, 7.5];
+  const SLOTS = [[-10.5, 0.5], [10.5, 0.5], [-10.5, 16.0], [10.5, 16.0]];
   const BANKS = [];       // v1.20（作者：不能鏟的雪從營區拿掉、能鏟的集中成一座大雪堆）：南門外一座大雪堆，十幾個雪堆擠在一起
-  const HILL = [0, 35];
+  const HILL = [0, 37];
   for (let j = -2; j <= 2; j++) for (let x = -7.4 + (j & 1 ? 1.35 : 0); x <= 7.5; x += 2.7) { if ((x / 7.8) ** 2 + (j * 2.5 / 5.6) ** 2 <= 1) BANKS.push([+(HILL[0] + x).toFixed(1), +(HILL[1] + j * 2.5).toFixed(1)]); }
-  const WH = [-4.5, 0.5], TWIGS = [-0.5, 3, 6, 9, 12.5, 16, 19.5].flatMap(z => [[-17.5, z], [17.5, z]]);   // v1.24：枯枝 4→10 堆
+  const WH = [0, 1.0], TWIGS = [-0.5, 3, 6, 11.5, 14.5, 18, 21.5].flatMap(z => [[-17.5, z], [17.5, z]]);   // v1.24：枯枝 4→10 堆
   const HOLES = [[0, -10.5]];                                                // 湖中間一個挖出來的大洞（半徑 1.7），旁邊插三根釣竿，人走近就自動釣魚
   const HOLE_R = 1.7;
-  const QUEUE = [[3.5, 17.4], [2.7, 18.7], [1.5, 19.7]];     // 烤魚攤前排隊的位置（往南門方向排）
+  const QUEUE = [[0, 18.8], [0, 20.2], [0, 21.6]];     // 烤魚攤前排隊的位置（往南門方向排）
   const mat = c => M(c);
   const bag = [], banks = [], twigs = [], holes = [], igloos = [], folks = [], forest = [], queue = [];
   let walk = 0, saveT = 0, inkT = 0, shake = 0, hudTxtT = 0, fireT = 0, fireT2 = 0, padT = 0, digT = 0, chopT = 0, axeSpin = 0, shovT = 0, shovelOn = false, grillT = 0, depT = 0, stallPadT = 0, smokeT = 0;
@@ -67,7 +67,7 @@ const stage1 = (() => {
   const inside = (x, z) => x > RC.x0 + 0.3 && x < RC.x1 - 0.3 && z > RC.z0 + 0.3 && z < RC.z1 - 0.3;
   // 森林：東西兩邊，樹都是第 2 關同一批（冷杉、松樹、白樺）
   for (let n = 0; n < 180 && forest.length < 44; n++) {
-    const side = n % 2 ? 1 : -1, x = side * (20 + rnd() * 10), z = -8 + rnd() * 30;
+    const side = n % 2 ? 1 : -1, x = side * (20 + rnd() * 10), z = -8 + rnd() * 32;
     if (TWIGS.some(t => Math.hypot(t[0] - x, t[1] - z) < 2.6) || BANKS.some(t => Math.hypot(t[0] - x, t[1] - z) < 2.8) || (Math.abs(z - GATE_Z) < 2.6 && Math.abs(x) < 20) || forest.some(t => Math.hypot(t.x - x, t.z - z) < 2.2)) continue;
     const kind = rnd() < 0.35 ? 'pine' : rnd() < 0.15 ? 'birch' : 'fir', g = new THREE.Group(); g.userData.noInk = true; treeLook(g, kind);
     const sc = 0.85 + rnd() * 0.35; g.position.set(x, 0, z); g.rotation.y = rnd() * 6; g.scale.setScalar(sc); root.add(g);
@@ -257,6 +257,7 @@ const stage1 = (() => {
     setTxt('cash', save.cash); setTxt('pop', st.pop); setTxt('capP', '/' + beds()); setTxt('beds', ' 🛏️' + Math.max(0, beds() - st.pop));
     setTxt('meat', nf); setTxt('stone', nb); setTxt('wood', nl); ['capM', 'capS', 'capW'].forEach(id => setTxt(id, '/' + CFG1.cap));
     ['pMeat', 'pStone', 'pWood'].forEach(id => $(id).classList.toggle('full', bag.length >= CFG1.cap));
+    $('pMeat').style.display = nf ? '' : 'none'; $('pStone').style.display = nb ? '' : 'none'; $('pWood').style.display = nl ? '' : 'none'; $('pEmpty').style.display = bag.length ? 'none' : '';
     $('pStore').style.display = st.wh ? '' : 'none'; setTxt('sBr', st.bricks); setTxt('sLg', st.logs); setTxt('sFs', st.fishS); setTxt('sCap', '/' + whCap());
     setTxt('fuel', f); setTxt('fireName', '火堆'); $('fuelBar').firstElementChild.style.width = f + '%'; $('fuelBar').classList.toggle('danger', f < 20);
     const g = '🎯 ' + GOALS[st.goal][0]();
@@ -539,7 +540,7 @@ const stage1 = (() => {
     cracks.children.forEach(c => { c.scale.x = 1 + t * 1.2; });
     lake.material.color.setRGB(0.35, 0.55, 0.78);
     igloos.forEach((o, i) => { const sink = Math.max(0, t - 1 - i * 0.5); o.g.position.y = -Math.min(sink * 0.9, 3.2); o.g.rotation.z = Math.min(sink * 0.08, 0.3) * (i % 2 ? 1 : -1); });
-    if (t < 4.5) { camera.position.lerp(k.camP, 1 - Math.exp(-dt * 2)); camera.lookAt(0, 0, 6); }
+    if (t < 4.5) { camera.position.lerp(k.camP, 1 - Math.exp(-dt * 2)); camera.lookAt(0, 0, 8); }
     else {
       folks.forEach((f, i) => walkTo(f.g, ((i % 5) - 2) * 1.4, 36 + (i >> 2) * 1.2, dt, 2.4)); player.rotation.y = 0;
       walkTo(player, 0, 38, dt, 2.6);
@@ -572,7 +573,7 @@ const stage1 = (() => {
     QUEUE.forEach((q, i) => { bld.forEach(b => { if (b[0] !== '烤魚攤' && Math.hypot(q[0] - b[1], q[1] - b[2]) < b[3] + 0.8) out.push('第1關排隊位置太靠近：' + b[0]); }); pads.forEach(p => { if (Math.hypot(q[0] - p[1], q[1] - p[2]) < 2.2) out.push('第1關排隊位置太靠近：' + p[0]); }); });
     return out;
   };
-  S.spots = [[0, 10], WH, WHUP, FIRE, AXEPAD, STALL, RAWPAD, STALLUP, FISHUP, ...HOLES, [0, -7.5], BANKS[0], BANKS[BANKS.length - 1], HILL, TWIGS[0], TWIGS[1], SLOTS[0], SLOTS[3], QUEUE[1]];   // layout-check 讓主角走過去看的位置
+  S.spots = [[0, 12], WH, WHUP, FIRE, AXEPAD, STALL, RAWPAD, STALLUP, FISHUP, ...HOLES, [0, -7.5], BANKS[0], BANKS[BANKS.length - 1], HILL, TWIGS[0], TWIGS[1], SLOTS[0], SLOTS[3], QUEUE[1]];   // layout-check 讓主角走過去看的位置
   S.state = st; S.addResident = addResident; S.addCustomer = addCustomer; S.buildIgloo = buildIgloo; S.bag = bag; S.folks = folks; S.igloos = igloos; S.banks = banks; S.forest = forest; S.twigs = twigs; S.queue = queue; S.stallG = stallG;
   S.step = step;
   S.enter = () => {
@@ -580,12 +581,12 @@ const stage1 = (() => {
     scene.children.slice().forEach(o => { if (!(o.isLight || o === player || o.isPoints || o === sun.target)) o.visible = false; });
     scene.add(root); root.visible = true; root.add(axe);
     ['planBtn', 'hpBar', 'pCoal'].forEach(id => { const e = $(id); if (e) e.style.display = 'none'; });
-    $('pMeat').innerHTML = '🐟 <b id="meat">0</b><span class="cap" id="capM"></span>'; $('pStone').innerHTML = '🧊 <b id="stone">0</b><span class="cap" id="capS"></span>'; $('pStone').style.display = '';
-    $('pStore').innerHTML = '📦 🧊<b id="sBr">0</b><span class="cap" id="sCap"></span> 🪵<b id="sLg">0</b> 🐟<b id="sFs">0</b>';
+    $('pMeat').innerHTML = '🐟 <b id="meat">0</b><span class="cap" id="capM"></span>'; $('pStone').innerHTML = '🧊 <b id="stone">0</b><span class="cap" id="capS"></span>'; 
+    $('pStore').innerHTML = '📦 冰窖 🧊<b id="sBr">0</b><span class="cap" id="sCap"></span> 🪵<b id="sLg">0</b> 🐟<b id="sFs">0</b>';
     for (let i = 0; i < st.igloos; i++) buildIgloo(i, false);
     stallG.visible = st.stall; whG.visible = st.wh; placePad(); applyLooks();
     for (let i = 0; i < st.pop; i++) addResident(i, true);
-    player.position.set(0, 0, 10); player.rotation.y = Math.PI; camera.position.copy(player.position).add(camOffset);
+    player.position.set(0, 0, 12); player.rotation.y = Math.PI; camera.position.copy(player.position).add(camOffset);
     hintOn = false; $('hint').style.display = 'none';              // 操作提示改放在上方目標列，不另外蓋在畫面中間
     if (scene.fog) { scene.fog.near = 90; scene.fog.far = 240; }    // 第 1 關地圖小，不要讓霧把地面洗成一片白
     hudText();
