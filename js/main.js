@@ -256,7 +256,7 @@ function step(dt) {
     axeArms.forEach((a, i) => { a.visible = i <= save.axe; a.rotation.y = axeSpin + i * Math.PI * 2 / (save.axe + 1); });
     swooshG.rotation.y = axeSpin - Math.PI / 2 - 2.4; // 刀光拖在斧頭後面
     swooshMat.opacity = Math.min(0.55, axeShow * 3);
-    axeHeadMat.color.setHex(AXE_COLORS[save.axe]);
+    axeHeadMat.color.setHex((axeKK ? AXE_TINT : AXE_COLORS)[save.axe]);
   }
   for (let i = chips.length - 1; i >= 0; i--) {
     const c = chips[i]; c.life -= dt; c.vy -= 18 * dt;

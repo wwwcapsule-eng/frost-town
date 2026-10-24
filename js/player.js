@@ -38,6 +38,12 @@ player.tick = (walk, moving) => {                       // 走路時手腳前後
 dressKK(player, [puff], 'kkKnight', null, m => {
   player.kk = true; player.flash = [];
   m.traverse(o => { if (o.isMesh) { o.material = o.material.clone(); player.flash.push(o.material); } });
+  // v1.11（作者：主角加一點羽絨服）：胸口罩一件飽飽的紅色羽絨背心＋一圈白毛領＋腰間一圈下擺，位置抓騎士身體的高度（程式拼的，不跟手腳擺動）
+  const vest = new THREE.Group(), vc = M(0xd9543c), vf = M(0xf4efe6), vt = M(0x8c2a22); player.flash.push(vc, vf, vt);
+  [[0.42, 0.13, 0.33, 0.78], [0.44, 0.13, 0.35, 0.64], [0.45, 0.11, 0.35, 0.51]].forEach(([rx, ry, rz, y]) => pEll(vc, rx, ry, rz, 0, y, 0, vest)); // 三節背心
+  pEll(vt, 0.43, 0.04, 0.34, 0, 0.42, 0, vest);                                                                     // 下擺束口
+  for (let i = 0; i < 12; i++) { const a = i / 12 * Math.PI * 2; pEll(vf, 0.13, 0.1, 0.13, Math.sin(a) * 0.27, 0.93, Math.cos(a) * 0.23, vest); }   // 毛領
+  player.add(vest);
 });
 // v1.02（作者：最重要的是認得出主角）：腳下一圈亮藍光圈
 const heroRing = new THREE.Mesh(new THREE.RingGeometry(0.8, 1.02, 32), new THREE.MeshBasicMaterial({ color: 0x4fc3ff, transparent: true, opacity: 0.9, depthWrite: false }));
@@ -51,12 +57,23 @@ const axeArm = new THREE.Group(); axe.add(axeArm);
 const onTop = c => new THREE.MeshLambertMaterial({ color: c, depthTest: false });
 function topBox(w, h, d, mat) { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.renderOrder = 21; return m; }
 const handle = topBox(0.16, 0.16, 1.5, onTop(0x7a4a2a)); handle.position.z = 0.75; axeArm.add(handle);
-const axeHeadMat = onTop(0x5d6b7c);
+let axeHeadMat = onTop(0x5d6b7c), axeKK = false;   // axeKK：換成 KayKit 斧頭模型之後，等級顏色改成「染色」
 const axeHead = topBox(0.9, 0.16, 0.6, axeHeadMat); axeHead.position.set(0.25, 0, 1.45); axeArm.add(axeHead);
 const axeEdge = topBox(0.14, 0.18, 0.75, onTop(0xc9d4e0)); axeEdge.position.set(0.72, 0, 1.45); axeArm.add(axeEdge);
 const axeArms = [axeArm]; // v0.89（作者：後期看不出斧頭升級）：斧頭每升 1 級多一把一起轉（最多 4 把）
 for (let i = 1; i < 4; i++) { const a = axeArm.clone(); axe.add(a); axeArms.push(a); }
+const AXE_TINT = [0xffffff, 0x6fb8ff, 0xffd34d, 0xff8a5c];   // KayKit 斧頭有貼圖，用淺色乘上去才看得出原本的造型
 const AXE_COLORS = [0x5d6b7c, 0x1f86d6, 0xe8a800, 0xff4f1f]; // 鐵灰→藍→金→橘（深一點，在雪地上才看得清楚）
+// v1.11（作者：主角的斧頭也要改形象）：旋轉斧頭換成 KayKit 的單手斧模型（木柄＋斧刃，貼圖在 assets/models/kaykit/）；載好就藏起方塊斧，載不到就維持方塊斧
+if (typeof gltf !== 'undefined' && gltf) gltf.load('assets/models/kaykit/axe_1handed.gltf', r => {
+  const mat = new THREE.MeshToonMaterial({ map: null, gradientMap: TOON, depthTest: false });
+  r.scene.traverse(o => { if (o.isMesh) { mat.map = o.material.map; o.material = mat; o.renderOrder = 21; } });
+  const k = 1.35, mod = new THREE.Group(); mod.add(r.scene); mod.matrixAutoUpdate = false;
+  mod.matrix.set(-k, 0, 0, 0,  0, 0, k, 0.27 * k * 0,  0, k, 0, 0.27 * k,  0, 0, 0, 1);   // 模型的 y（柄）轉成 z、刀刃從 -x 轉到 +x；柄底對齊轉軸
+  axeArms.forEach(a => a.add(mod.clone()));
+  [handle, axeHead, axeEdge].forEach(o => o.visible = false);
+  axeHeadMat = mat; axeKK = true;
+});
 const swooshMat = new THREE.MeshBasicMaterial({ color: 0x5fc0ff, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false, depthTest: false });
 const swoosh = new THREE.Mesh(new THREE.RingGeometry(0.7, 1.9, 32, 1, 0, 2.4), swooshMat);
 swoosh.rotation.x = -Math.PI / 2; swoosh.renderOrder = 20;

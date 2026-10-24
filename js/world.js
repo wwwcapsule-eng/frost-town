@@ -526,13 +526,22 @@ function kkHold(m, file) {                                    // file：武器�
     kkTool[file] = r.scene; put(r.scene);
   });
 }
+// 頭髮（v1.11）：一顆壓扁的橢圓球蓋在頭頂和後腦，掛在頭的骨頭下面跟著動；大小用「人物高度／2.0」換算，再扣掉骨頭自己的縮放
+function kkHair(m, color) {
+  let head = null; m.traverse(o => { if (/^head$/.test(o.name)) head = o; }); if (!head) return;
+  m.updateWorldMatrix(true, true);
+  const hu = new THREE.Box3().setFromObject(m).getSize(new THREE.Vector3()).y / 2.0, ws = head.getWorldScale(new THREE.Vector3());
+  const hair = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 12), M(color));
+  hair.scale.set(0.3 * hu / ws.x, 0.2 * hu / ws.y, 0.3 * hu / ws.z); hair.position.set(0, 0.4 * hu / ws.y, -0.03 * hu / ws.z); head.add(hair);
+}
 // 造型微調（v1.10，作者：野蠻人不要戴帽子、騎士不要穿盔甲）：hide＝依零件名稱藏起來（頭盔、披風、熊皮帽是獨立零件）；tint＝把這些零件的貼圖換成單色（盔甲是畫在貼圖上的，只能改成素色衣服）
 const KKLOOK = {
-  kkBarbarian: { hide: /BearHat/ },
+  kkBarbarian: { hide: /BearHat/, tint: [[/Body|Arm/, 0xb5472b], [/Leg/, 0x4a3d33]], hair: 0x4a2f1c },   // v1.11 伐木工：格子衣（紅褐）、深色褲、棕色頭髮
   kkKnight: { hide: /Helmet|Cape/, tint: [[/Body|Arm/, 0x3f6fa8], [/Leg/, 0x4a4a55]] },
 };
 function kkLook(m, key) {
   const lk = KKLOOK[key]; if (!lk) return;
+  if (lk.hair) kkHair(m, lk.hair);
   m.traverse(o => {
     if (!o.isMesh) return;
     if (lk.hide && lk.hide.test(o.name)) o.visible = false;
