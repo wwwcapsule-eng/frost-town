@@ -94,7 +94,7 @@ const stage1 = (() => {
       const tip = new THREE.Object3D(); tip.position.z = 2.2; pole.add(tip);
       ell(mat(0x8a929c), 0.3, 0.2, 0.3, 0, 0.1, -0.2, g);
       const bob = new THREE.Group(); root.add(bob); ell(mat(0xe8453c), 0.17, 0.17, 0.17, 0, 0.1, 0, bob); ell(mat(0xffffff), 0.17, 0.1, 0.17, 0, -0.03, 0, bob);
-      const geo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]), line = new THREE.Line(geo, new THREE.LineBasicMaterial({ color: 0xf4fbff })); line.frustumCulled = false; root.add(line);
+      const geo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
       return { pole, tip, bob, geo, ox: x + Math.sin(a) * 0.7, oz: z + 0.2 };
     });
     holes.push({ x, z, prog: 0, h, ripple, rods });
@@ -136,12 +136,6 @@ const stage1 = (() => {
     });
     im.userData.noInk = true; g.add(im);
     const door = new THREE.Mesh(new THREE.CircleGeometry(0.7, 16), mat(0x23364a)); door.position.set(0, 0.5, 2.15); g.add(door);
-    // v1.22（作者：之前透明的比較好，加一點雪當造型）：頂上蓋一頂雪帽、地上一圈雪座、隧道頂和門兩側堆雪、磚縫下掛冰柱、旁邊一顆小雪堆
-    const snow = mat(0xf2f8fc);
-    ell(snow, 3.3, 0.25, 3.3, 0, 0.02, 0.5, g);
-    ell(snow, 1.2, 0.42, 1.2, 0, IG.ry * 0.93, 0, g); ell(snow, 0.6, 0.3, 0.6, 1.2, IG.ry * 0.78, 0.4, g); ell(snow, 0.5, 0.26, 0.5, -1.1, IG.ry * 0.8, 0.9, g);
-    ell(snow, 0.55, 0.35, 1.0, 0, 1.3, 3.0, g); ell(snow, 0.5, 0.3, 0.5, -0.85, 0.22, 3.9, g); ell(snow, 0.5, 0.3, 0.5, 0.85, 0.22, 3.9, g);
-    for (const th of [0.9, 1.8, 2.7, 3.7, 4.6, -0.9]) { const R = IG.rx * 0.82, ic = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.38, 5), mat(0xdff0fa)); ic.rotation.x = Math.PI; ic.position.set(Math.sin(th) * R, 0.75, Math.cos(th) * R); g.add(ic); }
     igloos.push({ g, x, z, smoke: [] });
     if (pop) { sfx.unlock(); sparkleAt(x, z); }
   }
@@ -243,6 +237,7 @@ const stage1 = (() => {
   const dist = (a, x, z) => Math.hypot(a.x - x, a.z - z);
   function step(dt) {
     undeclutter();
+    if (cine) { cineStep(dt); return; }
     const px = player.position.x, pz = player.position.z;
     // 移動（跟第 2 關一樣用搖桿／WASD）；圍欄只有四個門過得去，不穿冰屋和火堆
     let ix = joy.x, iy = joy.y;
@@ -441,11 +436,42 @@ const stage1 = (() => {
     if ((saveT += dt) > 2) { saveT = 0; writeSave(); }
     hudT = 0; declutter();   // 介面範圍每格重量一次（第 1 關的介面文字會變）
   }
+  // 過場動畫（約 8 秒）：上下黑邊滑進來 → 湖面裂縫變寬、冰屋一間間沉進湖裡、魚群散開 → 全村人帶著火種往南走 → 畫面變白 → 進第 2 關
+  let cine = null;
+  const CINE_LINES = [[0, '湖冰整片裂開了……'], [2.6, '冰屋一間一間沉進了湖裡。'], [5, '長老捧著火種：「往南走，那裡有森林。」']];
+  function startCine() {
+    const el = document.createElement('div'); el.style.cssText = 'position:fixed;inset:0;z-index:99;pointer-events:none';
+    el.innerHTML = '<div style="position:absolute;left:0;right:0;top:0;height:0;background:#000"></div><div style="position:absolute;left:0;right:0;bottom:0;height:0;background:#000"></div><div style="position:absolute;left:0;right:0;bottom:4%;text-align:center;color:#fff;font:700 19px sans-serif;text-shadow:0 2px 6px #000;padding:0 16px"></div><div style="position:absolute;inset:0;background:#fff;opacity:0"></div>';
+    document.body.appendChild(el);
+    cracks.visible = true; cracks.children.forEach(k => { k.visible = true; }); lakeFish.forEach(o => { o.f.visible = false; });
+    folks.forEach(f => { f.goal = null; });
+    cine = { t: 0, el, top: el.children[0], bot: el.children[1], txt: el.children[2], fade: el.children[3], camP: new THREE.Vector3(0, 21, 26) };
+  }
+  function cineStep(dt) {
+    const k = cine; k.t += dt; const t = k.t;
+    const bar = Math.min(1, t / 1) * 14; k.top.style.height = k.bot.style.height = bar + '%';
+    for (const [at, s] of CINE_LINES) if (t >= at) k.txt.textContent = s;
+    const sk = t < 4.5 ? 0.18 : 0;
+    cracks.children.forEach(c => { c.scale.x = 1 + t * 1.2; });
+    lake.material.color.setRGB(0.35, 0.55, 0.78);
+    igloos.forEach((o, i) => { const sink = Math.max(0, t - 1 - i * 0.5); o.g.position.y = -Math.min(sink * 0.9, 3.2); o.g.rotation.z = Math.min(sink * 0.08, 0.3) * (i % 2 ? 1 : -1); });
+    if (t < 4.5) { camera.position.lerp(k.camP, 1 - Math.exp(-dt * 2)); camera.lookAt(0, 0, 4); }
+    else {
+      folks.forEach((f, i) => walkTo(f.g, ((i % 5) - 2) * 1.4, 36 + (i >> 2) * 1.2, dt, 2.4)); player.rotation.y = 0;
+      walkTo(player, 0, 38, dt, 2.6);
+      camera.position.lerp(tmp.copy(player.position).add(camOffset), 1 - Math.exp(-dt * 3)); camera.lookAt(player.position.x, 0.8, player.position.z);
+    }
+    if (sk) { camera.position.x += (Math.random() - 0.5) * sk; camera.position.y += (Math.random() - 0.5) * sk * 0.6; }
+    for (let i = 0; i < snowN; i++) { snowPos[i * 3 + 1] -= dt * 1.5; if (snowPos[i * 3 + 1] < 0) { snowPos[i * 3 + 1] = 18; snowPos[i * 3] = player.position.x + rand(-25, 25); snowPos[i * 3 + 2] = player.position.z + rand(-25, 25); } }
+    snowGeo.attributes.position.needsUpdate = true;
+    if (t > 7) k.fade.style.opacity = Math.min(1, t - 7);
+    if (t > 8.2) { save.stage = 2; save.res = Math.min(Math.floor(st.pop / 2), 3); writeSave(); resetting = true; try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) {} location.reload(); k.t = -1e9; }
+  }
   let paceT = 0;
   function finish() {                                                            // 撐過崩裂 → 遷徙劇情卡 → 第 2 關（帶走錢 100%、居民折半）
     writeSave();
     story('🧊 冰湖崩裂了！', ['湖冰整片裂開，冰屋沉進了湖裡，魚群也游走了。', '長老捧起火種說：「南邊的森林有木頭，可以蓋木屋。」', '帶著火種和族人，往南遷徙吧！'], '出發！');
-    $('lvOk').addEventListener('click', () => { save.stage = 2; save.res = Math.min(Math.floor(st.pop / 2), 3); writeSave(); resetting = true; try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) {} location.reload(); }, { once: true });
+    $('lvOk').addEventListener('click', startCine, { once: true });
   }
   // 最小間距檢查（給 layout-check 用）：格子、雪堆、枯枝、冰洞、冰屋、烤魚攤、火堆互相隔夠遠
   S.check = () => {
