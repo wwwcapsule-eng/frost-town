@@ -18,7 +18,6 @@ const cursor = new THREE.Mesh(new THREE.PlaneGeometry(CFG.cell * 0.94, CFG.cell 
 cursor.rotation.x = -Math.PI / 2; cursor.position.y = 0.07; cursor.visible = false; scene.add(cursor);
 const ghost = box(2.2, 1.4, 2, new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true, opacity: 0.55 })); ghost.visible = false; scene.add(ghost);
 // 分區（企劃 9.1，正式關）：民房區＝南邊 z > 3；防禦區＝北邊熊來的方向 z < -12；工業區＝西邊煤礦那側 x < -7；其他是加工區（鋸木機、烤肉攤）
-const zoneOf = (x, z) => z > 3 * TS ? 'house' : z < -12 * TS ? 'def' : x < -7 * TS ? 'ind' : 'work';
 const KIND_ZONE = { house: 'house', mill: 'work', grill: 'work', smith: 'ind', tower: 'def' };  // 暖氣塔哪一區都能蓋
 const ZONE_TXT = { house: '綠色的民房區', work: '橘色的加工區', ind: '紫色的工業區', def: '紅色的防禦區' };
 const zones = new THREE.Group(); zones.visible = false; scene.add(zones);
@@ -46,7 +45,7 @@ function planLimit(k) {
   if (k === 'gate') return save.gates.length < CFG.gateMax;      // 開採煤礦後才有煤可以打
   return k === 'house' ? houses.length < lv.houses : heaters.length < lv.heaters + (save.stove ? 1 : 0);
 }
-const wrongZone = (x, z, k) => PRO && KIND_ZONE[k] && zoneOf(x, z) !== KIND_ZONE[k]; // 正式關：同一區蓋同類建築
+const wrongZone = (x, z, k) => (PRO || k === 'smith') && KIND_ZONE[k] && zoneOf(x, z) !== KIND_ZONE[k]; // 正式關：同一區蓋同類建築
 // 圍欄開口（v0.66）：點在圍欄上的格子 → 回傳開在哪一邊、哪個位置；角落、太靠近別的門、門口有建築都不行
 function gateSpot(x, z) {
   for (const a of [0, Math.PI / 2, Math.PI, Math.PI * 1.5]) {
@@ -79,7 +78,7 @@ function canBuild(x, z, k) {
   if (wh.pad && d(wh.pad.position.x, wh.pad.position.z) < 2) return false;            // 倉庫門口的格子
   if (trees.some(t => !t.gone && d(t.x, t.z) < 1.7)) return false;
   if (nearMine(x, z, big ? 1.6 : 1)) return false;                                // 礦坑的山、坑口、木軌、煤堆
-  if (!PRO && HOUSE_LOTS.slice(save.houses).some(l => d(l.x, l.z) < 2.8)) return false; // 教學關：民房區保留給固定位置的民房
+  if (!PRO && HOUSE_LOTS.slice(save.houses).some(l => d(l.x, l.z) < 4.6)) return false; // 教學關：民房區保留給固定位置的民房（含門口的石屋付款格，v0.94 從 2.8 加大）
   if (Object.values(LOT).some(([a, b]) => d(a, b) < 2.4)) return false;            // 付款格、建築的固定地塊
   if (Math.abs(x) < 1.6 || (x > 0 && Math.abs(z) < 1.6)) return false;            // 南北主路、東路
   if (!PRO && z > 0 && (Math.abs(r - 9.8) < 1.6 || Math.abs(r - 14.3) < 1.6)) return false; // 民房環狀路
@@ -112,7 +111,7 @@ function planUi() {
 function setPlan(on) {
   plan.on = on; plan.kind = null; plan.cell = null;
   if (on) { plan.cx = player.position.x; plan.cz = player.position.z; joy.active = false; joy.x = joy.y = 0; joyEl.style.display = 'none'; }
-  grid.visible = cursor.visible = on; ghost.visible = false; zones.visible = on && PRO; $('hint').style.visibility = on ? 'hidden' : ''; // 開場提示不要擋到規劃列
+  grid.visible = cursor.visible = on; ghost.visible = false; zones.visible = on; $('hint').style.visibility = on ? 'hidden' : ''; // 開場提示不要擋到規劃列
   $('planBar').style.display = on ? 'block' : 'none';
   if (on) planUi(); else clock.getDelta();
 }
@@ -524,7 +523,7 @@ const hunters = [];
 function addHunter() {
   const g = new THREE.Group();
   const b = box(0.6, 0.75, 0.45, M(0x6b4a2b)); b.position.y = 0.6; g.add(b);
-  const h = box(0.45, 0.42, 0.42, mats.skin); h.position.y = 1.2; g.add(h);
+  const h = box(0.45, 0.42, 0.42, mats.skin); h.position.y = 1.2; g.add(h); dress(g, [b, h], 6); vest(g, 0x2f5d3a);   // 獵人：森林綠背心＋綠帽＋弓
   const c = box(0.5, 0.18, 0.48, M(0x2f5d3a)); c.position.y = 1.48; g.add(c);
   const bow = box(0.08, 0.9, 0.08, mats.trunk); bow.position.set(0.38, 0.75, 0.15); g.add(bow);
   const back = new THREE.Group(); back.position.set(0, 1.0, -0.4); g.add(back);
@@ -575,7 +574,7 @@ const coalers = [];
 function addCoaler(kind = 'coal') {                           // kind 'stone'＝採石工（v0.89，同一套寫法，白色安全帽）
   const g = new THREE.Group();
   const b = box(0.6, 0.75, 0.45, M(0x4a4f5a)); b.position.y = 0.6; g.add(b);
-  const h = box(0.45, 0.42, 0.42, mats.skin); h.position.y = 1.2; g.add(h);
+  const h = box(0.45, 0.42, 0.42, mats.skin); h.position.y = 1.2; g.add(h); dress(g, [b, h], kind === 'stone' ? 8 : 10); vest(g, kind === 'stone' ? 0xb8c0c8 : 0x2f2f33);   // 煤礦工：黑背心＋黃帽；採石工：灰白背心＋白帽；都拿十字鎬
   const c = box(0.5, 0.18, 0.48, M(kind === 'stone' ? 0xe8ecf0 : 0xe8b030)); c.position.y = 1.48; g.add(c);            // 黃色礦工帽
   const pick = box(0.08, 0.08, 0.8, mats.axe); pick.position.set(0.38, 0.75, 0.2); g.add(pick);
   const back = new THREE.Group(); back.position.set(0, 1.0, -0.4); g.add(back);

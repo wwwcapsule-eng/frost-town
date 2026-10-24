@@ -27,7 +27,8 @@ function updateHero(dt) {
     const dps = Math.min(CFG.coldMax, CFG.coldBase + hero.over * CFG.coldPerUnit) * (coldWave.on > 0 ? 1.5 : 1);
     hero.hp -= dps * dt; if (hero.hp <= 0) hero.cause = 'cold';
   }
-  if (hero.hit > 0) { hero.hit -= dt; player.children[0].material.emissive?.setHex(0x661111); } else player.children[0].material.emissive?.setHex(0);
+  if (hero.hit > 0) hero.hit -= dt;
+  [body.material, ...player.skin].forEach(mt => mt.emissive?.setHex(hero.hit > 0 ? 0x661111 : 0));
   if (hero.hp <= 0) {
     const lose = carried.splice(Math.ceil(carried.length / 2));  // 掉一半背包
     lose.forEach(m => stackRoot.remove(m)); restack();
@@ -170,7 +171,7 @@ function step(dt) {
     player.rotation.y = Math.atan2(mx, mz);
     walk += dt * 12;
   }
-  player.position.y = moving ? Math.abs(Math.sin(walk)) * 0.12 : 0;
+  player.position.y = moving && !player.skin.length ? Math.abs(Math.sin(walk)) * 0.12 : 0; // 有人物模型就用走路動畫，不再上下彈跳
   // 背上的木頭會跟著晃
   carried.forEach((m, i) => { m.position.x = Math.sin(walk * 0.5) * i * 0.012; });
 
@@ -313,7 +314,7 @@ function step(dt) {
   updateBears(dt);
   updateVillagers(dt);
   updateTower(dt); updateMine(dt); updateStore(dt); updatePorters(dt); updateThieves(dt);
-  updateWorkers(dt); updateHunters(dt); updateCoalers(dt);
+  updateWorkers(dt); updateHunters(dt); updateCoalers(dt); updateMixers(dt);
   updateGate(dt);
   updateColdWave(dt);
   updateSnow(dt);

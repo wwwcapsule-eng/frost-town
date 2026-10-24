@@ -1,5 +1,5 @@
 'use strict';
-const VERSION = '0.93';
+const VERSION = '0.98';
 
 // ===== 數值（之後平衡都改這裡） =====
 const CFG = {
@@ -123,3 +123,6 @@ document.getElementById('menuReset').onclick = () => {
   if (confirm('確定要清除這一關的進度、重新開始嗎？')) { resetting = true; try { localStorage.removeItem(SAVE_KEY); } catch (e) {} location.reload(); }
 };
 
+
+// 分區（企劃 9.1）：民房區＝南邊 z > 3；防禦區＝北邊熊來的方向 z < -12；工業區＝西邊煤礦那側 x < -7；其他是加工區。v0.94 起鐵匠鋪、升級格也照分區放，不會跑進民房區
+const zoneOf = (x, z) => z > 3 * TS ? 'house' : z < -12 * TS ? 'def' : x < -7 * TS ? 'ind' : 'work';

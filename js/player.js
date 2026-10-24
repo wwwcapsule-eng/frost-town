@@ -5,6 +5,9 @@ const body = box(0.8, 1.0, 0.6, mats.player); body.position.y = 0.75; player.add
 const head = box(0.6, 0.55, 0.55, mats.skin); head.position.y = 1.55; player.add(head);
 const hat = box(0.7, 0.25, 0.65, mats.player); hat.position.y = 1.9; player.add(hat);
 const legs = box(0.7, 0.3, 0.5, M(0x24486b)); legs.position.y = 0.15; player.add(legs);
+// v0.97 主角換成 Kenney 人物（比工人高大一點）；方塊身體、頭、腿藏起來，帽子留著；受傷閃紅改成改人物材質的 emissive
+player.skin = [];
+dress(player, [body, head, legs], 4, 1.25, m => m.traverse(o => { if (o.isMesh) { o.material = o.material.clone(); player.skin.push(o.material); } }));
 const stackRoot = new THREE.Group(); stackRoot.position.set(0, 1.3, -0.55); player.add(stackRoot);
 scene.add(player);
 // 旋轉斧頭：木柄＋大斧刃，外圍一圈藍色刀光；斧刃顏色隨等級變化

@@ -41,21 +41,32 @@ function loadModel(key, url, height, onLoad) {                    // height：�
   if (!gltf) return;                                              // 載不到載入器（沒網路）就一直用方塊
   gltf.load(url, r => {
     const o = r.scene;
-    o.traverse(m => { if (m.isMesh) { m.material = new THREE.MeshToonMaterial({ map: m.material.map, color: m.material.color, gradientMap: TOON }); m.castShadow = m.receiveShadow = true; } });
+    o.traverse(m => { if (m.isMesh) { m.material = new THREE.MeshToonMaterial({ map: m.material.map, color: m.material.color, gradientMap: TOON, skinning: !!m.isSkinnedMesh }); m.castShadow = m.receiveShadow = true; if (m.isSkinnedMesh) { m.userData.noInk = true; m.frustumCulled = false; } } }); // 人物是帶骨架的模型：材質要開 skinning、不描邊
     const s = new THREE.Box3().setFromObject(o).getSize(new THREE.Vector3());
-    o.scale.setScalar(height / s.y); MODELS[key] = o; onLoad();
+    o.scale.setScalar(height / s.y); o.animations = r.animations; MODELS[key] = o; onLoad();
   }, undefined, () => {});
 }
 // 其他 Kenney 模型（v0.81，作者：下載的模型先用上）：key → [檔案, 高度]；kit() 在 parent 底下放一個，還沒載好就等載好再放
 const KIT = {
   logs: ['nature/log_stackLarge.glb', 0.9], bench: ['survival/workbench.glb', 0.9], planks: ['survival/resource-planks.glb', 0.35], wood: ['survival/resource-wood.glb', 0.5],
   rack: ['survival/campfire-stand.glb', 1.4], barrel: ['survival/barrel.glb', 0.9], crate: ['survival/box-large.glb', 0.8], chest: ['survival/chest.glb', 0.6],
+  cwall: ['holiday/cabin-wall.glb', 1], cdoor: ['holiday/cabin-doorway.glb', 1], cwin: ['holiday/cabin-window-a.glb', 1], croof: ['holiday/cabin-roof-snow.glb', 1.48], croofc: ['holiday/cabin-roof-snow-chimney.glb', 1.48], sroof: ['holiday/cabin-roof.glb', 1.42], sroofc: ['holiday/cabin-roof-chimney.glb', 1.42], // v0.94 木屋零件（Kenney 假日組）
+  anvil: ['survival/workbench-anvil.glb', 0.9],
+  ...Object.fromEntries(['male-a', 'female-a', 'male-b', 'female-b', 'male-c', 'female-c', 'male-d', 'female-d', 'male-e', 'female-e', 'male-f', 'female-f'].map((n, i) => ['mc' + i, ['mini/character-' + n + '.glb', 1.45]])), // v0.96 Kenney mini-characters 12 個人物
   sign: ['survival/signpost.glb', 1.6], lantern: ['holiday/lantern.glb', 0.6],
   rockA: ['survival/rock-a.glb', 1.2], rockB: ['survival/rock-b.glb', 0.9], rockC: ['survival/rock-c.glb', 1.5],
 };
 const kitWait = {};
-function kit(key, parent, x, y, z, ry = 0, s = 1) {
-  const put = () => { const m = MODELS[key].clone(); m.position.set(x, y, z); m.rotation.y = ry; m.scale.multiplyScalar(s); parent.add(m); };
+// 帶骨架的人物不能直接 .clone()（會共用同一副骨架）：照 three 的 SkeletonUtils.clone 做法，複製後把每個蒙皮網格接到複製出來的骨頭上
+function cloneModel(src) {
+  const c = src.clone(), a = [], b = []; c.animations = src.animations;
+  src.traverse(o => a.push(o)); c.traverse(o => b.push(o));
+  const look = new Map(a.map((o, i) => [o, b[i]]));
+  a.forEach((o, i) => { if (o.isSkinnedMesh) { const m = b[i]; m.skeleton = o.skeleton.clone(); m.skeleton.bones = o.skeleton.bones.map(x => look.get(x)); m.bind(m.skeleton, o.bindMatrix); } });
+  return c;
+}
+function kit(key, parent, x, y, z, ry = 0, s = 1, cb) {
+  const put = () => { const m = cloneModel(MODELS[key]); m.position.set(x, y, z); m.rotation.y = ry; m.scale.multiplyScalar(s); parent.add(m); if (cb) cb(m); };
   if (MODELS[key]) return put();
   if (!kitWait[key]) { kitWait[key] = []; loadModel(key, 'assets/models/' + KIT[key][0], KIT[key][1], () => kitWait[key].forEach(f => f())); }
   kitWait[key].push(put);
@@ -479,3 +490,39 @@ function setBuildingState(b) {
   b.label.set(lines, b.dead || pct <= 50 ? '#ff6a5a' : b.cold ? '#9fdcff' : '#ffd34d');
 }
 
+
+// 人物換成 Kenney mini-characters：n 選哪個造型；模型載好就把舊的方塊身體、頭藏起來（帽子留著，用顏色分工種）
+// 走路動畫（v0.97）：每個人一個 AnimationMixer，看這一格移動多快決定播 walk 還是 idle；人被移出場景就不再更新
+const mixers = [];
+function dress(g, olds, n, s = 1, cb) {
+  kit('mc' + (n % 12), g, 0, 0, 0, 0, s, m => {
+    olds.forEach(o => o.visible = false);
+    const mixer = new THREE.AnimationMixer(m), clip = nm => m.animations.find(a => a.name === nm);
+    const walk = mixer.clipAction(clip('walk')), idle = mixer.clipAction(clip('idle')); walk.play(); idle.play();
+    mixers.push({ g, mixer, walk, idle, x: g.position.x, z: g.position.z });
+    if (cb) cb(m);
+  });
+}
+function updateMixers(dt) {
+  for (let i = mixers.length - 1; i >= 0; i--) {
+    const k = mixers[i];
+    if (!k.g.parent) { mixers.splice(i, 1); continue; }
+    const v = Math.hypot(k.g.position.x - k.x, k.g.position.z - k.z) / Math.max(dt, 1e-3); k.x = k.g.position.x; k.z = k.g.position.z;
+    const w = v > 0.4 ? 1 : 0; k.walk.setEffectiveWeight(w); k.idle.setEffectiveWeight(1 - w); k.walk.timeScale = Math.min(1.6, 0.6 + v * 0.25);
+    k.mixer.update(dt);
+  }
+}
+// 工種制服（v0.98，作者：居民、工人要有明顯區別，同一個工作地點穿一樣）：每個工種固定一個人物造型＋背心顏色＋帽子顏色＋手上的工具；居民隨機造型、不穿背心
+function vest(g, hex) {
+  const v = box(0.66, 0.5, 0.46, M(hex)); v.position.y = 0.78; g.add(v);
+  const belt = box(0.68, 0.08, 0.48, M(0x3a2a1a)); belt.position.y = 0.55; g.add(belt);
+}
+function handTool(g, kind) {                                   // 右手拿的工具：axe 斧頭、pick 十字鎬、shovel 鏟子、bow 弓
+  const t = new THREE.Group(); t.position.set(0.5, 0.75, 0.25); g.add(t);
+  const stick = box(0.07, 0.07, kind === 'shovel' ? 1.0 : 0.8, mats.trunk); t.add(stick);
+  if (kind === 'axe') { const h = box(0.38, 0.1, 0.22, mats.axe); h.position.z = 0.4; t.add(h); }
+  if (kind === 'pick') { const h = box(0.55, 0.08, 0.1, mats.axe); h.position.z = 0.4; t.add(h); }
+  if (kind === 'shovel') { const h = box(0.28, 0.05, 0.32, mats.axe); h.position.z = 0.55; t.add(h); }
+  if (kind === 'bow') { stick.scale.set(1, 1, 1.3); stick.rotation.x = 1.57; }
+  return t;
+}
