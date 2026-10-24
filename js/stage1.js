@@ -210,8 +210,9 @@ const stage1 = (() => {
     const f = Math.round(st.fuel);
     hudEl.innerHTML = pill('s1f', '🔥 ' + f + '%') + (st.stall ? pill('s1s', '🍢 ' + st.cooked + (st.raw ? '＋🐟' + st.raw : '')) : '') + pill('s1h', '🏠 ' + st.igloos + '/' + CFG1.maxIgloo) + pill('s1p', '👥 ' + st.pop + '/' + beds()) + pill('s1c', '💵 ' + save.cash) + pill('s1b', '🎒 ' + bag.length + '/' + CFG1.cap);
     let g;
-    if (st.dis === 1) g = '🧊 冰湖傳來碎裂聲！' + Math.ceil(st.disT) + ' 秒後崩裂，備好木頭、守住火堆！';
-    else if (st.dis === 2) g = '🧊 冰湖崩裂中！再撐 ' + Math.ceil(st.disT) + ' 秒，別讓火堆熄了（🪵 撿枯枝、木頭丟火堆）';
+    if (st.dis === 1) g = '🌨️ 遠方颳起暴風雪！' + Math.ceil(st.disT) + ' 秒後來襲，備好木頭、守住火堆！';
+    else if (st.dis === 2) g = '🌨️ 暴風雪來了！再撐 ' + Math.ceil(st.disT) + ' 秒，別讓火堆熄了（🪵 撿枯枝、木頭丟火堆）';
+    else if (st.dis === 3) g = '🧊 冰湖開始崩裂了！';
     else if (st.fuel <= 0) g = '🔥 火堆熄了！快去森林撿 🪵 枯枝丟進火堆';
     else if (st.igloos === 0) g = brickCount() > 0 ? '🧊 把冰磚揹到黃色格「蓋冰屋」（' + brickCount() + '/' + price() + '）' : '⛏️ 走到南邊大雪堆旁，會自動用手挖出冰磚（蓋冰屋要 ' + price() + ' 塊）';
     else if (!st.stall) g = '🍢 蓋烤魚攤（🪵 ' + CFG1.stallWood + '＋🧊 ' + CFG1.stallBrick + '）才能烤魚；烤魚的香味才吸引得了流民。火堆光是取暖';
@@ -397,14 +398,16 @@ const stage1 = (() => {
     // 自給自足 → 崩裂預告 → 崩裂 → 遷徙
     if (!st.done) {
       if (st.dis === 0) {
-        if ((st.retryT -= dt) <= 0 && selfSufficient()) { st.dis = 1; st.disT = CFG1.warn; toast('🧊 冰湖傳來碎裂聲！'); beep(180, 0.5, 'sawtooth', 0.06, 0.6); }
+        if ((st.retryT -= dt) <= 0 && selfSufficient()) { st.dis = 1; st.disT = CFG1.warn; toast('🌨️ 遠方颳起暴風雪！'); beep(180, 0.5, 'sawtooth', 0.06, 0.6); }
       } else if (st.dis === 1) {
-        if ((st.disT -= dt) <= 0) { st.dis = 2; st.disT = CFG1.dis; cracks.visible = true; toast('🧊 冰湖崩裂了！守住火堆！'); }
-      } else if (st.dis === 2) {
-        st.disT -= dt; shake = 0.12;
-        const k = 1 - st.disT / CFG1.dis; cracks.children.forEach(c => { c.visible = k >= c.userData.k * 0.8; }); lake.material.color.setRGB(0.9 - k * 0.55, 0.96 - k * 0.4, 0.99 - k * 0.2);
-        if (st.fuel <= 0) { st.dis = 0; st.retryT = CFG1.retry; cracks.visible = false; lake.material.color.setHex(0xa6dcf4); toast('🔥 火堆熄了…冰裂縫又合起來，晚點再來'); }
-        else if (st.disT <= 0) { st.done = true; finish(); }
+        if ((st.disT -= dt) <= 0) { st.dis = 2; st.disT = CFG1.dis; toast('🌨️ 暴風雪來了！守住火堆！'); }
+      } else if (st.dis === 2) {                                                // 暴風雪：畫面漸漸變白、雪下得又急又大、火堆燒 3 倍；撐到時間到，湖面才崩（dis 3）
+        st.disT -= dt; const k = 1 - st.disT / CFG1.dis; setStorm(Math.min(0.55, k * 1.5) * (0.85 + 0.15 * Math.sin(performance.now() / 300)));
+        if (st.fuel <= 0) { st.dis = 0; st.retryT = CFG1.retry; setStorm(0); toast('🔥 火堆熄了…暴風雪停了，晚點再來'); }
+        else if (st.disT <= 0) { st.dis = 3; st.disT = 4; cracks.visible = true; setStorm(0); toast('🧊 冰湖崩裂了！'); beep(120, 0.8, 'sawtooth', 0.08, 0.6); }
+      } else if (st.dis === 3) {
+        st.disT -= dt; shake = 0.12; const k = 1 - st.disT / 4; cracks.children.forEach(c => { c.visible = k >= c.userData.k * 0.8; }); lake.material.color.setRGB(0.9 - k * 0.55, 0.96 - k * 0.4, 0.99 - k * 0.2);
+        if (st.disT <= 0) { st.done = true; finish(); }
       }
     }
     // 鏡頭
@@ -415,7 +418,7 @@ const stage1 = (() => {
     sunC.copy(player.position).applyMatrix4(sunInv); sunC.x = Math.round(sunC.x / SUN_TEX) * SUN_TEX; sunC.y = Math.round(sunC.y / SUN_TEX) * SUN_TEX; sunC.applyMatrix4(sunRot);
     sun.target.position.copy(sunC); sun.position.set(sunC.x - 10, sunC.y + 20, sunC.z + 8);
     for (let i = 0; i < snowN; i++) {                                           // 下雪
-      snowPos[i * 3 + 1] -= dt * 1.5;
+      snowPos[i * 3 + 1] -= dt * (st.dis === 2 ? 6 : 1.5); if (st.dis === 2) snowPos[i * 3] -= dt * 4;
       if (snowPos[i * 3 + 1] < 0) { snowPos[i * 3 + 1] = 18; snowPos[i * 3] = X + rand(-25, 25); snowPos[i * 3 + 2] = Z + rand(-25, 25); }
     }
     snowGeo.attributes.position.needsUpdate = true;
@@ -467,6 +470,8 @@ const stage1 = (() => {
     if (t > 7) k.fade.style.opacity = Math.min(1, t - 7);
     if (t > 8.2) { save.stage = 2; save.arrive = true; save.res = Math.min(Math.floor(st.pop / 2), 3); writeSave(); resetting = true; try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) {} location.reload(); k.t = -1e9; }
   }
+  let stormEl = null;
+  function setStorm(o) { if (!stormEl) { stormEl = document.createElement('div'); stormEl.style.cssText = 'position:fixed;inset:0;z-index:5;pointer-events:none;background:radial-gradient(circle,rgba(190,212,230,.35),#7d9db8);opacity:0'; document.body.appendChild(stormEl); } stormEl.style.opacity = o; }
   let paceT = 0;
   function finish() {                                                            // 撐過崩裂 → 遷徙劇情卡 → 第 2 關（帶走錢 100%、居民折半）
     writeSave();
