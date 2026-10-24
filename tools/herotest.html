@@ -1,0 +1,55 @@
+<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<body style="margin:0;background:#cfe3f2;font:600 15px sans-serif">
+<script src="../js/lib/three.min.js"></script><script src="../js/lib/GLTFLoader.js"></script>
+<script>
+// 主角造型預覽（v1.04）：node tools/serve.js 後開 http://localhost:8080/tools/herotest.html
+// A 現在的主角（Kenney 小人＋浮著的藍方塊帽）｜B Kenney 小人＋一體毛帽＋大頭 Q 版｜C 自製 Q 版方塊人｜D Kenney 小人＋大頭＋圍巾（沒帽子）
+const W = innerWidth, H = innerHeight, r = new THREE.WebGLRenderer({ antialias: true }); r.setSize(W, H); document.body.appendChild(r.domElement);
+const scene = new THREE.Scene(), cam = new THREE.PerspectiveCamera(32, W / H, .1, 100);
+const narrow = W < H; cam.position.set(0, narrow ? 3.2 : 2.2, narrow ? 17 : 11); cam.lookAt(0, 0.9, 0);
+const dl = new THREE.DirectionalLight(0xffffff, .8); dl.position.set(3, 6, 5); scene.add(new THREE.HemisphereLight(0xffffff, 0x99a, 1), dl);
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(40, 8), new THREE.MeshLambertMaterial({ color: 0xeef4fa })); ground.rotation.x = -Math.PI / 2; scene.add(ground);
+const M = c => new THREE.MeshLambertMaterial({ color: c }), box = (w, h, d, m) => new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m);
+const ring = () => { const m = new THREE.Mesh(new THREE.RingGeometry(0.8, 1.02, 32), new THREE.MeshBasicMaterial({ color: 0x4fc3ff, transparent: true, opacity: .9 })); m.rotation.x = -Math.PI / 2; m.position.y = .03; return m; };
+const label = (t, x) => { const d = document.createElement('div'); d.textContent = t; d.style.cssText = 'position:fixed;top:8px;text-align:center;width:' + 100 / 4 + '%;left:' + x * 25 + '%;text-shadow:0 1px #fff'; document.body.appendChild(d); };
+const names = ['A 現在的（浮著的帽子）', 'B 一體毛帽＋大頭', 'C 自製 Q 版方塊人', 'D 大頭＋圍巾（沒帽子）'];
+const xs = [-3.3, -1.1, 1.1, 3.3].map(v => narrow ? v * .62 : v); names.forEach((n, i) => label(n, i));
+const ld = new THREE.GLTFLoader(), mixers = [];
+// 從頭骨頭上長出一頂毛帽（半球＋白色帽沿＋小球），跟著頭動，不是浮在頭上
+function beanie(head, col) {
+  const g = new THREE.Group(); g.position.set(0, 0.0, 0);
+  const cap = new THREE.Mesh(new THREE.SphereGeometry(0.3, 16, 10, 0, Math.PI * 2, 0, Math.PI / 2), M(col)); cap.position.y = 0.0; cap.scale.set(1.1, 1.05, 1.1);
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(0.29, 0.06, 8, 20), M(0xffffff)); rim.rotation.x = Math.PI / 2; rim.position.y = 0.0; rim.scale.set(1.1, 1.1, 1);
+  const pom = new THREE.Mesh(new THREE.SphereGeometry(0.08, 10, 8), M(0xffffff)); pom.position.y = 0.32;
+  g.add(cap, rim, pom); head.add(g); return g;
+}
+function kenney(x, o) {
+  ld.load('../assets/models/mini/character-male-a.glb', gl => {
+    const m = gl.scene, g = new THREE.Group(); g.position.x = x; g.add(m, ring()); scene.add(g);
+    m.scale.setScalar(1.25 * 1.45);
+    const mx = new THREE.AnimationMixer(m), walk = mx.clipAction(gl.animations.find(a => a.name === 'walk')); walk.play(); mixers.push(mx);
+    const head = m.getObjectByName('head');
+    if (o.bigHead) head.scale.setScalar(o.bigHead);
+    if (o.beanie) { const hb = new THREE.Group(); hb.position.set(0, 0.0, 0); head.add(hb); const b = beanie(hb, 0x2e7bd6); b.position.y = 0.1; b.scale.setScalar(1 / (o.bigHead || 1) * (o.bigHead ? 1 : 1)); b.scale.setScalar(0.58); b.position.y = 0.24; }
+    if (o.oldHat) { const h = box(0.7, 0.25, 0.65, M(0x2e7bd6)); h.position.y = 1.9 / 1.0; g.add(h); }
+    if (o.scarf) { const s = new THREE.Mesh(new THREE.TorusGeometry(0.19, 0.06, 8, 16), M(0xd8453a)); s.rotation.x = Math.PI / 2; head.add(s); s.position.y = -0.1; s.scale.setScalar(0.8); const t = box(0.1, 0.35, 0.05, M(0xd8453a)); t.position.set(0.1, -0.25, -0.1); head.add(t); }
+  });
+}
+kenney(xs[0], { oldHat: true }); kenney(xs[1], { bigHead: 1.35, beanie: true }); kenney(xs[3], { bigHead: 1.35, scarf: true });
+// C 自製 Q 版：大方頭（身體的 1.3 倍高）、短身體、小手腳、藍色毛帽跟頭一體、紅圍巾
+(function () {
+  const g = new THREE.Group(), skin = M(0xffcf9e), blue = M(0x2e7bd6), red = M(0xd8453a), dark = M(0x24486b);
+  const body = box(0.62, 0.55, 0.45, blue); body.position.y = 0.55; const legL = box(0.22, 0.28, 0.25, dark), legR = legL.clone(); legL.position.set(-0.15, 0.14, 0); legR.position.set(0.15, 0.14, 0);
+  const armL = box(0.16, 0.4, 0.2, blue), armR = armL.clone(); armL.position.set(-0.4, 0.58, 0); armR.position.set(0.4, 0.58, 0);
+  const head = box(0.95, 0.85, 0.85, skin); head.position.y = 1.4;
+  const capB = box(1.0, 0.36, 0.9, blue); capB.position.y = 1.7; const rimB = box(1.04, 0.14, 0.94, M(0xffffff)); rimB.position.y = 1.56; const pom = new THREE.Mesh(new THREE.SphereGeometry(0.15, 10, 8), M(0xffffff)); pom.position.y = 1.97;
+  const eyeL = box(0.1, 0.16, 0.05, M(0x222222)), eyeR = eyeL.clone(); eyeL.position.set(-0.2, 1.38, 0.43); eyeR.position.set(0.2, 1.38, 0.43);
+  const cheekL = box(0.14, 0.08, 0.04, M(0xff9a9a)), cheekR = cheekL.clone(); cheekL.position.set(-0.32, 1.25, 0.43); cheekR.position.set(0.32, 1.25, 0.43);
+  const scarf = box(0.7, 0.14, 0.52, red); scarf.position.y = 0.88;
+  g.add(body, legL, legR, armL, armR, head, capB, rimB, pom, eyeL, eyeR, cheekL, cheekR, scarf, ring()); g.position.x = xs[2]; scene.add(g);
+  g.userData.tick = t => { const s = Math.sin(t * 8); legL.rotation.x = s * .6; legR.rotation.x = -s * .6; armL.rotation.x = -s * .5; armR.rotation.x = s * .5; g.position.y = Math.abs(s) * .05; };
+  window.cHero = g;
+})();
+const clock = new THREE.Clock();
+(function loop() { requestAnimationFrame(loop); const dt = clock.getDelta(), t = clock.elapsedTime; mixers.forEach(m => m.update(dt)); cHero.userData.tick(t); r.render(scene, cam); })();
+</script>
