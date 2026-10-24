@@ -41,7 +41,7 @@ function loadModel(key, url, height, onLoad) {                    // height：�
   if (!gltf) return;                                              // 載不到載入器（沒網路）就一直用方塊
   gltf.load(url, r => {
     const o = r.scene;
-    o.traverse(m => { if (m.isMesh) { m.material = new THREE.MeshToonMaterial({ map: m.material.map, color: m.material.color, gradientMap: TOON }); m.castShadow = m.receiveShadow = true; } });
+    o.traverse(m => { if (m.isMesh) { m.material = new THREE.MeshToonMaterial({ map: m.material.map, color: m.material.color, gradientMap: TOON, skinning: !!m.isSkinnedMesh }); m.castShadow = m.receiveShadow = true; if (m.isSkinnedMesh) { m.userData.noInk = true; m.frustumCulled = false; } } }); // 人物是帶骨架的模型：材質要開 skinning、不描邊
     const s = new THREE.Box3().setFromObject(o).getSize(new THREE.Vector3());
     o.scale.setScalar(height / s.y); MODELS[key] = o; onLoad();
   }, undefined, () => {});
@@ -52,12 +52,21 @@ const KIT = {
   rack: ['survival/campfire-stand.glb', 1.4], barrel: ['survival/barrel.glb', 0.9], crate: ['survival/box-large.glb', 0.8], chest: ['survival/chest.glb', 0.6],
   cwall: ['holiday/cabin-wall.glb', 1], cdoor: ['holiday/cabin-doorway.glb', 1], cwin: ['holiday/cabin-window-a.glb', 1], croof: ['holiday/cabin-roof-snow.glb', 1.48], croofc: ['holiday/cabin-roof-snow-chimney.glb', 1.48], sroof: ['holiday/cabin-roof.glb', 1.42], sroofc: ['holiday/cabin-roof-chimney.glb', 1.42], // v0.94 木屋零件（Kenney 假日組）
   anvil: ['survival/workbench-anvil.glb', 0.9],
+  ...Object.fromEntries(['male-a', 'female-a', 'male-b', 'female-b', 'male-c', 'female-c', 'male-d', 'female-d', 'male-e', 'female-e', 'male-f', 'female-f'].map((n, i) => ['mc' + i, ['mini/character-' + n + '.glb', 1.45]])), // v0.96 Kenney mini-characters 12 個人物
   sign: ['survival/signpost.glb', 1.6], lantern: ['holiday/lantern.glb', 0.6],
   rockA: ['survival/rock-a.glb', 1.2], rockB: ['survival/rock-b.glb', 0.9], rockC: ['survival/rock-c.glb', 1.5],
 };
 const kitWait = {};
+// 帶骨架的人物不能直接 .clone()（會共用同一副骨架）：照 three 的 SkeletonUtils.clone 做法，複製後把每個蒙皮網格接到複製出來的骨頭上
+function cloneModel(src) {
+  const c = src.clone(), a = [], b = [];
+  src.traverse(o => a.push(o)); c.traverse(o => b.push(o));
+  const look = new Map(a.map((o, i) => [o, b[i]]));
+  a.forEach((o, i) => { if (o.isSkinnedMesh) { const m = b[i]; m.skeleton = o.skeleton.clone(); m.skeleton.bones = o.skeleton.bones.map(x => look.get(x)); m.bind(m.skeleton, o.bindMatrix); } });
+  return c;
+}
 function kit(key, parent, x, y, z, ry = 0, s = 1, cb) {
-  const put = () => { const m = MODELS[key].clone(); m.position.set(x, y, z); m.rotation.y = ry; m.scale.multiplyScalar(s); parent.add(m); if (cb) cb(m); };
+  const put = () => { const m = cloneModel(MODELS[key]); m.position.set(x, y, z); m.rotation.y = ry; m.scale.multiplyScalar(s); parent.add(m); if (cb) cb(m); };
   if (MODELS[key]) return put();
   if (!kitWait[key]) { kitWait[key] = []; loadModel(key, 'assets/models/' + KIT[key][0], KIT[key][1], () => kitWait[key].forEach(f => f())); }
   kitWait[key].push(put);
@@ -481,3 +490,6 @@ function setBuildingState(b) {
   b.label.set(lines, b.dead || pct <= 50 ? '#ff6a5a' : b.cold ? '#9fdcff' : '#ffd34d');
 }
 
+
+// 人物換成 Kenney mini-characters：n 選哪個造型；模型載好就把舊的方塊身體、頭藏起來（帽子留著，用顏色分工種）
+function dress(g, olds, n) { kit('mc' + (n % 12), g, 0, 0, 0, 0, 1, () => olds.forEach(o => o.visible = false)); }

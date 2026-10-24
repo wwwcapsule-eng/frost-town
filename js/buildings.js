@@ -97,7 +97,7 @@ const villagers = [], leaving = [];
 function makeVillager(i, walkIn) {
   const g = new THREE.Group();
   const b = box(0.55, 0.7, 0.4, M(SHIRTS[(Math.random() * SHIRTS.length) | 0])); b.position.y = 0.55; g.add(b);
-  const h = box(0.42, 0.4, 0.4, mats.skin); h.position.y = 1.1; g.add(h);
+  const h = box(0.42, 0.4, 0.4, mats.skin); h.position.y = 1.1; g.add(h); dress(g, [b, h], (Math.random() * 12) | 0);
   const c = box(0.48, 0.16, 0.45, M(0x24486b)); c.position.y = 1.36; g.add(c);
   const p = QUEUE(i + 4); g.position.set(p.x + rand(-0.3, 0.3), 0, walkIn ? Math.max(p.z, 42) : p.z); g.rotation.y = Math.PI; // v0.81（作者：南邊來人）：新來的流民從南邊的路走進來
   scene.add(g);
@@ -304,7 +304,7 @@ const workers = [];
 function addWorker() {
   const g = new THREE.Group();
   const b = box(0.6, 0.75, 0.45, M(0xf08a24)); b.position.y = 0.6; g.add(b);
-  const h = box(0.45, 0.42, 0.42, mats.skin); h.position.y = 1.2; g.add(h);
+  const h = box(0.45, 0.42, 0.42, mats.skin); h.position.y = 1.2; g.add(h); dress(g, [b, h], 0);
   const c = box(0.5, 0.18, 0.48, M(0xc0392b)); c.position.y = 1.48; g.add(c);
   const back = new THREE.Group(); back.position.set(0, 1.0, -0.4); g.add(back);
   g.position.set(3.5, 0, 3); scene.add(g);
@@ -367,7 +367,7 @@ const porters = [];
 function addPorter() {
   const g = new THREE.Group();
   const b = box(0.6, 0.75, 0.45, M(0x8e6b3e)); b.position.y = 0.6; g.add(b);
-  const h = box(0.45, 0.42, 0.42, mats.skin); h.position.y = 1.2; g.add(h);
+  const h = box(0.45, 0.42, 0.42, mats.skin); h.position.y = 1.2; g.add(h); dress(g, [b, h], 2);
   const c = box(0.5, 0.18, 0.48, M(0x3fa66b)); c.position.y = 1.48; g.add(c);
   const cargo = box(0.55, 0.45, 0.35, mats.wood); cargo.position.set(0, 0.9, -0.4); cargo.visible = false; g.add(cargo);
   g.position.set(LOT.store[0] - 1 + porters.length, 0, LOT.store[1] + 2); scene.add(g);
@@ -742,7 +742,7 @@ const shovelers = [];
 function addShoveler() {
   const g = new THREE.Group();
   const b = box(0.6, 0.75, 0.45, M(0x4fb3e8)); b.position.y = 0.6; g.add(b);
-  const h = box(0.45, 0.42, 0.42, mats.skin); h.position.y = 1.2; g.add(h);
+  const h = box(0.45, 0.42, 0.42, mats.skin); h.position.y = 1.2; g.add(h); dress(g, [b, h], 4);
   const hat = box(0.5, 0.18, 0.5, M(0xffffff)); hat.position.y = 1.5; g.add(hat);
   const sh = box(0.12, 0.12, 0.9, mats.axe); sh.position.set(0.35, 0.6, 0.35); g.add(sh);   // 鏟子
   g.position.set(LOT.shovel[0] - 1.4, 0, LOT.shovel[1] - 1.2); scene.add(g);

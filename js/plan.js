@@ -523,7 +523,7 @@ const hunters = [];
 function addHunter() {
   const g = new THREE.Group();
   const b = box(0.6, 0.75, 0.45, M(0x6b4a2b)); b.position.y = 0.6; g.add(b);
-  const h = box(0.45, 0.42, 0.42, mats.skin); h.position.y = 1.2; g.add(h);
+  const h = box(0.45, 0.42, 0.42, mats.skin); h.position.y = 1.2; g.add(h); dress(g, [b, h], 6);
   const c = box(0.5, 0.18, 0.48, M(0x2f5d3a)); c.position.y = 1.48; g.add(c);
   const bow = box(0.08, 0.9, 0.08, mats.trunk); bow.position.set(0.38, 0.75, 0.15); g.add(bow);
   const back = new THREE.Group(); back.position.set(0, 1.0, -0.4); g.add(back);
@@ -574,7 +574,7 @@ const coalers = [];
 function addCoaler(kind = 'coal') {                           // kind 'stone'＝採石工（v0.89，同一套寫法，白色安全帽）
   const g = new THREE.Group();
   const b = box(0.6, 0.75, 0.45, M(0x4a4f5a)); b.position.y = 0.6; g.add(b);
-  const h = box(0.45, 0.42, 0.42, mats.skin); h.position.y = 1.2; g.add(h);
+  const h = box(0.45, 0.42, 0.42, mats.skin); h.position.y = 1.2; g.add(h); dress(g, [b, h], kind === 'stone' ? 8 : 10);
   const c = box(0.5, 0.18, 0.48, M(kind === 'stone' ? 0xe8ecf0 : 0xe8b030)); c.position.y = 1.48; g.add(c);            // 黃色礦工帽
   const pick = box(0.08, 0.08, 0.8, mats.axe); pick.position.set(0.38, 0.75, 0.2); g.add(pick);
   const back = new THREE.Group(); back.position.set(0, 1.0, -0.4); g.add(back);
