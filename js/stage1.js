@@ -33,7 +33,7 @@ const stage1 = (() => {
   // ---- 場景 ----
   const ground = new THREE.Mesh(new THREE.CircleGeometry(44, 48), mat(0x6f9dbd)); ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; root.add(ground);
   const lakeBed = new THREE.Mesh(new THREE.CircleGeometry(LAKE[2], 40), mat(0x2b78ab)); lakeBed.rotation.x = -Math.PI / 2; lakeBed.position.set(LAKE[0], 0.02, LAKE[1]); root.add(lakeBed);   // v1.20（作者：北面湖面太白刺眼）：湖底深藍、上面一層半透明冰、冰底下有魚在游
-  const lakeFish = []; for (let i = 0; i < 9; i++) { const f = fishMesh(0x163f63); f.scale.setScalar(1.7); f.position.y = 0.05; root.add(f); lakeFish.push({ f, a: i * 0.7, r: 3.2 + (i % 3) * 1.4, sp: (0.22 + (i % 4) * 0.07) * (i % 2 ? 1 : -1) }); }
+  const lakeFish = []; for (let i = 0; i < 9; i++) { const f = fishMesh(0x163f63); f.scale.setScalar(1.7); f.position.y = 0.05; root.add(f); const a = i * 0.7, r = 3.2 + (i % 3) * 1.4; f.position.set(LAKE[0] + Math.cos(a) * r, 0.05, LAKE[1] + Math.sin(a) * r); lakeFish.push({ f, h: Math.random() * 6.28, t: Math.random() * 3, turn: 0, sp: 0.7 + (i % 4) * 0.2 }); }
   const lakeMat = new THREE.MeshToonMaterial({ color: 0xa6dcf4, gradientMap: TOON, transparent: true, opacity: 0.5, depthWrite: false });
   const lake = new THREE.Mesh(new THREE.CircleGeometry(LAKE[2], 40), lakeMat); lake.rotation.x = -Math.PI / 2; lake.position.set(LAKE[0], 0.09, LAKE[1]); root.add(lake);
   const rim = new THREE.Mesh(new THREE.RingGeometry(LAKE[2], LAKE[2] + 0.8, 40), mat(0x9ecde6)); rim.rotation.x = -Math.PI / 2; rim.position.set(LAKE[0], 0.025, LAKE[1]); root.add(rim);
@@ -108,53 +108,41 @@ const stage1 = (() => {
   // 冰屋（v1.18 放大：圓頂半徑 2.4、高 2.2，門洞 1.1 寬 1.5 高，主角站得進去）
   const IG = { rx: 2.4, ry: 2.1, hit: 3.0 };
   function buildIgloo(i, pop = true) {
-    // v1.21（作者給了一張參考圖）：柔軟的大冰磚圓頂（6 圈、每圈錯開半塊、白裡帶一點冰藍）、頂上一層雪帽、冒煙的小煙囪、
-    // 前面一個覆雪的入口＋木框拱門＋藍色木門＋圓窗＋燈串、側面暖光小窗、磚縫下的冰柱、圓形雪座、小松樹和石頭
     const [x, z] = SLOTS[i], g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = Math.atan2(FIRE[0] - x, FIRE[1] - z); root.add(g);
-    const snow = mat(0xd9e8f3), wood = mat(0xb9824a), glow = new THREE.MeshBasicMaterial({ color: 0xffd98a }), gold = mat(0xd9a441);
-    ell(snow, 3.5, 0.3, 3.5, 0, 0.05, 0.4, g);                                          // 雪座
-    ell(mat(0x5c8db4), IG.rx * 0.97, IG.ry * 0.97, IG.rx * 0.97, 0, 0, 0, g);            // 內核：磚縫的藍色影子
-    const ROWS = 6, list = [];
+    // v1.20（作者：冰屋要一塊一塊冰磚、像網路上的冰屋）：圓頂用幾圈半透明冰藍色磚塊疊成（InstancedMesh：一間冰屋一次畫完），
+    // 每圈磚比上一圈錯開半塊、顏色深淺不一；門口留洞、接一條磚砌的短隧道；裡面一顆深藍內核透出來
+    ell(mat(0x3f86b8), IG.rx * 0.9, IG.ry * 0.9, IG.rx * 0.9, 0, 0, 0, g);
+    const ROWS = 9, bricks = [];
     for (let r = 0; r < ROWS; r++) {
-      const phi = (r + 0.5) / ROWS * (Math.PI / 2) * 0.93, R = IG.rx * Math.cos(phi), n = Math.max(5, Math.round(2 * Math.PI * R / 1.5)), hh = IG.ry * (Math.PI / 2 / ROWS) * 0.93 * 1.12;
+      const phi = (r + 0.5) / ROWS * (Math.PI / 2), R = IG.rx * Math.cos(phi), n = Math.max(5, Math.round(2 * Math.PI * R / 1.0)), h = IG.ry * (Math.PI / 2 / ROWS) * 1.18;
       for (let k = 0; k < n; k++) {
-        const th = (k + (r % 2) * 0.5) / n * Math.PI * 2, dth = Math.atan2(Math.sin(th), Math.cos(th));
-        if (Math.abs(dth) < 0.55 && IG.ry * Math.sin(phi) < 1.9) continue;               // 入口那側的磚被覆雪入口蓋住
-        list.push([IG.rx * Math.cos(phi) * Math.sin(th), IG.ry * Math.sin(phi), IG.rx * Math.cos(phi) * Math.cos(th), 2 * Math.PI * R / n * 0.56, hh * 0.54]);
+        const th = (k + (r % 2) * 0.5) / n * Math.PI * 2;
+        if (Math.abs(Math.atan2(Math.sin(th), Math.cos(th)) - 0) < 0.42 && IG.ry * Math.sin(phi) < 1.5) continue;     // 門口（+z 方向）留洞
+        bricks.push([IG.rx * Math.cos(phi) * Math.sin(th), IG.ry * Math.sin(phi), IG.rx * Math.cos(phi) * Math.cos(th), 2 * Math.PI * R / n * 0.97, h, 0.55, phi, th]);
       }
     }
-    const im = new THREE.InstancedMesh(new THREE.SphereGeometry(1, 10, 8), new THREE.MeshToonMaterial({ color: 0xffffff, gradientMap: TOON }), list.length), d = new THREE.Object3D(), c = new THREE.Color(), nv = new THREE.Vector3();
-    list.forEach((b, k) => {
-      d.position.set(b[0], b[1], b[2]); nv.set(b[0] / (IG.rx * IG.rx), b[1] / (IG.ry * IG.ry), b[2] / (IG.rx * IG.rx)).normalize(); d.lookAt(d.position.x + nv.x, d.position.y + nv.y, d.position.z + nv.z);
-      d.scale.set(b[3], b[4], 0.42); d.updateMatrix(); im.setMatrixAt(k, d.matrix);
-      c.setHex(0x6c9fc6).offsetHSL(((k * 5) % 3 - 1) * 0.006, 0, ((k * 13) % 7 - 3) * 0.02); im.setColorAt(k, c);
+    const tn = 5, tr = 0.95;                                                    // 隧道：5 圈、每圈 8 塊，往 +z 伸出去
+    for (let r = 0; r < tn; r++) for (let k = 0; k < 8; k++) {
+      const th = k / 8 * Math.PI + (r % 2) * Math.PI / 16, y = 0.3 + Math.sin(th) * 0.95, xx = Math.cos(th) * tr;
+      if (Math.sin(th) < 0.0 && false) continue;
+      bricks.push([xx, y, 2.3 + r * 0.42, 0.62, 0.55, 0.42, 'tn', th]);
+    }
+    const geo = new THREE.BoxGeometry(1, 1, 1), im = new THREE.InstancedMesh(geo, new THREE.MeshToonMaterial({ color: 0xffffff, gradientMap: TOON, transparent: true, opacity: 0.84, depthWrite: false }), bricks.length), d = new THREE.Object3D(), c = new THREE.Color();
+    bricks.forEach((br, i) => {
+      d.position.set(br[0], br[1], br[2]);
+      if (br[6] === 'tn') d.rotation.set(0, 0, br[7] - Math.PI / 2); else { d.lookAt(d.position.x * 2, d.position.y * 1.2 + 0.2, d.position.z * 2); }
+      d.scale.set(br[3], br[4], br[5]); d.updateMatrix(); im.setMatrixAt(i, d.matrix);
+      c.setHex(0x9bd1ee).offsetHSL(0, (i * 7 % 5) * 0.012, ((i * 13) % 7 - 3) * 0.018); im.setColorAt(i, c);
     });
     im.userData.noInk = true; g.add(im);
-    ell(snow, 1.35, 0.5, 1.35, 0, IG.ry * 0.9, 0, g); ell(snow, 0.55, 0.38, 0.55, 1.55, IG.ry * 0.66, 0.5, g); ell(snow, 0.45, 0.3, 0.45, -1.2, IG.ry * 0.7, 1.1, g);   // 雪帽
-    for (const th of [0.9, 1.5, 2.3, 3.4, 4.2, 5.0, -0.95]) { const R = IG.rx * 0.9, ic = new THREE.Mesh(new THREE.ConeGeometry(0.075, 0.42, 5), mat(0xc3e0f0)); ic.rotation.x = Math.PI; ic.position.set(Math.sin(th) * R, 1.08, Math.cos(th) * R); g.add(ic); }   // 冰柱
-    const chim = new THREE.Group(); chim.position.set(1.05, IG.ry * 0.82, -0.75); g.add(chim);                           // 煙囪＋冒煙
-    { const bx = box(0.55, 0.95, 0.55, mat(0xb8c6d2)); bx.position.y = 0.3; chim.add(bx); ell(snow, 0.42, 0.18, 0.42, 0, 0.82, 0, chim); }
-    const smokeP = []; for (let k = 0; k < 4; k++) smokeP.push(ell(new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5, depthWrite: false }), 0.25, 0.25, 0.25, 0, 1.0, 0, chim));
-    // 入口：覆雪的小隧道＋木框拱門＋藍色木門＋圓窗＋燈串
-    ell(snow, 1.55, 1.4, 1.5, 0, 0.2, 2.05, g);
-    const door = new THREE.Group(); door.position.set(0, 0, 3.42); g.add(door);
-    { const pb = box(1.16, 1.0, 0.08, mat(0x7fa8cf)); pb.position.y = 0.5; door.add(pb);
-      const top = new THREE.Mesh(new THREE.CircleGeometry(0.58, 16, 0, Math.PI), mat(0x7fa8cf)); top.position.set(0, 1.0, 0.04); door.add(top);
-      const arch = new THREE.Mesh(new THREE.TorusGeometry(0.62, 0.08, 6, 14, Math.PI), wood); arch.position.set(0, 1.0, 0.05); door.add(arch);
-      [-0.62, 0.62].forEach(px => { const p = box(0.16, 1.0, 0.12, wood); p.position.set(px, 0.5, 0.05); door.add(p); });
-      const wr = new THREE.Mesh(new THREE.TorusGeometry(0.17, 0.04, 6, 14), gold); wr.position.set(0, 1.0, 0.1); door.add(wr);
-      const wg = new THREE.Mesh(new THREE.CircleGeometry(0.17, 14), mat(0xcfe6f5)); wg.position.set(0, 1.0, 0.07); door.add(wg);
-      ell(gold, 0.05, 0.05, 0.05, 0.4, 0.5, 0.1, door);
-      const bulbs = []; for (let k = 0; k < 9; k++) { const a = 0.08 * Math.PI + k / 8 * 0.84 * Math.PI, bl = new THREE.Mesh(new THREE.SphereGeometry(0.055, 6, 5), new THREE.MeshBasicMaterial({ color: 0xffe9a0 })); bl.position.set(Math.cos(a) * 0.86, 1.0 + Math.sin(a) * 0.86, 0.14); door.add(bl); bulbs.push(bl.position.clone()); }
-      door.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(bulbs), new THREE.LineBasicMaterial({ color: 0x4a4a55 }))); }
-    // 側面暖光小窗（木框、十字窗格、雪窗台）
-    { const th = -1.0, phi = 0.36, wx = IG.rx * Math.cos(phi) * Math.sin(th), wy = IG.ry * Math.sin(phi), wz = IG.rx * Math.cos(phi) * Math.cos(th), wg2 = new THREE.Group(); wg2.position.set(wx, wy, wz); wg2.rotation.y = th; g.add(wg2);
-      const fr = box(0.8, 0.86, 0.12, wood); fr.position.z = 0.06; wg2.add(fr); const gl = new THREE.Mesh(new THREE.PlaneGeometry(0.58, 0.64), glow); gl.position.z = 0.13; wg2.add(gl);
-      [[0.04, 0.64], [0.58, 0.04]].forEach(([w, h]) => { const bar = box(w, h, 0.03, wood); bar.position.z = 0.15; wg2.add(bar); }); ell(snow, 0.5, 0.1, 0.18, 0, -0.46, 0.12, wg2); }
-    // 小松樹、石頭
-    { const tr = new THREE.Group(); tr.userData.noInk = true; treeLook(tr, 'fir'); tr.scale.setScalar(0.62); tr.position.set(-3.0, 0, 2.0); g.add(tr);
-      ell(mat(0xc9c2b4), 0.45, 0.3, 0.4, 2.7, 0.15, 2.1, g); ell(snow, 0.4, 0.13, 0.36, 2.7, 0.33, 2.1, g); ell(mat(0xb9b2a4), 0.3, 0.2, 0.28, 3.15, 0.1, 1.6, g); }
-    igloos.push({ g, x, z, smoke: smokeP });
+    const door = new THREE.Mesh(new THREE.CircleGeometry(0.7, 16), mat(0x23364a)); door.position.set(0, 0.5, 2.15); g.add(door);
+    // v1.22（作者：之前透明的比較好，加一點雪當造型）：頂上蓋一頂雪帽、地上一圈雪座、隧道頂和門兩側堆雪、磚縫下掛冰柱、旁邊一顆小雪堆
+    const snow = mat(0xf2f8fc);
+    ell(snow, 3.3, 0.25, 3.3, 0, 0.02, 0.5, g);
+    ell(snow, 1.2, 0.42, 1.2, 0, IG.ry * 0.93, 0, g); ell(snow, 0.6, 0.3, 0.6, 1.2, IG.ry * 0.78, 0.4, g); ell(snow, 0.5, 0.26, 0.5, -1.1, IG.ry * 0.8, 0.9, g);
+    ell(snow, 0.55, 0.35, 1.0, 0, 1.3, 3.0, g); ell(snow, 0.5, 0.3, 0.5, -0.85, 0.22, 3.9, g); ell(snow, 0.5, 0.3, 0.5, 0.85, 0.22, 3.9, g);
+    for (const th of [0.9, 1.8, 2.7, 3.7, 4.6, -0.9]) { const R = IG.rx * 0.82, ic = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.38, 5), mat(0xdff0fa)); ic.rotation.x = Math.PI; ic.position.set(Math.sin(th) * R, 0.75, Math.cos(th) * R); g.add(ic); }
+    igloos.push({ g, x, z, smoke: [] });
     if (pop) { sfx.unlock(); sparkleAt(x, z); }
   }
   function sparkleAt(x, z) { for (let i = 0; i < 6; i++) floatText('✨', x + (i - 2.5) * 0.4, z + (i % 2) * 0.6, '#ffe066'); }
@@ -325,7 +313,11 @@ const stage1 = (() => {
     for (const t of forest) if (t.shake > 0) { t.shake -= dt; t.g.rotation.z = Math.sin(t.shake * 60) * 0.08; } else t.g.rotation.z = 0;
     // 湖中間的大冰洞：人一走近，旁邊三根釣竿就自動釣魚（跟鏟子、斧頭一樣不用按）
     tFish += dt;
-    lakeFish.forEach(o => { o.a += o.sp * dt; o.f.position.set(LAKE[0] + Math.cos(o.a) * o.r, 0.05, LAKE[1] + Math.sin(o.a) * o.r); o.f.rotation.y = -o.a + (o.sp > 0 ? 0 : Math.PI) + Math.PI / 2; });
+    lakeFish.forEach(o => {                                                                // 魚隨意游：頭朝前、慢慢轉彎，游到湖邊就轉回來
+      o.t -= dt; if (o.t < 0) { o.t = 1.5 + Math.random() * 3; o.turn = (Math.random() - 0.5) * 1.2; }
+      const dx = o.f.position.x - LAKE[0], dz = o.f.position.z - LAKE[1];
+      if (dx * dx + dz * dz > 6.2 * 6.2) { const want = Math.atan2(dz, -dx); let df = want - o.h; df = Math.atan2(Math.sin(df), Math.cos(df)); o.turn = Math.sign(df) * 1.2; }
+      o.h += o.turn * dt; o.f.position.x += Math.cos(o.h) * o.sp * dt; o.f.position.z -= Math.sin(o.h) * o.sp * dt; o.f.rotation.y = o.h; });
     for (const h of holes) {
       const near = dist(h, X, Z) < HOLE_R + 1.6 && bag.length < CFG1.cap;
       if (near) { h.prog += dt; player.rotation.y = Math.atan2(h.x - X, h.z - Z); if (h.prog >= CFG1.fishT) { h.prog = 0; addBag('fish'); sfx.coin(); floatText('+🐟', h.x, h.z, '#bfe8ff'); } }
