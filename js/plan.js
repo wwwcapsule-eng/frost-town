@@ -29,6 +29,7 @@ const zones = new THREE.Group(); zones.visible = false; scene.add(zones);
 function autoSpot(k) {
   const c = CFG.cell, cells = [];
   for (let i = -12; i < 12; i++) for (let j = -12; j < 12; j++) cells.push([(i + 0.5) * c, (j + 0.5) * c]);
+  if (k === 'tower') for (let i = -12; i < 12; i++) cells.push([(i + 0.5) * c, towerZ()]);
   const [ox, oz] = k === 'tower' ? [0, -FENCE_R - 3] : [FX, FZ];  // 弩砲塔：靠近北門外熊來的路；其他：靠近火爐比較暖
   cells.sort((a, b) => Math.hypot(a[0] - ox, a[1] - oz) - Math.hypot(b[0] - ox, b[1] - oz));
   return cells.find(([x, z]) => canBuild(x, z, k)) || null;
@@ -45,7 +46,7 @@ function planLimit(k) {
   if (k === 'gate') return save.gates.length < CFG.gateMax;      // 開採煤礦後才有煤可以打
   return k === 'house' ? houses.length < lv.houses : heaters.length < lv.heaters + (save.stove ? 1 : 0);
 }
-const wrongZone = (x, z, k) => (PRO || k === 'smith') && KIND_ZONE[k] && zoneOf(x, z) !== KIND_ZONE[k]; // 正式關：同一區蓋同類建築
+const wrongZone = (x, z, k) => (PRO || k === 'smith') && KIND_ZONE[k] && k !== 'tower' && zoneOf(x, z) !== KIND_ZONE[k]; // 正式關：同一區蓋同類建築
 // 圍欄開口（v0.66）：點在圍欄上的格子 → 回傳開在哪一邊、哪個位置；角落、太靠近別的門、門口有建築都不行
 function gateSpot(x, z) {
   for (const a of [0, Math.PI / 2, Math.PI, Math.PI * 1.5]) {
@@ -57,6 +58,12 @@ function gateSpot(x, z) {
     return { a, off: l.t };
   }
   return null;
+}
+// 格子中心；弩砲塔離原本那一排（towerZ）半格內就貼齊，才能跟原本的塔排在同一排
+function cellAt(p, k) {
+  const c = CFG.cell, x = (Math.floor(p.x / c) + 0.5) * c; let z = (Math.floor(p.z / c) + 0.5) * c;
+  if (k === 'tower' && Math.abs(z - towerZ()) <= c / 2) z = towerZ();
+  return [x, z];
 }
 function canBuild(x, z, k) {
   if (k === 'gate') return !!gateSpot(x, z);
@@ -152,7 +159,7 @@ function planPointer(type, e) {
     if (d.moved) return;
     ray.setFromCamera(new THREE.Vector2(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1), camera);
     const p = ray.ray.intersectPlane(groundPlane, new THREE.Vector3()); if (!p) return;
-    const c = CFG.cell, x = (Math.floor(p.x / c) + 0.5) * c, z = (Math.floor(p.z / c) + 0.5) * c;
+    const [x, z] = cellAt(p, plan.kind);
     plan.cell = [x, z]; cursor.position.x = x; cursor.position.z = z; planUi();
   }
 }
@@ -194,7 +201,7 @@ function pickAt(cx, cy, id) {
 }
 function dragMove(e) {
   const p = groundAt(e.clientX, e.clientY); if (!p) return;
-  const c = CFG.cell, x = (Math.floor(p.x / c) + 0.5) * c, z = (Math.floor(p.z / c) + 0.5) * c, k = plan.move.k;
+  const k = plan.move.k, [x, z] = cellAt(p, k);
   plan.move.x = x; plan.move.z = z;
   plan.move.b.g.position.set(x, 0.6, z); cursor.position.x = x; cursor.position.z = z;
   const ok = canBuild(x, z, k);
