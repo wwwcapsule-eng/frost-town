@@ -54,7 +54,7 @@ const KIT = {
   anvil: ['survival/workbench-anvil.glb', 0.9],
   ...Object.fromEntries(['male-a', 'female-a', 'male-b', 'female-b', 'male-c', 'female-c', 'male-d', 'female-d', 'male-e', 'female-e', 'male-f', 'female-f'].map((n, i) => ['mc' + i, ['mini/character-' + n + '.glb', 1.45]])), // v0.96 Kenney mini-characters 12 個人物
   sign: ['survival/signpost.glb', 1.6], lantern: ['holiday/lantern.glb', 0.6],
-  kkBarbarian: ['kaykit/Barbarian.glb', 1.6], kkRanger: ['kaykit/Ranger.glb', 1.6], kkMage: ['kaykit/Mage.glb', 2.0], // v1.06 KayKit Adventurers（CC0）
+  kkBarbarian: ['kaykit/Barbarian.glb', 1.6], kkRanger: ['kaykit/Ranger.glb', 1.6], // v1.06 KayKit Adventurers（CC0）
   rockA: ['survival/rock-a.glb', 1.2], rockB: ['survival/rock-b.glb', 0.9], rockC: ['survival/rock-c.glb', 1.5],
 };
 const kitWait = {};
