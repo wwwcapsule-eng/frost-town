@@ -21,12 +21,12 @@ const stage1 = (() => {
   // v1.27（作者：建物不能太近、不能互相遮擋，烤魚攤位置太怪，升級格也要照第 2 關的邏輯）：
   // 每棟建築有自己的一塊「地」：建築蓋在地上、操作格（付款／送魚）在建築旁、升級格貼著自己的建築；格子彼此 ≥3、離建築邊緣 ≥1.5（跟第 2 關 PAD_GAP／PAD_BLD 一樣）；
   // 冰屋的蓋屋格直接放在下一間冰屋的位置（像第 2 關民房格），蓋好就搬到下一個位置
-  const FIRE = [0, 8.5], PAD = [-10.5, 0.5], AXEPAD = [0, 11.7], STALL = [0, 15.6], RAWPAD = [-3.5, 15.6], WHUP = [0, 4.7], STALLUP = [3.5, 15.6], FISHUP = [5.2, -10.5], LAKE = [0, -13, 7.5];
-  const SLOTS = [[-10.5, 0.5], [10.5, 0.5], [-10.5, 16.0], [10.5, 16.0]];
+  const FIRE = [0, 8.5], PAD = [-11, -0.5], AXEPAD = [0, 11.7], STALL = [0, 15.6], RAWPAD = [-3.5, 15.6], WHUP = [-4.8, 7.9], STALLUP = [3.5, 15.6], FISHUP = [5.2, -10.5], LAKE = [0, -13, 7.5];
+  const SLOTS = [[-11, -0.5], [11, -0.5], [-11, 16.5], [11, 16.5]];
   const BANKS = [];       // v1.20（作者：不能鏟的雪從營區拿掉、能鏟的集中成一座大雪堆）：南門外一座大雪堆，十幾個雪堆擠在一起
   const HILL = [0, 37];
   for (let j = -2; j <= 2; j++) for (let x = -7.4 + (j & 1 ? 1.35 : 0); x <= 7.5; x += 2.7) { if ((x / 7.8) ** 2 + (j * 2.5 / 5.6) ** 2 <= 1) BANKS.push([+(HILL[0] + x).toFixed(1), +(HILL[1] + j * 2.5).toFixed(1)]); }
-  const WH = [0, 1.0], TWIGS = [-0.5, 3, 6, 11.5, 14.5, 18, 21.5].flatMap(z => [[-17.5, z], [17.5, z]]);   // v1.24：枯枝 4→10 堆
+  const WH = [-4.8, 4.2], WOOD = [4.8, 4.2], TWIGS = [-0.5, 3, 6, 11.5, 14.5, 18, 21.5].flatMap(z => [[-17.5, z], [17.5, z]]);   // v1.24：枯枝 4→10 堆
   const HOLES = [[0, -10.5]];                                                // 湖中間一個挖出來的大洞（半徑 1.7），旁邊插三根釣竿，人走近就自動釣魚
   const HOLE_R = 1.7;
   const QUEUE = [[0, 18.8], [0, 20.2], [0, 21.6]];     // 烤魚攤前排隊的位置（往南門方向排）
@@ -74,6 +74,9 @@ const stage1 = (() => {
     forest.push({ g, x, z, sc, hp: CFG1.treeHp, alive: true, t: 0, shake: 0 });
   }
   ell(mat(0x95b7d4), 8.8, 2.3, 6.4, HILL[0], 0.1, HILL[1], root);                  // 大雪堆的底：一座寬寬的雪山，上面擠著可以挖的雪堆
+  { const wp = new THREE.Group(); wp.position.set(WOOD[0], 0, WOOD[1]); root.add(wp);       // 柴堆：疊起來的圓木＋雪帽（裝飾，跟西邊的冰窖左右對稱）
+    [[-0.5, 0.2, 0], [0.5, 0.2, 0], [0, 0.2, 0.55], [0, 0.55, 0.15], [-0.4, 0.2, -0.55], [0.4, 0.2, -0.55]].forEach(([x, y, z], i) => { const l = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 1.7, 8), mats.log); l.rotation.z = Math.PI / 2; l.rotation.y = i % 2 ? 0.1 : -0.1; l.position.set(x, y, z); wp.add(l); });
+    ell(mat(0xf2f8fc), 1.0, 0.18, 0.9, 0, 0.78, 0, wp); }
   // 火堆：一圈石頭＋火焰；暖光圈
   const fireG = new THREE.Group(); fireG.position.set(FIRE[0], 0, FIRE[1]); root.add(fireG);
   for (let i = 0; i < 7; i++) { const a = i / 7 * Math.PI * 2; ell(mat(0x8a929c), 0.38, 0.28, 0.34, Math.sin(a) * 0.95, 0.2, Math.cos(a) * 0.95, fireG); }
@@ -562,7 +565,7 @@ const stage1 = (() => {
   }
   // 最小間距檢查（給 layout-check 用）：格子、雪堆、枯枝、冰洞、冰屋、烤魚攤、火堆互相隔夠遠
   S.check = () => {
-    const out = [], bld = [['火堆', FIRE[0], FIRE[1], 1.2], ['冰窖', WH[0], WH[1], 1.9], ['烤魚攤', STALL[0], STALL[1], 1.8], ...SLOTS.map((p, i) => ['冰屋' + (i + 1), p[0], p[1], IG.hit]), ...HOLES.map((p, i) => ['冰洞' + i, p[0], p[1], HOLE_R + 0.3])];
+    const out = [], bld = [['火堆', FIRE[0], FIRE[1], 1.2], ['冰窖', WH[0], WH[1], 1.9], ['柴堆', WOOD[0], WOOD[1], 1.2], ['烤魚攤', STALL[0], STALL[1], 1.8], ...SLOTS.map((p, i) => ['冰屋' + (i + 1), p[0], p[1], IG.hit]), ...HOLES.map((p, i) => ['冰洞' + i, p[0], p[1], HOLE_R + 0.3])];
     const pads = [...SLOTS.map((p, i) => ['蓋冰屋格' + (i + 1), p[0], p[1], '冰屋' + (i + 1)]), ['蓋冰窖格', WH[0], WH[1], '冰窖'], ['蓋烤魚攤格', STALL[0], STALL[1], '烤魚攤'], ['做斧頭／升級格', AXEPAD[0], AXEPAD[1]], ['送魚格', RAWPAD[0], RAWPAD[1]], ['冰窖升級格', WHUP[0], WHUP[1]], ['烤魚攤升級格', STALLUP[0], STALLUP[1]], ['釣竿升級格', FISHUP[0], FISHUP[1]]];
     const slotPadNames = pads.filter(p => /^蓋冰屋格/.test(p[0]));
     for (let i = 0; i < bld.length; i++) for (let j = i + 1; j < bld.length; j++) { const d = Math.hypot(bld[i][1] - bld[j][1], bld[i][2] - bld[j][2]); if (d < bld[i][3] + bld[j][3] + 0.4) out.push('第1關建築太近：' + bld[i][0] + ' 和 ' + bld[j][0] + '（' + d.toFixed(1) + '）'); }
