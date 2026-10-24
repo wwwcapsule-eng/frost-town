@@ -145,6 +145,8 @@ function hud() {
   if (shownWood !== key) { $('wood').textContent = nLog; $('meat').textContent = nMeat; $('coal').textContent = nCoal; $('stone').textContent = nStone; shownWood = key; }
   if (save.wh) { const st = save.store; $('sPlank').textContent = st.plank; $('sNeed').textContent = '/' + plankNeed(); $('sFood').textContent = st.food; $('sCoal').textContent = st.coal; $('sCoalW').style.display = save.mine ? '' : 'none'; $('sJerky').textContent = st.jerky; $('sJerkyW').style.display = save.smoke ? '' : 'none'; $('sStone').textContent = st.stone; $('sStoneW').style.display = save.quarry ? '' : 'none'; $('pStore').classList.toggle('danger', wh.hungry); }
   $('capW').textContent = '/' + capacity(); $('capM').textContent = '/' + capacity(); $('capC').textContent = '/' + capacity(); $('capS').textContent = '/' + capacity();
+  { const show = { pWood: nLog, pMeat: nMeat, pCoal: save.mine ? nCoal : 0, pStone: save.quarry ? nStone : 0 };   // v1.29（作者：下面的資源會擋到、有些重複）：揹包裡沒有的東西不顯示，什麼都沒揹就顯示「空手」
+    for (const id in show) $(id).style.display = show[id] > 0 ? '' : 'none'; $('pEmpty').style.display = carried.length ? 'none' : ''; }
   $('pStone').classList.toggle('full', countOf('stone') >= capacity());
   $('pCoal').classList.toggle('full', countOf('coal') >= capacity());
   if (!save.coalTip && countOf('coal') > 0) { save.coalTip = true; toast('⚫ 煤比木頭耐燒 4 倍！丟進火爐，或在🏗️規劃蓋🔨鐵匠鋪拿去賣'); }

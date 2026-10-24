@@ -142,9 +142,9 @@ function undeclutter() { for (const l of dcHidden) l.visible = true; dcHidden.le
 let hudRs = [], hudT = 0;                                         // 介面（上方血條、目標、左下背包、右下按鈕）在螢幕上的範圍，每 0.5 秒量一次
 function hudRects() {
   const W = innerWidth, H = innerHeight, out = [];
-  for (const id of ['hud', 'bars', 'goal', 'bl', 'alert', 'camBtn', 'planBtn', 'reset', 's1hud', 's1goal']) {
+  for (const id of ['hud', 'bars', 'goal', 'bl', 'alert', 'camBtn', 'planBtn', 'reset']) {
     const e = $(id); if (!e || e.offsetParent === null && getComputedStyle(e).position !== 'fixed') continue;
-    for (const c of e.children.length && id !== 'goal' && id !== 'alert' && id !== 's1hud' ? [...e.children, ...(id === 'bl' ? [...$('bag').children] : [])] : [e]) {
+    for (const c of e.children.length && id !== 'goal' && id !== 'alert' ? [...e.children, ...(id === 'bl' ? [...$('bag').children] : [])] : [e]) {
       const r = c.getBoundingClientRect(); if (r.width && r.height && getComputedStyle(c).display !== 'none') out.push([r.left / W * 2 - 1, 1 - r.bottom / H * 2, r.right / W * 2 - 1, 1 - r.top / H * 2]);
     }
   }
@@ -442,7 +442,7 @@ function loop() {
   if (plan.on) planCamera(dt); else step(dt);
   const s1 = typeof stage1 !== 'undefined' && stage1.on;
   document.getElementById('planBtn').style.display = (save.level >= 1 || PRO) && !plan.on && !camMode.on && !gameOver && !s1 ? 'block' : 'none';
-  document.getElementById('camBtn').style.display = !plan.on && !gameOver && !s1 ? 'block' : 'none';
+  document.getElementById('camBtn').style.display = !plan.on && !gameOver && !(s1 && stage1.state.dis === 3) ? 'block' : 'none';
   renderer.render(scene, camera);
 }
 loop();
@@ -456,6 +456,10 @@ function showMenu(on) {
 let menuSeen = false;
 document.getElementById('reset').onclick = () => { menuSeen = true; showMenu(true); };
 document.getElementById('menuClose').onclick = () => showMenu(false);
+const RES_FIRST = [['🎒 揹包（左下的小圓框）', '你身上帶著的東西，每種最多帶一定數量（上面的 /數字）。沒帶的不顯示，什麼都沒帶會寫「空手」。丟進營火、放進倉庫、站到格子上才會用掉。'], ['📦 倉庫（最上面那條）', '存起來的木頭、肉、煤、石材。伐木工、搬運工會送進來；蓋東西、修門會自動從這裡拿。🪵 後面的 /數字＝下一棟建築大約要用多少木頭。'], ['🪵 木頭', '砍樹得到。蓋建築、修北門、升級都要。'], ['🍖 烤肉', '獵人打熊、烤肉攤烤出來。流民吃了才肯留下，工人也要吃。'], ['🥓 肉乾', '燻肉架做的，路過的流民會買。'], ['⚫ 煤', '比木頭耐燒 4 倍，補營火，也能賣給鐵匠鋪。'], ['🪨 石材', '採石場挖的，升級鐵匠鋪、蓋石屋用。'], ['💵 錢', '賣肉、賣煤、流民付費得到；雇人、買商隊、升級要用。'], ['👥 居民', '/後面的數字＝下次升級城市要的居民；🛏️＝還剩幾張空床，沒床流民留不住。'], ['🔥 營火', '燒完整個營地就停擺（建築凍住），丟木頭或煤補。']];
+const RES_S1 = [['🎒 揹包（左下的小圓框）', '你身上帶的東西，每種最多 4 個。沒帶的不顯示，什麼都沒帶寫「空手」。滿了就去冰窖門口，會自動存進去。'], ['📦 冰窖（蓋好才有）', '冰屋、冰磚、木頭、魚的倉庫：🧊 冰磚、🪵 木頭、🐟 魚各有上限（/數字，升級會變多）。蓋東西自動從這裡拿，火堆低於 60% 自動拿木頭補。'], ['🧊 冰磚', '站在大雪堆旁用手挖。蓋冰屋、烤魚攤、冰窖、升級都要。'], ['🪵 木頭／枯枝', '枯枝撿森林邊的，耐燒度差；木頭要先做斧頭再砍樹，耐燒、暴風雪一定要用。冰窖只存木頭，枯枝直接丟火堆。'], ['🐟 魚', '站在北邊冰洞旁自動釣；揹到藍色送魚格烤熟，流民吃了才肯留下。'], ['💵 錢', '沒床的流民吃完付的錢，完成目標的獎金。帶進第 2 關。'], ['👥 居民', '/後面是床數（每間冰屋 2 張）；🛏️＝剩幾張空床。'], ['🔥 火堆', '燒完營地會冷，丟枯枝、木頭補。暴風雪時燒得特別快。']];
+document.getElementById('menuRes').onclick = () => { $('resBody').innerHTML = (typeof stage1 !== 'undefined' && stage1.on ? RES_S1 : RES_FIRST).map(([t, d]) => '<p style="margin:6px 0"><b>' + t + '</b><br>' + d + '</p>').join(''); $('resInfo').style.display = 'flex'; };
+document.getElementById('resClose').onclick = () => { $('resInfo').style.display = 'none'; };
 document.getElementById('menuCredits').onclick = () => { $('credVer').textContent = 'v' + VERSION; $('credits').style.display = 'flex'; };
 document.getElementById('credClose').onclick = () => { $('credits').style.display = 'none'; };
 document.querySelectorAll('#menu [data-mode]').forEach(b => b.onclick = () => {
