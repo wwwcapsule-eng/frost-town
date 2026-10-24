@@ -59,7 +59,7 @@ const ctx = {
   localStorage: { getItem: k => store[k] ?? null, setItem: (k, v) => store[k] = String(v), removeItem: k => delete store[k] },
   document: { getElementById: el, createElement: () => el('_c' + Math.random()), body: el('body'), querySelectorAll: () => [], querySelector: () => el('q'), addEventListener() {} },
   innerWidth: 375, innerHeight: 812, devicePixelRatio: 2, navigator: { vibrate() {}, clipboard: { writeText: async () => {} } },
-  matchMedia: () => ({ matches: true }), addEventListener() {}, requestAnimationFrame() {}, setTimeout() {}, clearTimeout() {}, setInterval() {}, performance: { now: () => 0 },
+  matchMedia: () => ({ matches: true }), getComputedStyle: () => ({ display: 'block', position: 'fixed' }), addEventListener() {}, requestAnimationFrame() {}, setTimeout() {}, clearTimeout() {}, setInterval() {}, performance: { now: () => 0 },
   location: { reload() {}, search: '' }, prompt() {}, alert() {}, confirm: () => false,
 };
 ctx.window = ctx; ctx.self = ctx; ctx.globalThis = ctx;

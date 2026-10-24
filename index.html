@@ -17,7 +17,8 @@
   #bl{position:fixed;left:10px;bottom:calc(14px + env(safe-area-inset-bottom));max-width:calc(100vw - 130px);display:flex;flex-direction:column;align-items:flex-start;gap:6px;pointer-events:none} /* v1.01（畫面檢查抓到：第 4 格被規劃按鈕蓋住）：左下整組不超過按鈕，放不下就往上換行，倉庫列跟著往上推 */
   #bag{display:flex;flex-wrap:wrap-reverse;gap:6px}
   #bag .pill{min-width:0;padding:3px 9px 3px 6px}
-  /* #pStore 倉庫存量：在 #bl 裡、背包上面一排 */
+  #pStore{white-space:nowrap} /* 倉庫存量：在 #bl 裡、背包上面一排；不換行（v1.02：字被擠成兩行） */
+  @media (max-width:500px){#pStore{font-size:13px;padding:3px 8px 3px 6px} #pStore b{font-size:15px}}
   .pill{background:rgba(30,40,60,.72);color:#fff;border-radius:16px;padding:4px 12px 4px 8px;font-weight:700;font-size:18px;
     display:flex;align-items:center;gap:6px;min-width:76px}
   .pill b{font-size:20px}
@@ -36,8 +37,10 @@
   #goal{position:fixed;top:calc(102px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);width:min(340px, calc(100vw - 24px));box-sizing:border-box;
     background:rgba(255,255,255,.88);color:#25415e;font-weight:900;font-size:13px;line-height:1.35;padding:5px 10px;border-radius:12px;
     text-align:center;pointer-events:none;box-shadow:0 2px 0 rgba(0,0,0,.12)}
+  #topc{position:fixed;top:calc(102px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);width:min(340px, calc(100vw - 24px));display:flex;flex-direction:column;align-items:center;gap:6px;pointer-events:none}
+  #topc #goal, #topc #alert{position:static !important;transform:none !important}
   #goal.done{background:#ffd34d;animation:bump .4s}
-  #alert{position:fixed;bottom:calc(134px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);background:rgba(200,40,40,.88);color:#fff;
+  #alert{position:fixed;top:calc(138px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);background:rgba(200,40,40,.88);color:#fff;
     font-weight:900;font-size:16px;padding:6px 14px;border-radius:14px;white-space:nowrap;pointer-events:none;display:none}
   #alert.cold{background:rgba(40,120,200,.88)}
   #alert.warn{background:rgba(220,140,20,.9)}
@@ -61,7 +64,7 @@
   #planBar button small{font-size:11px;font-weight:700}
   #planBar button.sel{background:#ffd34d;outline:3px solid #fff}
   #planBar #planGo{background:#5fd068}#planBar #planGo:disabled{opacity:.4}
-  #toast{position:fixed;left:50%;top:22%;transform:translateX(-50%);background:rgba(30,40,60,.8);color:#fff;font-weight:700;
+  #toast{position:fixed;left:50%;top:30%;transform:translateX(-50%);background:rgba(30,40,60,.8);color:#fff;font-weight:700;
     padding:8px 16px;border-radius:14px;font-size:16px;opacity:0;transition:opacity .25s;pointer-events:none;white-space:nowrap}
   #hint{position:fixed;left:50%;bottom:calc(184px + env(safe-area-inset-bottom));transform:translateX(-50%);color:#25415e;font-weight:900;font-size:18px;
     text-shadow:0 2px 0 #fff;pointer-events:none;text-align:center;animation:blink 1.4s infinite}
@@ -97,8 +100,7 @@
   <div class="bar" id="hpBar"><i></i><span>❤️ <b id="hp">100</b></span></div>
   <div class="bar" id="fuelBar"><i></i><span>🔥 <em id="fireName" style="font-style:normal">營火</em> <b id="fuel">100</b>%</span></div>
 </div>
-<div id="goal"></div>
-<div id="alert"></div>
+<div id="topc"><div id="goal"></div><div id="alert"></div></div><!-- v1.02：目標變兩行時，說明列自動往下讓 -->
 <div id="vignette"></div>
 <div id="frost"></div>
 <div id="toast"></div>

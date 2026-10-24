@@ -136,10 +136,22 @@ function updateBuildings(dt) {
 }
 
 // v1.00 標籤自動避讓（作者 10/24：標示、文字遮擋不要一直重犯）：每一格把看得到的標籤投影到螢幕上，
-// 離主角近的優先；被更近的標籤蓋住超過 15% 的先藏起來。下一格開頭先放回來，讓遊戲邏輯照常決定要不要顯示
+// 離主角近的優先；被更近的標籤蓋到（超過 3%）的先藏起來。下一格開頭先放回來，讓遊戲邏輯照常決定要不要顯示
 const dcHidden = [], dcV = new THREE.Vector3(), dcR = new THREE.Vector3(), dcU = new THREE.Vector3();
 function undeclutter() { for (const l of dcHidden) l.visible = true; dcHidden.length = 0; }
+let hudRs = [], hudT = 0;                                         // 介面（上方血條、目標、左下背包、右下按鈕）在螢幕上的範圍，每 0.5 秒量一次
+function hudRects() {
+  const W = innerWidth, H = innerHeight, out = [];
+  for (const id of ['hud', 'bars', 'goal', 'bl', 'alert', 'camBtn', 'planBtn', 'reset']) {
+    const e = $(id); if (!e || e.offsetParent === null && getComputedStyle(e).position !== 'fixed') continue;
+    for (const c of e.children.length && id !== 'goal' && id !== 'alert' ? [...e.children, ...(id === 'bl' ? [...$('bag').children] : [])] : [e]) {
+      const r = c.getBoundingClientRect(); if (r.width && r.height && getComputedStyle(c).display !== 'none') out.push([r.left / W * 2 - 1, 1 - r.bottom / H * 2, r.right / W * 2 - 1, 1 - r.top / H * 2]);
+    }
+  }
+  return out;
+}
 function declutter() {
+  if ((hudT -= 1) <= 0) { hudT = 30; hudRs = hudRects(); }
   camera.updateMatrixWorld(); dcR.setFromMatrixColumn(camera.matrixWorld, 0); dcU.setFromMatrixColumn(camera.matrixWorld, 1);
   const shown = o => { for (let i = 0; o && i < 30; o = o.parent, i++) { if (!o.visible) return false; if (o === scene) return true; } return false; }; // 拿掉的標籤不算
   const px = player.position.x, pz = player.position.z, kept = [];
@@ -147,8 +159,10 @@ function declutter() {
   for (const [l, , c] of list) {
     const hw = l.scale.x * labelK.x * l.inkW / 2, hh = l.scale.y * labelK.y * l.inkH / 2;
     const a = c.clone().addScaledVector(dcR, -hw).addScaledVector(dcU, hh).project(camera), b = c.addScaledVector(dcR, hw).addScaledVector(dcU, -hh).project(camera);
-    const r = [a.x, b.y, b.x, a.y], ar = (r[2] - r[0]) * (r[3] - r[1]);
-    if (kept.some(k => Math.max(0, Math.min(r[2], k[2]) - Math.max(r[0], k[0])) * Math.max(0, Math.min(r[3], k[3]) - Math.max(r[1], k[1])) > 0.15 * Math.min(ar, (k[2] - k[0]) * (k[3] - k[1])))) { l.visible = false; dcHidden.push(l); }
+    const mx = 8 / innerWidth, my = 6 / innerHeight;                 // 字的四周多留一點空白，貼太近也算擠
+    const r = [a.x - mx, b.y - my, b.x + mx, a.y + my], ar = (r[2] - r[0]) * (r[3] - r[1]);
+    const cut = r[0] < -1 || r[2] > 1 || r[1] < -1 || r[3] > 1;     // v1.02（作者：煤礦的字沒完全顯示）：字有一部分跑出畫面、或被介面蓋住，就整個先藏起來，走近再出現
+    if (cut || [...hudRs, ...kept].some(k => Math.max(0, Math.min(r[2], k[2]) - Math.max(r[0], k[0])) * Math.max(0, Math.min(r[3], k[3]) - Math.max(r[1], k[1])) > 0.03 * Math.min(ar, (k[2] - k[0]) * (k[3] - k[1])))) { l.visible = false; dcHidden.push(l); }
     else kept.push(r);
   }
 }

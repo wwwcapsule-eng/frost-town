@@ -175,7 +175,8 @@ function moveAll(b, x, z) {                                       // 建築連�
   const dx = x - b.x, dz = z - b.z;
   moveBuilding(b, x, z);
   const m = mills.find(m => m.bld === b), h = heaters.find(h => h.bld === b);
-  if (m) { [m.inPad, m.outPad, ...m.out, m.label].forEach(o => { o.position.x += dx; o.position.z += dz; }); if (m.upU && !m.upU.done) { m.upU.x += dx; m.upU.z += dz; m.upU.pad.position.x += dx; m.upU.pad.position.z += dz; m.upU.label.position.x += dx; m.upU.label.position.z += dz; } }
+  if (m) [m.inPad, m.outPad, ...m.out, m.label].forEach(o => { o.position.x += dx; o.position.z += dz; });
+  for (const u of unlocks) if (u.owner === b && !u.done) { u.x += dx; u.z += dz; [u.pad, u.label].forEach(o => { o.position.x += dx; o.position.z += dz; }); } // v1.02：屬於這棟的升級格、雇人格一起搬
   if (h) { h.x = x; h.z = z; [h.ring, h.fill].forEach(o => o.position.set(x, o.position.y, z)); }
   if (b === wh.bld) [wh.pad, wh.label].forEach(o => { o.position.x += dx; o.position.z += dz; });
   roadsDirty = true;
@@ -268,8 +269,10 @@ function plankNeed() {
   return Math.min(storeCap(), n);
 }
 // 搬運工：營火要柴 → 北門要修 → 建築要修 → 綠框有錢；先回倉庫格子拿東西（一趟最多 3 個），走到目的地才生效
+let porterBusy = 0; // 最近 1 分鐘「搬運工全部都在忙」的比例，雇用格靠它決定要不要再雇
 function updatePorters(dt) {
   if (!save.wh || wh.bld.dead) return;
+  porterBusy += ((porters.length && porters.every(p => p.job) ? 1 : 0) - porterBusy) * Math.min(1, dt / 60);
   const st = save.store, home = wh.pad.position, taken = k => porters.some(o => o.job && (o.job.k === k || o.job.b === k || o.job.m === k));
   for (const k in PILES) { PILES[k].g.children.forEach((b, i) => b.visible = i < Math.ceil(save.pile[k] / CFG.pileMax * 6)); PILES[k].label.visible = save.pile[k] > 0; PILES[k].label.set([(k === 'food' ? '🍖' : '🪵') + save.pile[k] + ' → 📦'], '#fff', [40]); }
   porters.forEach((p, i) => {
@@ -523,8 +526,7 @@ const hunters = [];
 function addHunter() {
   const g = new THREE.Group();
   const b = box(0.6, 0.75, 0.45, M(0x6b4a2b)); b.position.y = 0.6; g.add(b);
-  const h = box(0.45, 0.42, 0.42, mats.skin); h.position.y = 1.2; g.add(h); dress(g, [b, h], 6); vest(g, 0x2f5d3a);   // 獵人：森林綠背心＋綠帽＋弓
-  const c = box(0.5, 0.18, 0.48, M(0x2f5d3a)); c.position.y = 1.48; g.add(c);
+  const h = box(0.45, 0.42, 0.42, mats.skin); h.position.y = 1.2; g.add(h); dress(g, [b, h], 6); vest(g, 0x2f5d3a);   // 獵人：森林綠背心＋弓
   const bow = box(0.08, 0.9, 0.08, mats.trunk); bow.position.set(0.38, 0.75, 0.15); g.add(bow);
   const back = new THREE.Group(); back.position.set(0, 1.0, -0.4); g.add(back);
   g.position.set(LOT.hunter[0] + 1.4, 0, towerPadZ() + 1.2); scene.add(g);
@@ -575,7 +577,6 @@ function addCoaler(kind = 'coal') {                           // kind 'stone'＝
   const g = new THREE.Group();
   const b = box(0.6, 0.75, 0.45, M(0x4a4f5a)); b.position.y = 0.6; g.add(b);
   const h = box(0.45, 0.42, 0.42, mats.skin); h.position.y = 1.2; g.add(h); dress(g, [b, h], kind === 'stone' ? 8 : 10); vest(g, kind === 'stone' ? 0xb8c0c8 : 0x2f2f33);   // 煤礦工：黑背心＋黃帽；採石工：灰白背心＋白帽；都拿十字鎬
-  const c = box(0.5, 0.18, 0.48, M(kind === 'stone' ? 0xe8ecf0 : 0xe8b030)); c.position.y = 1.48; g.add(c);            // 黃色礦工帽
   const pick = box(0.08, 0.08, 0.8, mats.axe); pick.position.set(0.38, 0.75, 0.2); g.add(pick);
   const back = new THREE.Group(); back.position.set(0, 1.0, -0.4); g.add(back);
   const at = kind === 'stone' ? LOT.quarrier : LOT.coaler;
