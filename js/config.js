@@ -1,5 +1,5 @@
 'use strict';
-const VERSION = '1.32';
+const VERSION = '1.34';
 
 // ===== 數值（之後平衡都改這裡） =====
 const CFG = {
@@ -55,11 +55,12 @@ const CFG = {
 };
 // 城市等級：人口到門檻就升級（藍圖見 docs/企劃評估.md 第 8 節）；houses＝這一級最多能蓋幾間民房
 // cam＝鏡頭拉遠倍數；unlock＝升級卡片上列的新東西
+// v1.34（作者：第二關要 300 人太多太長，這遊戲有 10 關，不要卡在一關太久）：升級門檻 20／80／300 → 12／30／60
 const LEVELS = [
   { name: '營地', icon: '🏕️', need: 0, houses: 4, heaters: 0, cam: 1 },
-  { name: '村莊', icon: '🏘️', need: 20, houses: 20, heaters: 1, cam: 1.25, unlock: ['🏠 民房上限 4 → 20 間', '🔥 營火升級 Lv2：領地再擴大（要先開拓東邊）', '🏗️ 規劃模式：民房、暖氣塔自己決定蓋在哪', '⛏️ 煤礦、🧹 鏟雪工、❄️ 寒潮', '🌨️ 大暴雪：每次要升級前來襲，撐過才能升級'] },
-  { name: '小鎮', icon: '🏙️', need: 80, houses: 40, heaters: 4, cam: 1.45, unlock: ['🏠 民房上限 20 → 40 間', '🔥 暖氣塔最多 4 座'] },
-  { name: '城市', icon: '🌆', need: 300, houses: 40, heaters: 4, cam: 1.6, unlock: ['🚧 城市的新玩法製作中，敬請期待'] },
+  { name: '村莊', icon: '🏘️', need: 12, houses: 20, heaters: 1, cam: 1.25, unlock: ['🏠 民房上限 4 → 20 間', '🔥 營火升級 Lv2：領地再擴大（要先開拓東邊）', '🏗️ 規劃模式：民房、暖氣塔自己決定蓋在哪', '⛏️ 煤礦、🧹 鏟雪工、❄️ 寒潮', '🌨️ 大暴雪：每次要升級前來襲，撐過才能升級'] },
+  { name: '小鎮', icon: '🏙️', need: 30, houses: 40, heaters: 4, cam: 1.45, unlock: ['🏠 民房上限 20 → 40 間', '🔥 暖氣塔最多 4 座'] },
+  { name: '城市', icon: '🌆', need: 60, houses: 40, heaters: 4, cam: 1.6, unlock: ['🚧 城市的新玩法製作中，敬請期待'] },
 ];
 
 const TS = CFG.townScale;
