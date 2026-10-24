@@ -442,7 +442,7 @@ function loop() {
   if (plan.on) planCamera(dt); else step(dt);
   const s1 = typeof stage1 !== 'undefined' && stage1.on;
   document.getElementById('planBtn').style.display = (save.level >= 1 || PRO) && !plan.on && !camMode.on && !gameOver && !s1 ? 'block' : 'none';
-  document.getElementById('camBtn').style.display = !plan.on && !gameOver && !s1 ? 'block' : 'none';
+  document.getElementById('camBtn').style.display = !plan.on && !gameOver && !(s1 && stage1.state.dis === 3) ? 'block' : 'none';
   renderer.render(scene, camera);
 }
 loop();

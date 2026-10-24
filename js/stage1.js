@@ -16,20 +16,20 @@ const stage1 = (() => {
   const cMax = () => [6, 10, 14][st.up.stall], grillTime = () => [0.8, 0.5, 0.35][st.up.stall], arriveGap = () => [12, 12, 8][st.up.stall];
   const fishTime = () => [3.0, 2.0, 1.2][st.up.rod], chopGap = () => [0.45, 0.3, 0.2][st.up.axe], logsPer = () => [3, 4, 5][st.up.axe];
   const root = new THREE.Group();
-  const RC = { x0: -12, x1: 12, z0: -3, z1: 18 };                           // 圍欄矩形
+  const RC = { x0: -15, x1: 15, z0: -3, z1: 22 };                           // 圍欄矩形
   const GATE_W = 1.8, GATE_Z = 7.5;                                         // 門寬的一半；東西門的 z
   // v1.27（作者：建物不能太近、不能互相遮擋，烤魚攤位置太怪，升級格也要照第 2 關的邏輯）：
   // 每棟建築有自己的一塊「地」：建築蓋在地上、操作格（付款／送魚）在建築旁、升級格貼著自己的建築；格子彼此 ≥3、離建築邊緣 ≥1.5（跟第 2 關 PAD_GAP／PAD_BLD 一樣）；
   // 冰屋的蓋屋格直接放在下一間冰屋的位置（像第 2 關民房格），蓋好就搬到下一個位置
-  const FIRE = [0, 7], PAD = [-8.4, 1.0], AXEPAD = [3.0, 1.0], STALL = [3.2, 12.8], RAWPAD = [-0.2, 12.8], WHUP = [-3.8, 4.8], STALLUP = [-2.0, 16.0], FISHUP = [4.8, -6.2], LAKE = [0, -13, 7.5];
-  const SLOTS = [[-8.4, 1.0], [8.4, 1.0], [-8.8, 15.0], [8.8, 15.0]];
+  const FIRE = [0, 7], PAD = [-11.8, 1.0], AXEPAD = [0, 10.2], STALL = [3.5, 14.5], RAWPAD = [0.0, 14.5], WHUP = [-4.5, 4.2], STALLUP = [7.0, 14.5], FISHUP = [5.2, -10.5], LAKE = [0, -13, 7.5];
+  const SLOTS = [[-11.8, 1.0], [11.8, 1.0], [-11.8, 15.0], [11.8, 15.0]];
   const BANKS = [];       // v1.20（作者：不能鏟的雪從營區拿掉、能鏟的集中成一座大雪堆）：南門外一座大雪堆，十幾個雪堆擠在一起
-  const HILL = [0, 31];
+  const HILL = [0, 35];
   for (let j = -2; j <= 2; j++) for (let x = -7.4 + (j & 1 ? 1.35 : 0); x <= 7.5; x += 2.7) { if ((x / 7.8) ** 2 + (j * 2.5 / 5.6) ** 2 <= 1) BANKS.push([+(HILL[0] + x).toFixed(1), +(HILL[1] + j * 2.5).toFixed(1)]); }
-  const WH = [-2.8, 1.2], TWIGS = [-0.5, 3, 6, 9, 12.5, 16].flatMap(z => [[-14.5, z], [14.5, z]]);   // v1.24：枯枝 4→10 堆
+  const WH = [-4.5, 0.5], TWIGS = [-0.5, 3, 6, 9, 12.5, 16, 19.5].flatMap(z => [[-17.5, z], [17.5, z]]);   // v1.24：枯枝 4→10 堆
   const HOLES = [[0, -10.5]];                                                // 湖中間一個挖出來的大洞（半徑 1.7），旁邊插三根釣竿，人走近就自動釣魚
   const HOLE_R = 1.7;
-  const QUEUE = [[3.2, 15.6], [2.4, 16.8], [1.2, 17.5]];     // 烤魚攤前排隊的位置（往南門方向排）
+  const QUEUE = [[3.5, 17.4], [2.7, 18.7], [1.5, 19.7]];     // 烤魚攤前排隊的位置（往南門方向排）
   const mat = c => M(c);
   const bag = [], banks = [], twigs = [], holes = [], igloos = [], folks = [], forest = [], queue = [];
   let walk = 0, saveT = 0, inkT = 0, shake = 0, hudTxtT = 0, fireT = 0, fireT2 = 0, padT = 0, digT = 0, chopT = 0, axeSpin = 0, shovT = 0, shovelOn = false, grillT = 0, depT = 0, stallPadT = 0, smokeT = 0;
@@ -67,7 +67,7 @@ const stage1 = (() => {
   const inside = (x, z) => x > RC.x0 + 0.3 && x < RC.x1 - 0.3 && z > RC.z0 + 0.3 && z < RC.z1 - 0.3;
   // 森林：東西兩邊，樹都是第 2 關同一批（冷杉、松樹、白樺）
   for (let n = 0; n < 180 && forest.length < 44; n++) {
-    const side = n % 2 ? 1 : -1, x = side * (17 + rnd() * 11), z = -8 + rnd() * 30;
+    const side = n % 2 ? 1 : -1, x = side * (20 + rnd() * 10), z = -8 + rnd() * 30;
     if (TWIGS.some(t => Math.hypot(t[0] - x, t[1] - z) < 2.6) || BANKS.some(t => Math.hypot(t[0] - x, t[1] - z) < 2.8) || (Math.abs(z - GATE_Z) < 2.6 && Math.abs(x) < 20) || forest.some(t => Math.hypot(t.x - x, t.z - z) < 2.2)) continue;
     const kind = rnd() < 0.35 ? 'pine' : rnd() < 0.15 ? 'birch' : 'fir', g = new THREE.Group(); g.userData.noInk = true; treeLook(g, kind);
     const sc = 0.85 + rnd() * 0.35; g.position.set(x, 0, z); g.rotation.y = rnd() * 6; g.scale.setScalar(sc); root.add(g);
@@ -91,7 +91,7 @@ const stage1 = (() => {
     const h = new THREE.Mesh(new THREE.CircleGeometry(HOLE_R, 28), mat(0x123f66)); h.rotation.x = -Math.PI / 2; h.position.set(x, 0.12, z); root.add(h);
     const r = new THREE.Mesh(new THREE.RingGeometry(HOLE_R, HOLE_R + 0.55, 28), mat(0xe6f6fd)); r.rotation.x = -Math.PI / 2; r.position.set(x, 0.125, z); root.add(r);
     const ripple = new THREE.Mesh(new THREE.RingGeometry(0.9, 1.0, 28), new THREE.MeshBasicMaterial({ color: 0xcfeaff, transparent: true, opacity: 0.6, depthWrite: false })); ripple.rotation.x = -Math.PI / 2; ripple.position.set(x, 0.14, z); root.add(ripple);
-    const rods = [-0.9, 0, 0.9].map((a, i) => {                                // 三根釣竿插在洞南邊：竿尾插地、竿身斜向洞口、線和紅白浮標垂進洞裡
+    const rods = [-1.35, -0.9, -0.45, 0, 0.45, 0.9, 1.35].map((a, i) => {                                // 三根釣竿插在洞南邊：竿尾插地、竿身斜向洞口、線和紅白浮標垂進洞裡
       const bx = x + Math.sin(a) * (HOLE_R + 1.35), bz = z + Math.cos(a) * (HOLE_R + 1.35), ang = Math.atan2(x - bx, z - bz);
       const g = new THREE.Group(); g.position.set(bx, 0, bz); g.rotation.y = ang; root.add(g);
       const pole = new THREE.Group(); pole.position.y = 0.35; pole.rotation.x = -1.0; g.add(pole);
@@ -102,7 +102,7 @@ const stage1 = (() => {
       ell(mat(0x8a929c), 0.3, 0.2, 0.3, 0, 0.1, -0.2, g);
       const bob = new THREE.Group(); root.add(bob); ell(mat(0xe8453c), 0.17, 0.17, 0.17, 0, 0.1, 0, bob); ell(mat(0xffffff), 0.17, 0.1, 0.17, 0, -0.03, 0, bob);
       const geo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
-      return { pole, tip, bob, geo, ox: x + Math.sin(a) * 0.7, oz: z + 0.2 };
+      return { g, pole, tip, bob, geo, ox: x + Math.sin(a) * 0.7, oz: z + 0.2 };
     });
     holes.push({ x, z, prog: 0, h, ripple, rods });
   });
@@ -163,7 +163,6 @@ const stage1 = (() => {
     const top = box(3.0, 0.14, 1.8, mats.wood); top.position.y = 1.0; stallG.add(top);
     [-1.3, 1.3].forEach(x => { const p = box(0.16, 1.8, 0.16, mats.trunk); p.position.set(x, 1.9, -0.7); stallG.add(p); });
     const beam = box(2.9, 0.12, 0.14, mats.trunk); beam.position.set(0, 2.75, -0.7); stallG.add(beam);
-    const roof = box(3.2, 0.1, 2.3, mats.wood); roof.position.set(0, 2.95, -0.1); roof.rotation.x = 0.22; stallG.add(roof);
     for (let i = 0; i < 4; i++) { const f = ell(mat(0xb8c9d4), 0.1, 0.34, 0.06, -1.0 + i * 0.66, 2.35, -0.7, stallG); f.userData.hang = i; }
   }
   // 冰窖（第 1 關的倉庫）：半埋在雪裡的冰磚大屋、木頭斜屋頂、門口堆魚箱；門朝南（朝火堆）
@@ -174,6 +173,18 @@ const stage1 = (() => {
     ell(mat(0xf4fafd), 1.9, 0.3, 1.5, 0, 1.98, -0.05, whG);
     const door = box(1.0, 1.2, 0.06, mats.trunk); door.position.set(0, 0.6, 1.22); whG.add(door);
     [[-1.2, 1.6], [-0.55, 1.7]].forEach(([x, z]) => { const c = box(0.5, 0.4, 0.4, mats.wood); c.position.set(x, 0.2, z); whG.add(c); }); }
+  const whX = new THREE.Group(), whFlag = new THREE.Group(); whG.add(whX, whFlag);                       // 升級外觀：Lv2 多一堆箱子桶子、Lv3 屋頂插金旗
+  [[1.95, 0.2, 0.6], [1.95, 0.2, -0.2], [1.95, 0.6, 0.2], [-1.95, 0.2, 0.5], [-1.95, 0.2, -0.3]].forEach(([x, y, z]) => { const c = box(0.55, 0.4, 0.5, mats.wood); c.position.set(x, y, z); whX.add(c); });
+  { const pole = box(0.06, 1.2, 0.06, mats.trunk); pole.position.set(0.9, 2.5, -0.5); whFlag.add(pole); const fl = box(0.6, 0.4, 0.04, mat(0xffd34d)); fl.position.set(1.22, 2.9, -0.5); whFlag.add(fl); }
+  const stX = new THREE.Group(), stFlag = new THREE.Group(); stallG.add(stX, stFlag);                      // Lv2 兩盞暖光燈籠＋第二排魚架、Lv3 攤子變寬＋金旗
+  [-1.3, 1.3].forEach(x => { const l = ell(new THREE.MeshBasicMaterial({ color: 0xffd98a }), 0.16, 0.2, 0.16, x, 2.15, -0.7, stX); });
+  { const b2 = box(2.9, 0.1, 0.12, mats.trunk); b2.position.set(0, 2.1, -0.7); stX.add(b2); for (let i = 0; i < 5; i++) ell(mat(0xb8c9d4), 0.1, 0.3, 0.06, -1.2 + i * 0.6, 1.8, -0.7, stX); }
+  { const pole = box(0.06, 1.0, 0.06, mats.trunk); pole.position.set(1.3, 3.2, -0.7); stFlag.add(pole); const fl = box(0.55, 0.36, 0.04, mat(0xffd34d)); fl.position.set(1.6, 3.55, -0.7); stFlag.add(fl); }
+  function applyLooks() {
+    whG.scale.setScalar(1 + 0.12 * st.up.wh); whX.visible = st.up.wh >= 1; whFlag.visible = st.up.wh >= 2;
+    stallG.scale.set(1 + 0.14 * st.up.stall, 1 + 0.05 * st.up.stall, 1 + 0.08 * st.up.stall); stX.visible = st.up.stall >= 1; stFlag.visible = st.up.stall >= 2;
+    axe.scale.setScalar(1.6 * (1 + 0.25 * st.up.axe));
+  }
   const counterFish = []; for (let i = 0; i < 14; i++) { const j = i % 6, f = ell(mat(0xf08a3c), 0.3, 0.1, 0.14, -0.85 + (j % 3) * 0.55 + (j > 2 ? 0.2 : 0), 1.14 + (i / 6 | 0) * 0.17, 0.1 + (j > 2 ? 0.4 : -0.3), stallG); f.rotation.y = i; counterFish.push(f); }
   const smoke = []; for (let i = 0; i < 3; i++) { const s = ell(new THREE.MeshBasicMaterial({ color: 0xdfe8ee, transparent: true, opacity: 0.5, depthWrite: false }), 0.3, 0.3, 0.3, 0, 2, -0.6, stallG); smoke.push(s); }
 
@@ -341,7 +352,7 @@ const stage1 = (() => {
     const chopping = !!tree && bag.length < CFG1.cap;
     axe.visible = chopping; if (chopping) {
       axeSpin += dt * 12; axe.position.set(X, 1.2, Z); axeArms.forEach((a, i) => { a.visible = i === 0; a.rotation.y = axeSpin; });
-      swooshG.rotation.y = axeSpin - Math.PI / 2 - 2.4; swooshMat.opacity = 0.4; axeHeadMat.color.setHex((axeKK ? AXE_TINT : AXE_COLORS)[0]);
+      swooshG.rotation.y = axeSpin - Math.PI / 2 - 2.4; swooshMat.opacity = 0.4; axeHeadMat.color.setHex([(axeKK ? AXE_TINT : AXE_COLORS)[0], 0x7fd6ff, 0xffd34d][st.up.axe]);
       player.rotation.y = Math.atan2(tree.x - X, tree.z - Z);
       if ((chopT -= dt) <= 0) {
         chopT = chopGap(); tree.hp--; tree.shake = 0.25; sfx.chop(); try { burstChips(tree.x, tree.z); } catch (e) {}
@@ -363,6 +374,7 @@ const stage1 = (() => {
       const bite = near && h.prog > fishTime() - 0.7;
       h.h.material.color.setHex(near ? 0x1f6aa3 : 0x123f66); h.ripple.scale.setScalar(1 + (near ? (tFish * 1.2 % 1) * 0.9 : 0)); h.ripple.material.opacity = near ? 0.6 * (1 - (tFish * 1.2 % 1)) : 0;
       h.rods.forEach((r, i) => {
+        const on = st.up.rod >= 2 || (st.up.rod === 1 ? i >= 1 && i <= 5 : i % 2 === 1); r.g.visible = r.bob.visible = on;                          // 釣竿升級：3 → 5 → 7 根
         r.pole.rotation.x = -1.0 + (bite ? Math.sin(tFish * 32 + i) * 0.1 : near ? Math.sin(tFish * 2 + i) * 0.04 : 0);
         r.pole.updateWorldMatrix(true, false); r.tip.getWorldPosition(tipV); r.bob.position.set(r.ox, 0.1 + Math.sin(tFish * 3 + i) * 0.03 - (bite ? 0.14 : 0), r.oz);
         const p = r.geo.attributes.position; p.setXYZ(0, tipV.x, tipV.y, tipV.z); p.setXYZ(1, r.bob.position.x, r.bob.position.y + 0.15, r.bob.position.z); p.needsUpdate = true;
@@ -401,7 +413,7 @@ const stage1 = (() => {
       u.t = 0.2; const [w, b] = u.cost[lv];
       if (u.paid.w < w && takeWood()) { u.paid.w++; sfx.coin(); }
       else if (u.paid.b < b && (st.bricks > 0 ? (st.bricks--, true) : takeBag('brick'))) { u.paid.b++; sfx.coin(); }
-      if (u.paid.w >= w && u.paid.b >= b) { u.paid.w = u.paid.b = 0; st.up[u.k]++; sparkleAt(u.pos[0], u.pos[1]); sfx.unlock(); toast(u.icon + ' ' + u.name + '升到 Lv' + (st.up[u.k] + 1) + '：' + u.fx[lv]); }
+      if (u.paid.w >= w && u.paid.b >= b) { u.paid.w = u.paid.b = 0; st.up[u.k]++; applyLooks(); sparkleAt(u.pos[0], u.pos[1]); sfx.unlock(); toast(u.icon + ' ' + u.name + '升到 Lv' + (st.up[u.k] + 1) + '：' + u.fx[lv]); }
     });
     // 蓋冰窖：居民 ≥3；🧊12＋🪵10（背著的、冰磚庫存都能付）
     const whOn = !st.wh && st.pop >= CFG1.whPop && st.igloos >= 1 && st.dis === 0;
@@ -517,7 +529,7 @@ const stage1 = (() => {
     document.body.appendChild(el);
     cracks.visible = true; cracks.children.forEach(k => { k.visible = true; }); lakeFish.forEach(o => { o.f.visible = false; });
     folks.forEach(f => { f.goal = null; });
-    cine = { t: 0, el, top: el.children[0], bot: el.children[1], txt: el.children[2], fade: el.children[3], camP: new THREE.Vector3(0, 21, 26) };
+    cine = { t: 0, el, top: el.children[0], bot: el.children[1], txt: el.children[2], fade: el.children[3], camP: new THREE.Vector3(0, 28, 36) };
   }
   function cineStep(dt) {
     const k = cine; k.t += dt; const t = k.t;
@@ -527,7 +539,7 @@ const stage1 = (() => {
     cracks.children.forEach(c => { c.scale.x = 1 + t * 1.2; });
     lake.material.color.setRGB(0.35, 0.55, 0.78);
     igloos.forEach((o, i) => { const sink = Math.max(0, t - 1 - i * 0.5); o.g.position.y = -Math.min(sink * 0.9, 3.2); o.g.rotation.z = Math.min(sink * 0.08, 0.3) * (i % 2 ? 1 : -1); });
-    if (t < 4.5) { camera.position.lerp(k.camP, 1 - Math.exp(-dt * 2)); camera.lookAt(0, 0, 4); }
+    if (t < 4.5) { camera.position.lerp(k.camP, 1 - Math.exp(-dt * 2)); camera.lookAt(0, 0, 6); }
     else {
       folks.forEach((f, i) => walkTo(f.g, ((i % 5) - 2) * 1.4, 36 + (i >> 2) * 1.2, dt, 2.4)); player.rotation.y = 0;
       walkTo(player, 0, 38, dt, 2.6);
@@ -567,11 +579,11 @@ const stage1 = (() => {
     S.on = true; undeclutter();                                    // 先把「被避讓藏起來的標籤」放回去再一起藏，不然之後 undeclutter 會把它們叫回來
     scene.children.slice().forEach(o => { if (!(o.isLight || o === player || o.isPoints || o === sun.target)) o.visible = false; });
     scene.add(root); root.visible = true; root.add(axe);
-    ['camBtn', 'planBtn', 'hpBar', 'pCoal'].forEach(id => { const e = $(id); if (e) e.style.display = 'none'; });
+    ['planBtn', 'hpBar', 'pCoal'].forEach(id => { const e = $(id); if (e) e.style.display = 'none'; });
     $('pMeat').innerHTML = '🐟 <b id="meat">0</b><span class="cap" id="capM"></span>'; $('pStone').innerHTML = '🧊 <b id="stone">0</b><span class="cap" id="capS"></span>'; $('pStone').style.display = '';
     $('pStore').innerHTML = '📦 🧊<b id="sBr">0</b><span class="cap" id="sCap"></span> 🪵<b id="sLg">0</b> 🐟<b id="sFs">0</b>';
     for (let i = 0; i < st.igloos; i++) buildIgloo(i, false);
-    stallG.visible = st.stall; whG.visible = st.wh; placePad();
+    stallG.visible = st.stall; whG.visible = st.wh; placePad(); applyLooks();
     for (let i = 0; i < st.pop; i++) addResident(i, true);
     player.position.set(0, 0, 10); player.rotation.y = Math.PI; camera.position.copy(player.position).add(camOffset);
     hintOn = false; $('hint').style.display = 'none';              // 操作提示改放在上方目標列，不另外蓋在畫面中間
