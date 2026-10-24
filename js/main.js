@@ -175,10 +175,42 @@ function quietLabels() {
   list.map(l => [l, Math.hypot(l.position.x - px, l.position.z - pz)]).sort((a, b) => a[1] - b[1])
     .forEach(([l, d], i) => l.visible = d < CFG.labelNear && i < CFG.labelMax);
 }
+// v1.24 第 1→2 關過場的後半段（作者 10/24）：遷徙到南邊森林後，先生起營火，再把帳篷、工坊一間間慢慢蓋起來（像戰略遊戲蓋房子），蓋好才開始玩
+let intro = null;
+function startIntro() {
+  delete save.arrive; writeSave();
+  const fp = new THREE.Vector3(FX, 0, FZ), seen = new Set(), list = [];
+  [...tentGs, ...buildings.map(b => b.g), ...mills.map(b => b.g), ...houses.map(b => b.g), ...towers.map(b => b.g)].forEach(g => { if (g && !seen.has(g)) { seen.add(g); list.push(g); } });
+  list.sort((a, b) => a.position.distanceTo(fp) - b.position.distanceTo(fp));
+  const items = [fg, ...list].map((g, i) => ({ g, s: g.scale.x, at: 1.6 + i * 1.5, done: false }));
+  items.forEach(o => { o.g.scale.setScalar(0.001); });
+  const el = document.createElement('div'); el.style.cssText = 'position:fixed;inset:0;z-index:99;pointer-events:none';
+  el.innerHTML = '<div style="position:absolute;left:0;right:0;top:0;height:14%;background:#000"></div><div style="position:absolute;left:0;right:0;bottom:0;height:14%;background:#000"></div><div style="position:absolute;left:0;right:0;bottom:4%;text-align:center;color:#fff;font:700 19px sans-serif;text-shadow:0 2px 6px #000;padding:0 16px"></div><div style="position:absolute;inset:0;background:#fff;opacity:1"></div>';
+  document.body.appendChild(el);
+  intro = { t: 0, items, el, txt: el.children[2], fade: el.children[3], end: 1.6 + items.length * 1.5 + 1.2, look: new THREE.Vector3(2, 0.8, 0), labels: [furnaceLabel, ...mills.map(b => b.label)].filter(Boolean) };
+}
+function introStep(dt) {
+  const k = intro; k.t += dt; const t = k.t;
+  k.fade.style.opacity = Math.max(0, 1 - t / 1.2);
+  k.labels.forEach(l => { l.visible = false; });
+  k.items.forEach((o, i) => {
+    const q = (t - o.at) / 0.9; if (q <= 0) return;
+    const e = Math.min(1, q), c1 = 1.70158, back = 1 + (c1 + 1) * Math.pow(e - 1, 3) + c1 * Math.pow(e - 1, 2);   // 彈出來再回穩
+    o.g.scale.setScalar(Math.max(0.001, o.s * back));
+    if (!o.done && e >= 1) { o.done = true; o.g.scale.setScalar(o.s); }
+    if (!o.done && !o.hit) { o.hit = true; sfx && sfx.coin && sfx.coin(); }
+  });
+  const n = k.items.filter(o => t >= o.at).length;
+  k.txt.textContent = t < 1.6 ? '南邊的森林，新的營地。' : n <= 1 ? '先生起營火……' : n < k.items.length ? '一間一間，把營地蓋起來……' : t < k.end - 0.3 ? '蓋好了！' : '';
+  camera.position.lerp(tmp.copy(k.look).add(camOffset).multiplyScalar(1.15), 1 - Math.exp(-dt * 2)); camera.lookAt(k.look);
+  if (t > k.end) { k.items.forEach(o => o.g.scale.setScalar(o.s)); k.el.remove(); intro = null; }
+}
 let inkT = 0;
 function step(dt) {
   if (gameOver || paused) return;
   if (typeof stage1 !== 'undefined' && stage1.on) { stage1.step(dt); return; }   // v1.16 第 1 關冰湖營地
+  if (save.arrive && !intro) startIntro();
+  if (intro) { introStep(dt); return; }
   undeclutter();
   if ((spreadT -= dt) <= 0) { spreadT = 1; spreadPads(); }                       // v1.14 格子保持間距
   if ((inkT -= dt) <= 0) { inkT = 0.5; inkAll(scene); }          // 新出現的建築、人物、模型補上描邊

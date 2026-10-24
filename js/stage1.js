@@ -7,7 +7,7 @@
 // 流程：自給自足（暫時：烤魚攤＋3 間冰屋＋6 人＋火 50%）→ 冰湖崩裂預告 → 守住火堆 45 秒 → 遷徙去第 2 關。（雇漁民、冰窖、寒潮等在 v1.19～v1.22）
 const stage1 = (() => {
   const S = { on: false };
-  const CFG1 = { cap: 4, igloo: 5, bedPer: 2, maxIgloo: 4, burn: 0.55, burnDis: 1.6, twigFuel: 10, logFuel: 25, digT: 0.6, bankHp: 4, bankBricks: 2, bankRe: 20, fishT: 3.0, twigRe: 18, twigReDis: 8,
+  const CFG1 = { cap: 4, igloo: 5, bedPer: 2, maxIgloo: 4, burn: 0.4, burnDis: 1.6, twigFuel: 14, logFuel: 25, digT: 0.6, bankHp: 4, bankBricks: 2, bankRe: 20, fishT: 3.0, twigRe: 8, twigReDis: 4,
     axePrice: 8, treeHp: 3, treeLogs: 3, treeRe: 45, stallWood: 6, stallBrick: 4, grillT: 0.8, counterMax: 6, arrive: 12, queueMax: 4, pay: 5,
     need: { igloos: 3, pop: 6, fuel: 50 }, warn: 15, dis: 45, retry: 30 };
   const st = save.s1 = Object.assign({ fuel: 55, raw: 0, cooked: 0, bricks: 0, igloos: 0, pop: 0, stall: false, dis: 0, disT: 0, retryT: 0, arriveT: 4, axe: false, done: false }, save.s1);
@@ -19,7 +19,7 @@ const stage1 = (() => {
   const BANKS = [];       // v1.20（作者：不能鏟的雪從營區拿掉、能鏟的集中成一座大雪堆）：南門外一座大雪堆，十幾個雪堆擠在一起
   const HILL = [0, 31];
   for (let j = -2; j <= 2; j++) for (let x = -7.4 + (j & 1 ? 1.35 : 0); x <= 7.5; x += 2.7) { if ((x / 7.8) ** 2 + (j * 2.5 / 5.6) ** 2 <= 1) BANKS.push([+(HILL[0] + x).toFixed(1), +(HILL[1] + j * 2.5).toFixed(1)]); }
-  const TWIGS = [[-14.5, 3], [14.5, 3], [-14.5, 12.5], [14.5, 12.5]];
+  const TWIGS = [-0.5, 3, 6, 9, 12.5, 16].flatMap(z => [[-14.5, z], [14.5, z]]);   // v1.24：枯枝 4→10 堆
   const HOLES = [[0, -10.5]];                                                // 湖中間一個挖出來的大洞（半徑 1.7），旁邊插三根釣竿，人走近就自動釣魚
   const HOLE_R = 1.7;
   const QUEUE = [[-1.2, 12.8], [-0.4, 14.3], [0.4, 15.8], [1.2, 17.3]];     // 烤魚攤前排隊的位置（往南門方向排）
@@ -197,7 +197,7 @@ const stage1 = (() => {
   function addCustomer() { const g = makePerson(st.pop + queue.length + (cashTotal++)); g.position.set(0, 0, RC.z1 + 4); queue.push({ g, state: 'walk', t: 0, i: 0 }); }
   let cashTotal = 0;
   const beds = () => st.igloos * CFG1.bedPer;
-  const selfSufficient = () => st.stall && st.igloos >= CFG1.need.igloos && st.pop >= CFG1.need.pop && st.fuel >= CFG1.need.fuel;
+  const selfSufficient = () => st.axe && st.stall && st.igloos >= CFG1.need.igloos && st.pop >= CFG1.need.pop && st.fuel >= CFG1.need.fuel;
 
   // ---- 介面 ----
   const hudEl = document.createElement('div'), goalEl = document.createElement('div');
@@ -218,13 +218,13 @@ const stage1 = (() => {
     else if (st.cooked === 0 && st.raw === 0 && !bag.some(b => b.type === 'fish') && st.pop < 1) g = '🎣 去北邊湖中間的大冰洞，靠近就自動釣魚；揹回營區的藍色「送魚格」，烤好流民才會來';
     else if (st.pop < beds() && queue.length) g = '🍢 流民排隊吃烤魚了：有空床就留下，沒床要付 💵' + CFG1.pay + ' 才走';
     else if (st.pop >= beds() && st.igloos < CFG1.maxIgloo) g = '🏠 床滿了（' + st.pop + '/' + beds() + '），再蓋冰屋流民才留得住（' + st.igloos + '/' + CFG1.maxIgloo + '）';
-    else if (!st.axe && st.pop >= 2) g = '🪓 北邊綠色格可以用 ' + CFG1.axePrice + ' 🪵 升級斧頭，之後自動砍樹，木頭比枯枝耐燒';
-    else if (!selfSufficient()) g = '📋 自給自足：🍢 烤魚攤 ' + (st.stall ? '✔' : '✘') + '　🏠 冰屋 ' + st.igloos + '/' + CFG1.need.igloos + '　👥 ' + st.pop + '/' + CFG1.need.pop + '　🔥 ' + f + '/' + CFG1.need.fuel;
+    else if (!st.axe) g = '🪓 營區中間的綠色格可以用 ' + CFG1.axePrice + ' 🪵 升級斧頭，之後自動砍樹，木頭比枯枝耐燒';
+    else if (!selfSufficient()) g = '📋 自給自足：🍢 烤魚攤 ' + (st.stall ? '✔' : '✘') + '　🏠 冰屋 ' + st.igloos + '/' + CFG1.need.igloos + '　👥 ' + st.pop + '/' + CFG1.need.pop + '　🔥 ' + f + '/' + CFG1.need.fuel + '　🪓 斧頭 ' + (st.axe ? '✔' : '✘');
     else g = '✅ 自給自足了！';
     goalEl.textContent = g; hudEl.style.top = (goalEl.offsetHeight + 20) + 'px';   // 目標列變成 2～3 行時，下面的小標籤跟著往下，不要互蓋
     padLabel.visible = st.igloos < CFG1.maxIgloo && st.dis === 0;
     if (padLabel.visible) padLabel.set(['🧊 蓋冰屋 +' + CFG1.bedPer + ' 床', '🧊 ' + Math.min(price(), pad.userData.paid + brickCount()) + '/' + price()], '#ffe066', [36, 68]);
-    axeLabel.visible = !st.axe && st.pop >= 2 && st.dis === 0;
+    axeLabel.visible = !st.axe && st.dis === 0;
     if (axeLabel.visible) axeLabel.set(['🪓 升級斧頭', '🪵 ' + Math.min(CFG1.axePrice, axePad.userData.paid + woodInBag()) + '/' + CFG1.axePrice], '#9fe870', [36, 68]);
     stallLabel.visible = !st.stall && st.igloos >= 1 && st.dis === 0;
     if (stallLabel.visible) stallLabel.set(['🍢 蓋烤魚攤', '🪵 ' + Math.min(CFG1.stallWood, stallPaid.w + woodInBag()) + '/' + CFG1.stallWood + '　🧊 ' + Math.min(CFG1.stallBrick, stallPaid.b + brickCount()) + '/' + CFG1.stallBrick], '#ffe066', [36, 52]);
@@ -344,7 +344,7 @@ const stage1 = (() => {
     }
     pad.fill.scale.y = Math.max(0.0001, pad.userData.paid / price()); pad.visible = st.igloos < CFG1.maxIgloo && st.dis === 0;
     // 做斧頭格：用背著的木頭付；居民 ≥2 才出現
-    const axeOn = !st.axe && st.pop >= 2 && st.dis === 0;
+    const axeOn = !st.axe && st.dis === 0;
     if (axeOn && Math.hypot(X - AXEPAD[0], Z - AXEPAD[1]) < 1.5 && (paceT -= dt) <= 0) {
       paceT = 0.2;
       if (takeWood()) { axePad.userData.paid++; sfx.coin(); if (axePad.userData.paid >= CFG1.axePrice) { st.axe = true; sparkleAt(AXEPAD[0], AXEPAD[1]); sfx.unlock(); toast('🪓 做好斧頭了！走近樹就會自動砍，一棵 3 塊木頭'); } }
@@ -465,7 +465,7 @@ const stage1 = (() => {
     for (let i = 0; i < snowN; i++) { snowPos[i * 3 + 1] -= dt * 1.5; if (snowPos[i * 3 + 1] < 0) { snowPos[i * 3 + 1] = 18; snowPos[i * 3] = player.position.x + rand(-25, 25); snowPos[i * 3 + 2] = player.position.z + rand(-25, 25); } }
     snowGeo.attributes.position.needsUpdate = true;
     if (t > 7) k.fade.style.opacity = Math.min(1, t - 7);
-    if (t > 8.2) { save.stage = 2; save.res = Math.min(Math.floor(st.pop / 2), 3); writeSave(); resetting = true; try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) {} location.reload(); k.t = -1e9; }
+    if (t > 8.2) { save.stage = 2; save.arrive = true; save.res = Math.min(Math.floor(st.pop / 2), 3); writeSave(); resetting = true; try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) {} location.reload(); k.t = -1e9; }
   }
   let paceT = 0;
   function finish() {                                                            // 撐過崩裂 → 遷徙劇情卡 → 第 2 關（帶走錢 100%、居民折半）
