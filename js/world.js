@@ -157,7 +157,7 @@ function makeLabel(w = 256, h = 128) {
 }
 
 // 地上的虛線方框（投放點、付款格）；icon 是畫在格子裡的圖示（emoji）
-function makePad(x, z, size, color, icon) {
+function makePad(x, z, size, color, icon, up) {
   const g = new THREE.Group();
   const n = 8, seg = size / (n * 2);
   const mat = new THREE.MeshBasicMaterial({ color });
@@ -180,8 +180,12 @@ function makePad(x, z, size, color, icon) {
     c.fillStyle = 'rgba(255,255,255,.55)'; c.beginPath();
     if (c.roundRect) c.roundRect(14, 14, 228, 228, 36); else c.rect(14, 14, 228, 228);
     c.fill();
-    c.font = '150px "Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif';
-    c.fillStyle = '#fff'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(icon, 128, 140); // emoji 也會吃 fillStyle 的透明度
+    c.font = (up ? 110 : 150) + 'px "Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif';
+    c.fillStyle = '#fff'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(icon, up ? 100 : 128, up ? 164 : 140); // emoji 也會吃 fillStyle 的透明度
+    if (up) {                                                    // v0.93（作者：升級標誌太像）：升級格＝綠底＋右上角一個大綠色向上箭頭
+      c.fillStyle = '#1f9d4a'; c.beginPath(); c.arc(176, 80, 66, 0, 7); c.fill();
+      c.fillStyle = '#fff'; c.beginPath(); c.moveTo(176, 28); c.lineTo(222, 84); c.lineTo(194, 84); c.lineTo(194, 128); c.lineTo(158, 128); c.lineTo(158, 84); c.lineTo(130, 84); c.fill();
+    }
     const ic = new THREE.Mesh(new THREE.PlaneGeometry(size * 0.9, size * 0.9), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(cv), transparent: true, depthWrite: false }));
     ic.rotation.x = -Math.PI / 2; ic.position.y = 0.004; g.add(ic);
   }

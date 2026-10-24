@@ -1,5 +1,5 @@
 'use strict';
-const VERSION = '0.92';
+const VERSION = '0.93';
 
 // ===== 數值（之後平衡都改這裡） =====
 const CFG = {

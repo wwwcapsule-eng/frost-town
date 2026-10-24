@@ -56,7 +56,10 @@ const GOALS = PRO ? [ // 正式關：建築要自己用規劃模式選位置，�
   { t: () => '營火升級 Lv2，領地再擴大', done: () => save.territory >= 2 },
   { t: () => '蓋更多民房，人口到 80（' + population() + '/80）', done: () => save.level >= 2 },
   { t: () => '把營火進化成石爐（營火 Lv4）', done: () => save.stove >= 1 },
-  { t: () => '城市的新玩法製作中，繼續擴張吧！', done: () => false },
+  { t: () => '把🔨鐵匠鋪升級到 Lv2（要🪨石材，煤賣更貴、伐木工更快）', done: () => save.smithLv >= 1 || !mills.some(m => m.upU) },
+  { t: () => '把📦倉庫升到 Lv3（每樣能存 450、多雇搬運工）', done: () => (save.whLv || 0) >= 2 },
+  { t: () => '再蓋 🪨 石屋，居民到 300 升城市（' + population() + '/300）', done: () => save.level >= 3 },
+  { t: () => '城市的新玩法（大暴雪、市集）製作中，繼續擴張吧！', done: () => false },
 ] : [
   { t: () => '升級任意 3 個項目（' + Math.min(save.buys, 3) + '/3）', done: () => save.buys >= 3 },
   { t: () => '揹 ' + CFG.whLogs + ' 根木頭蓋📦倉庫（建築要用倉庫的🪵木頭蓋）', done: () => !!save.wh },
@@ -70,7 +73,10 @@ const GOALS = PRO ? [ // 正式關：建築要自己用規劃模式選位置，�
   { t: () => '蓋民房、留住流民，居民到 80（' + population() + '/80）', done: () => save.level >= 2 },
   { t: () => '把營火進化成石爐（營火 Lv4）', done: () => save.stove >= 1 },
   { t: () => '開採石場，揹🪨石材回倉庫', done: () => !!save.quarry },
-  { t: () => '城市的新玩法製作中，繼續擴張吧！', done: () => false },
+  { t: () => '把🔨鐵匠鋪升級到 Lv2（要🪨石材，煤賣更貴、伐木工更快）', done: () => save.smithLv >= 1 || !mills.some(m => m.upU) },
+  { t: () => '把📦倉庫升到 Lv3（每樣能存 450、多雇搬運工）', done: () => (save.whLv || 0) >= 2 },
+  { t: () => '再蓋 🪨 石屋，居民到 300 升城市（' + population() + '/300）', done: () => save.level >= 3 },
+  { t: () => '城市的新玩法（大暴雪、市集）製作中，繼續擴張吧！', done: () => false },
 ];
 save.goal = Math.min(save.goal || 0, GOALS.length - 1); // 匯入的存檔碼可能不對，不要超出範圍
 let shownGoal = '', goalFlash = 0;
