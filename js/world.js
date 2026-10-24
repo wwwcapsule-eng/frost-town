@@ -54,7 +54,7 @@ const KIT = {
   anvil: ['survival/workbench-anvil.glb', 0.9],
   ...Object.fromEntries(['male-a', 'female-a', 'male-b', 'female-b', 'male-c', 'female-c', 'male-d', 'female-d', 'male-e', 'female-e', 'male-f', 'female-f'].map((n, i) => ['mc' + i, ['mini/character-' + n + '.glb', 1.45]])), // v0.96 Kenney mini-characters 12 個人物
   sign: ['survival/signpost.glb', 1.6], lantern: ['holiday/lantern.glb', 0.6],
-  kkBarbarian: ['kaykit/Barbarian.glb', 1.6], kkRanger: ['kaykit/Ranger.glb', 1.6], // v1.06 KayKit Adventurers（CC0）
+  kkBarbarian: ['kaykit/Barbarian.glb', 1.6], kkRanger: ['kaykit/Ranger.glb', 1.6], kkMage: ['kaykit/Mage.glb', 2.0], // v1.06 KayKit Adventurers（CC0）
   rockA: ['survival/rock-a.glb', 1.2], rockB: ['survival/rock-b.glb', 0.9], rockC: ['survival/rock-c.glb', 1.5],
 };
 const kitWait = {};
@@ -526,12 +526,13 @@ function kkHold(m, file) {                                    // file：武器�
     kkTool[file] = r.scene; put(r.scene);
   });
 }
-function dressKK(g, olds, key, weapon) {                     // 載不到就保留舊的方塊小人
+function dressKK(g, olds, key, weapon, cb) {                     // 載不到就保留舊的方塊小人
   withKKClips(clips => kit(key, g, 0, 0, 0, 0, 1, m => {
     olds.forEach(o => o.visible = false);
     const mixer = new THREE.AnimationMixer(m), walk = mixer.clipAction(clips.walk), idle = mixer.clipAction(clips.idle); walk.play(); idle.play();
     mixers.push({ g, mixer, walk, idle, x: g.position.x, z: g.position.z });
     if (weapon) kkHold(m, weapon);
+    if (cb) cb(m);
   }));
 }
 function updateMixers(dt) {

@@ -16,10 +16,16 @@ const scarf = box(0.7, 0.14, 0.52, hRed); scarf.position.y = 0.88;
 player.add(legL, legR, armL, armR, head, cap, capRim, pom, eyeL, eyeR, cheekL, cheekR, scarf);
 player.flash = [hSkin, hBlue, hRed, hDark];          // 受傷時閃紅的材質（main.js）
 player.tick = (walk, moving) => {                     // 走路時手腳前後擺、身體輕輕彈
+  if (player.kk) return;                              // 換上 KayKit 法師後，走路交給動畫
   const s = moving ? Math.sin(walk * 0.65) : 0;
   legL.rotation.x = armR.rotation.x = s * 0.6; legR.rotation.x = armL.rotation.x = -s * 0.6;
   player.position.y = Math.abs(s) * 0.05;
 };
+// v1.07（作者：工人換了 KayKit，方塊人主角就很怪）：主角也換成 KayKit 法師（沒分給任何工種，藍色尖帽跟頭一體），載好就把方塊人藏起來；載不到就留方塊人
+dressKK(player, [body, legL, legR, armL, armR, head, cap, capRim, pom, eyeL, eyeR, cheekL, cheekR, scarf], 'kkMage', null, m => {
+  player.kk = true; player.flash = [];
+  m.traverse(o => { if (o.isMesh) { o.material = o.material.clone(); player.flash.push(o.material); } });
+});
 // v1.02（作者：最重要的是認得出主角）：腳下一圈亮藍光圈
 const heroRing = new THREE.Mesh(new THREE.RingGeometry(0.8, 1.02, 32), new THREE.MeshBasicMaterial({ color: 0x4fc3ff, transparent: true, opacity: 0.9, depthWrite: false }));
 heroRing.rotation.x = -Math.PI / 2; heroRing.position.y = 0.06; player.add(heroRing);
