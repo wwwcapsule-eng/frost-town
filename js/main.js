@@ -142,9 +142,9 @@ function undeclutter() { for (const l of dcHidden) l.visible = true; dcHidden.le
 let hudRs = [], hudT = 0;                                         // 介面（上方血條、目標、左下背包、右下按鈕）在螢幕上的範圍，每 0.5 秒量一次
 function hudRects() {
   const W = innerWidth, H = innerHeight, out = [];
-  for (const id of ['hud', 'bars', 'goal', 'bl', 'alert', 'camBtn', 'planBtn', 'reset', 's1hud', 's1goal']) {
+  for (const id of ['hud', 'bars', 'goal', 'bl', 'alert', 'camBtn', 'planBtn', 'reset']) {
     const e = $(id); if (!e || e.offsetParent === null && getComputedStyle(e).position !== 'fixed') continue;
-    for (const c of e.children.length && id !== 'goal' && id !== 'alert' && id !== 's1hud' ? [...e.children, ...(id === 'bl' ? [...$('bag').children] : [])] : [e]) {
+    for (const c of e.children.length && id !== 'goal' && id !== 'alert' ? [...e.children, ...(id === 'bl' ? [...$('bag').children] : [])] : [e]) {
       const r = c.getBoundingClientRect(); if (r.width && r.height && getComputedStyle(c).display !== 'none') out.push([r.left / W * 2 - 1, 1 - r.bottom / H * 2, r.right / W * 2 - 1, 1 - r.top / H * 2]);
     }
   }

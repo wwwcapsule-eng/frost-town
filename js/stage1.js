@@ -7,10 +7,10 @@
 // 流程：自給自足（暫時：烤魚攤＋3 間冰屋＋6 人＋火 50%）→ 冰湖崩裂預告 → 守住火堆 45 秒 → 遷徙去第 2 關。（雇漁民、冰窖、寒潮等在 v1.19～v1.22）
 const stage1 = (() => {
   const S = { on: false };
-  const CFG1 = { cap: 4, igloo: 5, bedPer: 2, maxIgloo: 4, burn: 0.4, burnDis: 1.6, twigFuel: 14, logFuel: 25, digT: 0.6, bankHp: 4, bankBricks: 2, bankRe: 20, fishT: 3.0, twigRe: 8, twigReDis: 4,
+  const CFG1 = { cap: 4, igloo: 5, bedPer: 2, maxIgloo: 4, burn: 0.4, burnDis: 4.0, stormTwig: 6, whBrick: 12, whWood: 10, whCap: 40, whPop: 3, needLogs: 15, twigFuel: 14, logFuel: 25, digT: 0.6, bankHp: 4, bankBricks: 2, bankRe: 20, fishT: 3.0, twigRe: 8, twigReDis: 4,
     axePrice: 8, treeHp: 3, treeLogs: 3, treeRe: 45, stallWood: 6, stallBrick: 4, grillT: 0.8, counterMax: 6, arrive: 12, queueMax: 4, pay: 5,
     need: { igloos: 3, pop: 6, fuel: 50 }, warn: 15, dis: 45, retry: 30 };
-  const st = save.s1 = Object.assign({ fuel: 55, raw: 0, cooked: 0, bricks: 0, igloos: 0, pop: 0, stall: false, dis: 0, disT: 0, retryT: 0, arriveT: 4, axe: false, done: false }, save.s1);
+  const st = save.s1 = Object.assign({ fuel: 55, raw: 0, cooked: 0, bricks: 0, igloos: 0, pop: 0, stall: false, dis: 0, disT: 0, retryT: 0, arriveT: 4, axe: false, done: false, wh: false, logs: 0, fishS: 0, goal: 0 }, save.s1);
   const root = new THREE.Group();
   const RC = { x0: -12, x1: 12, z0: -3, z1: 18 };                           // 圍欄矩形
   const GATE_W = 1.8, GATE_Z = 7.5;                                         // 門寬的一半；東西門的 z
@@ -19,7 +19,7 @@ const stage1 = (() => {
   const BANKS = [];       // v1.20（作者：不能鏟的雪從營區拿掉、能鏟的集中成一座大雪堆）：南門外一座大雪堆，十幾個雪堆擠在一起
   const HILL = [0, 31];
   for (let j = -2; j <= 2; j++) for (let x = -7.4 + (j & 1 ? 1.35 : 0); x <= 7.5; x += 2.7) { if ((x / 7.8) ** 2 + (j * 2.5 / 5.6) ** 2 <= 1) BANKS.push([+(HILL[0] + x).toFixed(1), +(HILL[1] + j * 2.5).toFixed(1)]); }
-  const TWIGS = [-0.5, 3, 6, 9, 12.5, 16].flatMap(z => [[-14.5, z], [14.5, z]]);   // v1.24：枯枝 4→10 堆
+  const WH = [-3.4, 2.6], TWIGS = [-0.5, 3, 6, 9, 12.5, 16].flatMap(z => [[-14.5, z], [14.5, z]]);   // v1.24：枯枝 4→10 堆
   const HOLES = [[0, -10.5]];                                                // 湖中間一個挖出來的大洞（半徑 1.7），旁邊插三根釣竿，人走近就自動釣魚
   const HOLE_R = 1.7;
   const QUEUE = [[-1.2, 12.8], [-0.4, 14.3], [0.4, 15.8], [1.2, 17.3]];     // 烤魚攤前排隊的位置（往南門方向排）
@@ -101,7 +101,8 @@ const stage1 = (() => {
   });
   // 付款格：蓋冰屋、做斧頭、蓋烤魚攤、送魚
   const mkPad = (p, color, icon, size = 2.6) => { const g = makePad(p[0], p[1], size, color, icon, true); root.add(g); g.userData.paid = 0; const l = makeLabel(320, 180); l.scale.set(3.2, 1.8, 1); l.position.set(p[0], 1.9, p[1]); root.add(l); return [g, l]; };
-  const [pad, padLabel] = mkPad(PAD, 0xffd34d, '🧊'), [axePad, axeLabel] = mkPad(AXEPAD, 0x35d36a, '🪓'), [stallPad, stallLabel] = mkPad(STALL, 0xffd34d, '🍢'), [rawPad, rawLabel] = mkPad(RAWPAD, 0x4fb3e8, '🐟', 2.4);
+  const [pad, padLabel] = mkPad(PAD, 0xffd34d, '🧊'), [axePad, axeLabel] = mkPad(AXEPAD, 0x35d36a, '🪓'), [stallPad, stallLabel] = mkPad(STALL, 0xffd34d, '🍢'), [rawPad, rawLabel] = mkPad(RAWPAD, 0x4fb3e8, '🐟', 2.4), [whPad, whLabel] = mkPad(WH, 0xffd34d, '📦');
+  const whPaid = { w: 0, b: 0 }, whCap = () => CFG1.whCap;
   const price = () => CFG1.igloo + st.igloos;
   let tFish = 0; const tipV = new THREE.Vector3();
 
@@ -150,6 +151,14 @@ const stage1 = (() => {
     const roof = box(3.2, 0.1, 2.3, mats.wood); roof.position.set(0, 2.95, -0.1); roof.rotation.x = 0.22; stallG.add(roof);
     for (let i = 0; i < 4; i++) { const f = ell(mat(0xb8c9d4), 0.1, 0.34, 0.06, -1.0 + i * 0.66, 2.35, -0.7, stallG); f.userData.hang = i; }
   }
+  // 冰窖（第 1 關的倉庫）：半埋在雪裡的冰磚大屋、木頭斜屋頂、門口堆魚箱；門朝南（朝火堆）
+  const whG = new THREE.Group(); whG.position.set(WH[0], 0, WH[1]); whG.visible = false; root.add(whG);
+  { const base = box(3.2, 1.7, 2.4, mat(0xcfe6f2)); base.position.y = 0.85; whG.add(base);
+    [0.45, 0.9, 1.35].forEach(y => { const l = box(3.24, 0.05, 2.44, mat(0x9fc4da)); l.position.y = y; whG.add(l); });
+    const roof = box(3.6, 0.22, 2.9, mats.wood); roof.position.set(0, 1.85, 0); roof.rotation.x = -0.12; whG.add(roof);
+    ell(mat(0xf4fafd), 1.9, 0.3, 1.5, 0, 1.98, -0.05, whG);
+    const door = box(1.0, 1.2, 0.06, mats.trunk); door.position.set(0, 0.6, 1.22); whG.add(door);
+    [[-1.2, 1.6], [-0.55, 1.7]].forEach(([x, z]) => { const c = box(0.5, 0.4, 0.4, mats.wood); c.position.set(x, 0.2, z); whG.add(c); }); }
   const counterFish = []; for (let i = 0; i < CFG1.counterMax; i++) { const f = ell(mat(0xf08a3c), 0.3, 0.1, 0.14, -0.85 + (i % 3) * 0.55 + (i > 2 ? 0.2 : 0), 1.14, 0.1 + (i > 2 ? 0.4 : -0.3), stallG); f.rotation.y = i; counterFish.push(f); }
   const smoke = []; for (let i = 0; i < 3; i++) { const s = ell(new THREE.MeshBasicMaterial({ color: 0xdfe8ee, transparent: true, opacity: 0.5, depthWrite: false }), 0.3, 0.3, 0.3, 0, 2, -0.6, stallG); smoke.push(s); }
 
@@ -168,8 +177,8 @@ const stage1 = (() => {
   function addBag(type) { if (bag.length >= CFG1.cap) return false; const m = bagMesh(type); stackRoot.add(m); bag.push({ type, m }); restackBag(); return true; }
   function restackBag() { bag.forEach((b, i) => { b.m.position.set(0, i * 0.3, 0); b.m.rotation.y = 0; }); }
   function takeBag(type) { const k = bag.findIndex(b => b.type === type); if (k < 0) return false; stackRoot.remove(bag[k].m); bag.splice(k, 1); restackBag(); return true; }
-  const takeWood = () => takeBag('log') || takeBag('twig');                  // 🪵 木頭：枯枝、木頭都算
-  const woodInBag = () => bag.filter(b => b.type === 'log' || b.type === 'twig').length;
+  const takeWood = () => takeBag('log') || takeBag('twig') || (st.logs > 0 && (st.logs--, true));                  // 🪵 木頭：枯枝、木頭都算
+  const woodInBag = () => bag.filter(b => b.type === 'log' || b.type === 'twig').length + st.logs;
 
   // ---- 人：流民（南門外排隊吃烤魚）、居民（住冰屋、在火堆旁閒晃）；圍欄裡外要走門 ----
   const gatePt = (x, z) => z < RC.z0 ? [0, RC.z0, 0, -1] : z > RC.z1 ? [0, RC.z1, 0, 1] : x < RC.x0 ? [RC.x0, GATE_Z, -1, 0] : [RC.x1, GATE_Z, 1, 0];   // 門中心＋往外的方向
@@ -197,40 +206,52 @@ const stage1 = (() => {
   function addCustomer() { const g = makePerson(st.pop + queue.length + (cashTotal++)); g.position.set(0, 0, RC.z1 + 4); queue.push({ g, state: 'walk', t: 0, i: 0 }); }
   let cashTotal = 0;
   const beds = () => st.igloos * CFG1.bedPer;
-  const selfSufficient = () => st.axe && st.stall && st.igloos >= CFG1.need.igloos && st.pop >= CFG1.need.pop && st.fuel >= CFG1.need.fuel;
+  const selfSufficient = () => st.axe && st.stall && st.wh && st.logs >= CFG1.needLogs && st.igloos >= CFG1.need.igloos && st.pop >= CFG1.need.pop && st.fuel >= CFG1.need.fuel;
 
   // ---- 介面 ----
-  const hudEl = document.createElement('div'), goalEl = document.createElement('div');
-  hudEl.id = 's1hud'; goalEl.id = 's1goal';
-  hudEl.style.cssText = 'position:fixed;left:12px;top:78px;z-index:6;display:flex;flex-wrap:wrap;gap:6px;max-width:calc(100vw - 24px);pointer-events:none;font:800 15px sans-serif;color:#fff';
-  goalEl.style.cssText = 'position:fixed;left:12px;right:70px;top:12px;z-index:6;background:rgba(255,255,255,.9);color:#2b3f52;border-radius:14px;padding:8px 12px;font:800 14px/1.35 sans-serif;pointer-events:none';
-  const pill = (id, t) => `<span id="${id}" style="background:rgba(20,30,50,.62);padding:4px 10px;border-radius:14px;white-space:nowrap">${t}</span>`;
+  // v1.26（作者：第 2 關的介面最完整，第 1 關要一樣）：直接用第 2 關那一套畫面元件——左上 💵👥、左下 📦 倉庫＋揹包、🔥 火堆條、上方 🎯 目標（完成有獎金）和警示列
   const brickCount = () => st.bricks + bag.filter(b => b.type === 'brick').length;
+  const GOALS = [
+    [() => '⛏️ 走到南邊大雪堆旁，用手挖冰磚，揹到黃色格蓋第 1 間冰屋（🧊 ' + Math.min(price(), brickCount()) + '/' + price() + '）', () => st.igloos >= 1],
+    [() => '🪓 撿森林邊的枯枝，在中間綠色格用 ' + CFG1.axePrice + ' 個做斧頭', () => st.axe],
+    [() => '🍢 蓋烤魚攤（🪵 ' + CFG1.stallWood + '＋🧊 ' + CFG1.stallBrick + '），烤魚的香味才引得來流民', () => st.stall],
+    [() => '🎣 去北邊冰洞釣魚，揹到藍色送魚格烤熟，流民吃飽就留下（居民 ' + st.pop + '/2）', () => st.pop >= 2],
+    [() => '🏠 再蓋冰屋、留住流民：冰屋 ' + st.igloos + '/' + CFG1.need.igloos + '　居民 ' + st.pop + '/' + CFG1.need.pop, () => st.igloos >= CFG1.need.igloos && st.pop >= CFG1.need.pop],
+    [() => '📦 蓋冰窖（🧊 ' + CFG1.whBrick + '＋🪵 ' + CFG1.whWood + '，居民 ' + CFG1.whPop + ' 人以上才出現）：揹包滿了可以存進去', () => st.wh],
+    [() => '🪵 用斧頭砍樹，把木頭存進冰窖囤到 ' + CFG1.needLogs + ' 根（' + st.logs + '/' + CFG1.needLogs + '），暴風雪要靠它', () => st.logs >= CFG1.needLogs],
+    [() => '🔥 火堆保持 ' + CFG1.need.fuel + '% 以上（現在 ' + Math.round(st.fuel) + '%），暴風雪就會來襲！', () => false],
+  ];
+  let shownGoal = '', goalFlash = 0, shownAlert = '', whFeedT = 0, whFishT = 0, whDepT = 0;
+  const setTxt = (id, t) => { const e = $(id); if (e.textContent !== '' + t) e.textContent = t; };
   function hudText() {
-    const f = Math.round(st.fuel);
-    hudEl.innerHTML = pill('s1f', '🔥 ' + f + '%') + (st.stall ? pill('s1s', '🍢 ' + st.cooked + (st.raw ? '＋🐟' + st.raw : '')) : '') + pill('s1h', '🏠 ' + st.igloos + '/' + CFG1.maxIgloo) + pill('s1p', '👥 ' + st.pop + '/' + beds()) + pill('s1c', '💵 ' + save.cash) + pill('s1b', '🎒 ' + bag.length + '/' + CFG1.cap);
-    let g;
-    if (st.dis === 1) g = '🌨️ 遠方颳起暴風雪！' + Math.ceil(st.disT) + ' 秒後來襲，備好木頭、守住火堆！';
-    else if (st.dis === 2) g = '🌨️ 暴風雪來了！再撐 ' + Math.ceil(st.disT) + ' 秒，別讓火堆熄了（🪵 撿枯枝、木頭丟火堆）';
-    else if (st.dis === 3) g = '🧊 冰湖開始崩裂了！';
-    else if (st.fuel <= 0) g = '🔥 火堆熄了！快去森林撿 🪵 枯枝丟進火堆';
-    else if (st.igloos === 0) g = brickCount() > 0 ? '🧊 把冰磚揹到黃色格「蓋冰屋」（' + brickCount() + '/' + price() + '）' : '⛏️ 走到南邊大雪堆旁，會自動用手挖出冰磚（蓋冰屋要 ' + price() + ' 塊）';
-    else if (!st.stall) g = '🍢 蓋烤魚攤（🪵 ' + CFG1.stallWood + '＋🧊 ' + CFG1.stallBrick + '）才能烤魚；烤魚的香味才吸引得了流民。火堆光是取暖';
-    else if (st.cooked === 0 && st.raw === 0 && !bag.some(b => b.type === 'fish') && st.pop < 1) g = '🎣 去北邊湖中間的大冰洞，靠近就自動釣魚；揹回營區的藍色「送魚格」，烤好流民才會來';
-    else if (st.pop < beds() && queue.length) g = '🍢 流民排隊吃烤魚了：有空床就留下，沒床要付 💵' + CFG1.pay + ' 才走';
-    else if (st.pop >= beds() && st.igloos < CFG1.maxIgloo) g = '🏠 床滿了（' + st.pop + '/' + beds() + '），再蓋冰屋流民才留得住（' + st.igloos + '/' + CFG1.maxIgloo + '）';
-    else if (!st.axe) g = '🪓 營區中間的綠色格可以用 ' + CFG1.axePrice + ' 🪵 升級斧頭，之後自動砍樹，木頭比枯枝耐燒';
-    else if (!selfSufficient()) g = '📋 自給自足：🍢 烤魚攤 ' + (st.stall ? '✔' : '✘') + '　🏠 冰屋 ' + st.igloos + '/' + CFG1.need.igloos + '　👥 ' + st.pop + '/' + CFG1.need.pop + '　🔥 ' + f + '/' + CFG1.need.fuel + '　🪓 斧頭 ' + (st.axe ? '✔' : '✘');
-    else g = '✅ 自給自足了！';
-    goalEl.textContent = g; hudEl.style.top = (goalEl.offsetHeight + 20) + 'px';   // 目標列變成 2～3 行時，下面的小標籤跟著往下，不要互蓋
+    const f = Math.round(st.fuel), nb = bag.filter(b => b.type === 'brick').length, nf = bag.filter(b => b.type === 'fish').length, nl = bag.length - nb - nf;
+    while (st.goal < GOALS.length - 1 && GOALS[st.goal][1]()) { const reward = 10 * (st.goal + 1); st.goal++; save.cash += reward; goalFlash = 1.5; toast('🎯 目標完成！獎金 +' + reward + ' 元'); sfx.coin(); }
+    goalFlash -= 0.25;
+    setTxt('cash', save.cash); setTxt('pop', st.pop); setTxt('capP', '/' + beds()); setTxt('beds', ' 🛏️' + Math.max(0, beds() - st.pop));
+    setTxt('meat', nf); setTxt('stone', nb); setTxt('wood', nl); ['capM', 'capS', 'capW'].forEach(id => setTxt(id, '/' + CFG1.cap));
+    ['pMeat', 'pStone', 'pWood'].forEach(id => $(id).classList.toggle('full', bag.length >= CFG1.cap));
+    $('pStore').style.display = st.wh ? '' : 'none'; setTxt('sBr', st.bricks); setTxt('sLg', st.logs); setTxt('sFs', st.fishS); setTxt('sCap', '/' + whCap());
+    setTxt('fuel', f); setTxt('fireName', '火堆'); $('fuelBar').firstElementChild.style.width = f + '%'; $('fuelBar').classList.toggle('danger', f < 20);
+    const g = '🎯 ' + GOALS[st.goal][0]();
+    if (g !== shownGoal) { $('goal').textContent = g; shownGoal = g; }
+    $('goal').classList.toggle('done', goalFlash > 0);
+    let at = '', cls = '';
+    if (st.dis === 1) { at = '🌨️ 暴風雪 ' + Math.ceil(st.disT) + ' 秒後來襲，先囤木頭、守好火堆'; cls = 'cold'; }
+    else if (st.dis === 2) { at = '🌨️ 暴風雪 ' + Math.ceil(st.disT) + ' 秒：枯枝不耐燒，丟木頭守住火堆'; cls = 'cold'; }
+    else if (st.dis === 3) { at = '🧊 冰湖崩裂了！'; }
+    else if (st.fuel <= 0) { at = '🔥 火堆熄了！快撿枯枝、木頭丟進去'; }
+    else if (st.goal >= GOALS.length - 1 && !selfSufficient()) { at = '📋 還缺：' + [!st.axe && '🪓 斧頭', !st.stall && '🍢 烤魚攤', !st.wh && '📦 冰窖', st.logs < CFG1.needLogs && '🪵 冰窖木頭 ' + st.logs + '/' + CFG1.needLogs, st.igloos < CFG1.need.igloos && '🏠 冰屋', st.pop < CFG1.need.pop && '👥 居民', st.fuel < CFG1.need.fuel && '🔥 火堆'].filter(Boolean).join('、'); cls = 'warn'; }
+    const key = at + cls; if (key !== shownAlert) { shownAlert = key; $('alert').textContent = at; $('alert').className = cls; $('alert').style.display = at ? 'block' : 'none'; }
     padLabel.visible = st.igloos < CFG1.maxIgloo && st.dis === 0;
     if (padLabel.visible) padLabel.set(['🧊 蓋冰屋 +' + CFG1.bedPer + ' 床', '🧊 ' + Math.min(price(), pad.userData.paid + brickCount()) + '/' + price()], '#ffe066', [36, 68]);
     axeLabel.visible = !st.axe && st.dis === 0;
-    if (axeLabel.visible) axeLabel.set(['🪓 升級斧頭', '🪵 ' + Math.min(CFG1.axePrice, axePad.userData.paid + woodInBag()) + '/' + CFG1.axePrice], '#9fe870', [36, 68]);
-    stallLabel.visible = !st.stall && st.igloos >= 1 && st.dis === 0;
-    if (stallLabel.visible) stallLabel.set(['🍢 蓋烤魚攤', '🪵 ' + Math.min(CFG1.stallWood, stallPaid.w + woodInBag()) + '/' + CFG1.stallWood + '　🧊 ' + Math.min(CFG1.stallBrick, stallPaid.b + brickCount()) + '/' + CFG1.stallBrick], '#ffe066', [36, 52]);
+    if (axeLabel.visible) axeLabel.set(['🪓 做斧頭', '🪵 ' + Math.min(CFG1.axePrice, axePad.userData.paid + woodInBag()) + '/' + CFG1.axePrice], '#9fe870', [36, 68]);
+    stallLabel.visible = st.dis === 0 && st.igloos >= 1;
+    if (stallLabel.visible) { if (!st.stall) stallLabel.set(['🍢 蓋烤魚攤', '🪵 ' + Math.min(CFG1.stallWood, stallPaid.w + woodInBag()) + '/' + CFG1.stallWood + '　🧊 ' + Math.min(CFG1.stallBrick, stallPaid.b + brickCount()) + '/' + CFG1.stallBrick], '#ffe066', [36, 52]); else stallLabel.set(['🍢 烤魚攤', '烤好 ' + st.cooked + '/' + CFG1.counterMax + (st.raw ? '　🐟 ' + st.raw : '')], '#ffe9b0', [36, 52]); stallLabel.position.y = st.stall ? 3.6 : 1.9; }
     rawLabel.visible = st.stall && st.dis === 0;
     if (rawLabel.visible) rawLabel.set(['🐟 送魚格', '站在這裡把魚交給烤魚攤'], '#bfe8ff', [34, 42]);
+    whLabel.visible = st.dis === 0 && (st.wh || (st.pop >= CFG1.whPop && st.igloos >= 1));
+    if (whLabel.visible) { if (!st.wh) whLabel.set(['📦 蓋冰窖', '🧊 ' + Math.min(CFG1.whBrick, whPaid.b + brickCount()) + '/' + CFG1.whBrick + '　🪵 ' + Math.min(CFG1.whWood, whPaid.w + woodInBag()) + '/' + CFG1.whWood], '#ffe066', [36, 52]); else whLabel.set(['📦 冰窖', '站近自動存入　每樣最多 ' + whCap()], '#d9efff', [36, 52]); whLabel.position.y = st.wh ? 3.4 : 1.9; }
     fireLabel.set([st.fuel <= 0 ? '🔥 火堆熄了' : '🔥 火堆 ' + f + '%', '丟枯枝、木頭加火'], st.fuel > 40 ? '#ffd34d' : '#ff8a5c', [34, 50]);
   }
 
@@ -254,6 +275,7 @@ const stage1 = (() => {
       if (onFence(nx, nz)) { if (!onFence(nx, pz)) nz = pz; else if (!onFence(px, nz)) nx = px; else { nx = px; nz = pz; } }
       for (const o of igloos) { const d = Math.hypot(nx - o.x, nz - o.z); if (d < IG.hit && d > 0) { nx = o.x + (nx - o.x) / d * IG.hit; nz = o.z + (nz - o.z) / d * IG.hit; } }
       for (const b of banks) if (b.alive) { const d = Math.hypot(nx - b.x, nz - b.z); if (d < 1.4 && d > 0) { nx = b.x + (nx - b.x) / d * 1.4; nz = b.z + (nz - b.z) / d * 1.4; } }   // 雪堆是一堵雪牆，人進不去，站在旁邊用手挖
+      if (st.wh && Math.abs(nx - WH[0]) < 1.9 && Math.abs(nz - WH[1]) < 1.5) { nx = px; nz = pz; }
       if (st.stall) { const sx = Math.abs(nx - STALL[0]), sz = Math.abs(nz - STALL[1]); if (sx < 1.7 && sz < 1.1) { nx = px; nz = pz; } }   // 烤魚攤本體不能穿
       const df = Math.hypot(nx - FIRE[0], nz - FIRE[1]); if (df < 0.9 && df > 0) { nx = FIRE[0] + (nx - FIRE[0]) / df * 0.9; nz = FIRE[1] + (nz - FIRE[1]) / df * 0.9; }
       for (const t of forest) if (t.alive) { const d = Math.hypot(nx - t.x, nz - t.z); if (d < 0.7 && d > 0) { nx = t.x + (nx - t.x) / d * 0.7; nz = t.z + (nz - t.z) / d * 0.7; } }
@@ -282,7 +304,7 @@ const stage1 = (() => {
         target.g.scale.set(1, 0.4 + 0.6 * target.hp / CFG1.bankHp, 1);
         if (target.hp <= 0) {
           target.alive = false; target.t = CFG1.bankRe; target.g.visible = false;
-          for (let i = 0; i < CFG1.bankBricks; i++) if (!addBag('brick')) st.bricks++;
+          for (let i = 0; i < CFG1.bankBricks; i++) if (!addBag('brick') && (!st.wh || st.bricks < whCap())) st.bricks++;
           floatText('+🧊×' + CFG1.bankBricks, target.x, target.z, '#9fdcff');
         }
       }
@@ -331,7 +353,7 @@ const stage1 = (() => {
       if ((fireT2 -= dt) <= 0) {
         fireT2 = 0.15;
         if (takeBag('log')) { st.fuel = Math.min(100, st.fuel + CFG1.logFuel); sfx.coin(); }
-        else if (takeBag('twig')) { st.fuel = Math.min(100, st.fuel + CFG1.twigFuel); sfx.coin(); }
+        else if (takeBag('twig')) { st.fuel = Math.min(100, st.fuel + (st.dis === 2 ? CFG1.stormTwig : CFG1.twigFuel)); sfx.coin(); }
       }
     }
     // 蓋冰屋格：背著的冰磚、庫存的冰磚都能付
@@ -351,6 +373,23 @@ const stage1 = (() => {
       if (takeWood()) { axePad.userData.paid++; sfx.coin(); if (axePad.userData.paid >= CFG1.axePrice) { st.axe = true; sparkleAt(AXEPAD[0], AXEPAD[1]); sfx.unlock(); toast('🪓 做好斧頭了！走近樹就會自動砍，一棵 3 塊木頭'); } }
     }
     axePad.fill.scale.y = Math.max(0.0001, axePad.userData.paid / CFG1.axePrice); axePad.visible = axeOn;
+    // 蓋冰窖：居民 ≥3；🧊12＋🪵10（背著的、冰磚庫存都能付）
+    const whOn = !st.wh && st.pop >= CFG1.whPop && st.igloos >= 1 && st.dis === 0;
+    if (whOn && Math.hypot(X - WH[0], Z - WH[1]) < 2.0 && (whDepT -= dt) <= 0) {
+      whDepT = 0.2;
+      if (whPaid.w < CFG1.whWood && takeWood()) { whPaid.w++; sfx.coin(); }
+      else if (whPaid.b < CFG1.whBrick && (st.bricks > 0 ? (st.bricks--, true) : takeBag('brick'))) { whPaid.b++; sfx.coin(); }
+      if (whPaid.w >= CFG1.whWood && whPaid.b >= CFG1.whBrick) { st.wh = true; sparkleAt(WH[0], WH[1]); sfx.unlock(); toast('📦 冰窖蓋好了！站在門口，揹包裡的冰磚、木頭、魚會自動存進去'); }
+    }
+    whPad.fill.scale.y = Math.max(0.0001, (whPaid.w + whPaid.b) / (CFG1.whWood + CFG1.whBrick)); whPad.visible = whOn; whG.visible = st.wh;
+    if (st.wh) {
+      if (Math.hypot(X - WH[0], Z - (WH[1] + 1.6)) < 3.0 && (whDepT -= dt) <= 0) {                // 站在冰窖門口：揹包的冰磚、木頭、魚一個個存進去（枯枝是引火用的，不存）
+        const t = bag.some(b => b.type === 'brick') && st.bricks < whCap() ? 'brick' : bag.some(b => b.type === 'log') && st.logs < whCap() ? 'log' : bag.some(b => b.type === 'fish') && st.fishS < whCap() ? 'fish' : null;
+        if (t) { whDepT = 0.12; takeBag(t); if (t === 'brick') st.bricks++; else if (t === 'log') st.logs++; else st.fishS++; sfx.coin(); }
+      }
+      if (st.fuel < 60 && st.logs > 0 && (whFeedT -= dt) <= 0) { whFeedT = 1; st.logs--; st.fuel = Math.min(100, st.fuel + CFG1.logFuel); floatText('📦→🔥', FIRE[0] + 1, FIRE[1], '#ffd34d'); }   // 冰窖的木頭自動補火堆
+      if (st.stall && st.fishS > 0 && st.raw < 3 && (whFishT -= dt) <= 0) { whFishT = 1.2; st.fishS--; st.raw++; }                   // 冰窖的魚自動送去烤
+    }
     // 蓋烤魚攤：先蓋好 1 間冰屋；🪵6＋🧊4
     const stallOn = !st.stall && st.igloos >= 1 && st.dis === 0;
     if (stallOn && Math.hypot(X - STALL[0], Z - STALL[1]) < 2.0 && (stallPadT -= dt) <= 0) {
@@ -480,22 +519,23 @@ const stage1 = (() => {
   }
   // 最小間距檢查（給 layout-check 用）：格子、雪堆、枯枝、冰洞、冰屋、烤魚攤、火堆互相隔夠遠
   S.check = () => {
-    const pts = [['火堆', FIRE[0], FIRE[1], 2.6], ['蓋冰屋格', PAD[0], PAD[1], 1.6], ['做斧頭格', AXEPAD[0], AXEPAD[1], 1.6], ['烤魚攤', STALL[0], STALL[1], 1.8], ['送魚格', RAWPAD[0], RAWPAD[1], 1.6], ...SLOTS.map((s, i) => ['冰屋' + i, s[0], s[1], IG.hit]), ...BANKS.map((s, i) => ['雪堆' + i, s[0], s[1], 1.2]), ...TWIGS.map((s, i) => ['枯枝' + i, s[0], s[1], 1.0]), ...HOLES.map((s, i) => ['冰洞' + i, s[0], s[1], HOLE_R + 0.3])], out = [];
+    const pts = [['火堆', FIRE[0], FIRE[1], 2.6], ['蓋冰屋格', PAD[0], PAD[1], 1.6], ['做斧頭格', AXEPAD[0], AXEPAD[1], 1.6], ['烤魚攤', STALL[0], STALL[1], 1.8], ['送魚格', RAWPAD[0], RAWPAD[1], 1.6], ['冰窖', WH[0], WH[1], 1.7], ...SLOTS.map((s, i) => ['冰屋' + i, s[0], s[1], IG.hit]), ...BANKS.map((s, i) => ['雪堆' + i, s[0], s[1], 1.2]), ...TWIGS.map((s, i) => ['枯枝' + i, s[0], s[1], 1.0]), ...HOLES.map((s, i) => ['冰洞' + i, s[0], s[1], HOLE_R + 0.3])], out = [];
     for (let i = 0; i < pts.length; i++) for (let j = i + 1; j < pts.length; j++) { const d = Math.hypot(pts[i][1] - pts[j][1], pts[i][2] - pts[j][2]), min = pts[i][3] + pts[j][3] + 0.4; if (d < min && !(/^雪堆/.test(pts[i][0]) && /^雪堆/.test(pts[j][0]))) out.push('第1關太近：' + pts[i][0] + ' 和 ' + pts[j][0] + '（' + d.toFixed(1) + '）'); }
     QUEUE.forEach((q, i) => pts.forEach(p => { if (p[0] !== '烤魚攤' && Math.hypot(q[0] - p[1], q[1] - p[2]) < p[3] + 0.8) out.push('第1關排隊位置太靠近：' + p[0]); }));
     return out;
   };
-  S.spots = [[0, 10], PAD, FIRE, AXEPAD, STALL, RAWPAD, ...HOLES, [0, -7.5], BANKS[0], BANKS[BANKS.length - 1], HILL, TWIGS[0], TWIGS[1], SLOTS[0], SLOTS[3], QUEUE[1]];   // layout-check 讓主角走過去看的位置
+  S.spots = [[0, 10], WH, PAD, FIRE, AXEPAD, STALL, RAWPAD, ...HOLES, [0, -7.5], BANKS[0], BANKS[BANKS.length - 1], HILL, TWIGS[0], TWIGS[1], SLOTS[0], SLOTS[3], QUEUE[1]];   // layout-check 讓主角走過去看的位置
   S.state = st; S.addResident = addResident; S.addCustomer = addCustomer; S.buildIgloo = buildIgloo; S.bag = bag; S.folks = folks; S.igloos = igloos; S.banks = banks; S.forest = forest; S.twigs = twigs; S.queue = queue; S.stallG = stallG;
   S.step = step;
   S.enter = () => {
     S.on = true; undeclutter();                                    // 先把「被避讓藏起來的標籤」放回去再一起藏，不然之後 undeclutter 會把它們叫回來
     scene.children.slice().forEach(o => { if (!(o.isLight || o === player || o.isPoints || o === sun.target)) o.visible = false; });
     scene.add(root); root.visible = true; root.add(axe);
-    document.body.appendChild(hudEl); document.body.appendChild(goalEl);
-    ['hud', 'bars', 'bl', 'topc', 'alert', 'camBtn', 'planBtn'].forEach(id => { const e = $(id); if (e) e.style.display = 'none'; });
+    ['camBtn', 'planBtn', 'hpBar', 'pCoal'].forEach(id => { const e = $(id); if (e) e.style.display = 'none'; });
+    $('pMeat').innerHTML = '🐟 <b id="meat">0</b><span class="cap" id="capM"></span>'; $('pStone').innerHTML = '🧊 <b id="stone">0</b><span class="cap" id="capS"></span>'; $('pStone').style.display = '';
+    $('pStore').innerHTML = '📦 🧊<b id="sBr">0</b><span class="cap" id="sCap"></span> 🪵<b id="sLg">0</b> 🐟<b id="sFs">0</b>';
     for (let i = 0; i < st.igloos; i++) buildIgloo(i, false);
-    stallG.visible = st.stall;
+    stallG.visible = st.stall; whG.visible = st.wh;
     for (let i = 0; i < st.pop; i++) addResident(i, true);
     player.position.set(0, 0, 10); player.rotation.y = Math.PI; camera.position.copy(player.position).add(camOffset);
     hintOn = false; $('hint').style.display = 'none';              // 操作提示改放在上方目標列，不另外蓋在畫面中間
