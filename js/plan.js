@@ -627,7 +627,7 @@ function updateThieves(dt) {
 // 頭上飄一行字（賣煤的錢），1.2 秒後消失
 function floatText(t, x, z, color = '#9fe870') {
   const l = makeLabel(); l.scale.set(3.2, 1.6, 1); l.position.set(x, 2.4, z); l.set([t], color); scene.add(l);
-  fly(l, l.position.clone(), () => new THREE.Vector3(x, 3.6, z), 1.2, () => scene.remove(l), 0);
+  fly(l, l.position.clone(), () => new THREE.Vector3(x, 3.6, z), 1.2, () => { scene.remove(l); allLabels.splice(allLabels.indexOf(l), 1); l.material.map.dispose(); l.material.dispose(); }, 0); // 用完就丟，不要越積越多
   flies[flies.length - 1].spin = false;
 }
 // 地上的掉落物（v0.81 加上木頭）：熊倒下的肉、揹不下的木頭；主角走過去撿，獵人撿肉、伐木工撿木頭

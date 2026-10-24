@@ -138,11 +138,12 @@ function rebuildRoads() {
 
 // 文字標籤（價格、名稱）
 const labelK = new THREE.Vector3(1, 1, 1);
+const allLabels = []; // v1.00：每個標籤都登記，declutter() 用來避讓
 function makeLabel(w = 256, h = 128) {
   const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
   const tex = new THREE.CanvasTexture(cv);
   const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false }));
-  sp.renderOrder = 10;
+  sp.renderOrder = 10; sp.inkW = sp.inkH = 0; allLabels.push(sp);
   sp.onBeforeRender = () => sp.matrixWorld.scale(labelK); // v0.88（作者：營地越大字越小）：鏡頭拉遠時標籤跟著放大，螢幕上的字一樣大
   let last = '';
   sp.set = (lines, color = '#fff', sizes = [44, 30]) => { // sizes：每一行的字級
@@ -154,6 +155,8 @@ function makeLabel(w = 256, h = 128) {
       const s = sizes[Math.min(i, sizes.length - 1)]; g.font = font(i, s);
       return Math.min(s, Math.floor(s * (w - 20) / Math.max(1, g.measureText(t).width)));
     });
+    const tw = Math.max(...lines.map((t, i) => { g.font = font(i, fs[i]); return g.measureText(t).width + Math.max(8, fs[i] / 6); }));
+    sp.inkW = Math.min(1, tw / w); sp.inkH = Math.min(1, (fs.reduce((a, b) => a + b * 1.05, 0) + 8) / h); // 有字的範圍（占整張圖幾成），避讓用
     let y = h / 2 - fs.reduce((a, b) => a + b * 1.05, 0) / 2;
     lines.forEach((t, i) => {
       g.font = font(i, fs[i]);
