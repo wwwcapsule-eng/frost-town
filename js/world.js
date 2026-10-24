@@ -512,3 +512,17 @@ function updateMixers(dt) {
     k.mixer.update(dt);
   }
 }
+// 工種制服（v0.98，作者：居民、工人要有明顯區別，同一個工作地點穿一樣）：每個工種固定一個人物造型＋背心顏色＋帽子顏色＋手上的工具；居民隨機造型、不穿背心
+function vest(g, hex) {
+  const v = box(0.66, 0.5, 0.46, M(hex)); v.position.y = 0.78; g.add(v);
+  const belt = box(0.68, 0.08, 0.48, M(0x3a2a1a)); belt.position.y = 0.55; g.add(belt);
+}
+function handTool(g, kind) {                                   // 右手拿的工具：axe 斧頭、pick 十字鎬、shovel 鏟子、bow 弓
+  const t = new THREE.Group(); t.position.set(0.5, 0.75, 0.25); g.add(t);
+  const stick = box(0.07, 0.07, kind === 'shovel' ? 1.0 : 0.8, mats.trunk); t.add(stick);
+  if (kind === 'axe') { const h = box(0.38, 0.1, 0.22, mats.axe); h.position.z = 0.4; t.add(h); }
+  if (kind === 'pick') { const h = box(0.55, 0.08, 0.1, mats.axe); h.position.z = 0.4; t.add(h); }
+  if (kind === 'shovel') { const h = box(0.28, 0.05, 0.32, mats.axe); h.position.z = 0.55; t.add(h); }
+  if (kind === 'bow') { stick.scale.set(1, 1, 1.3); stick.rotation.x = 1.57; }
+  return t;
+}
