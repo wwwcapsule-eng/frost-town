@@ -421,6 +421,8 @@ function showMenu(on) {
 let menuSeen = false;
 document.getElementById('reset').onclick = () => { menuSeen = true; showMenu(true); };
 document.getElementById('menuClose').onclick = () => showMenu(false);
+document.getElementById('menuCredits').onclick = () => { $('credVer').textContent = 'v' + VERSION; $('credits').style.display = 'flex'; };
+document.getElementById('credClose').onclick = () => { $('credits').style.display = 'none'; };
 document.querySelectorAll('#menu [data-mode]').forEach(b => b.onclick = () => {
   try { localStorage.setItem(MODE_KEY, b.dataset.mode); } catch (e) {}
   if (b.dataset.mode === MODE && !resetting) { showMenu(false); return; }
