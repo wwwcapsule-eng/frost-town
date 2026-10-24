@@ -17,6 +17,8 @@ const stage1 = (() => {
   const FIRE = [0, 7], PAD = [4.2, 10.4], AXEPAD = [0, 0], STALL = [-3.4, 12.8], RAWPAD = [-5.6, 8.6], LAKE = [0, -13, 7.5];
   const SLOTS = [[-8.4, 1.0], [8.4, 1.0], [-8.4, 14.0], [8.4, 14.0]];
   const BANKS = [[-3.8, 0.6], [3.8, 0.6], [-14, -1], [14, -1]];
+  { let sd = 5; const r2 = () => (sd = sd * 16807 % 2147483647) / 2147483647;      // v1.19（作者：積雪跟樹一樣，在外面一大片）：南門外一片雪地，24 個雪堆，留一條路給流民
+    for (let n = 0; n < 400 && BANKS.length < 28; n++) { const x = -18 + r2() * 36, z = 24 + r2() * 16; if (Math.abs(x) < 3.2 && z < 32) continue; if (BANKS.some(b => Math.hypot(b[0] - x, b[1] - z) < 3.6)) continue; BANKS.push([+x.toFixed(1), +z.toFixed(1)]); } }
   const TWIGS = [[-14.5, 3], [14.5, 3], [-14.5, 12.5], [14.5, 12.5]];
   const HOLES = [[-3.4, -7.2], [3.4, -7.2]];
   const QUEUE = [[-1.2, 12.8], [-0.4, 14.3], [0.4, 15.8], [1.2, 17.3]];     // 烤魚攤前排隊的位置（往南門方向排）
@@ -28,9 +30,9 @@ const stage1 = (() => {
   const stallPaid = { w: 0, b: 0 };
 
   // ---- 場景 ----
-  const ground = new THREE.Mesh(new THREE.CircleGeometry(44, 48), mat(0x8fb9d6)); ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; root.add(ground);
-  const lake = new THREE.Mesh(new THREE.CircleGeometry(LAKE[2], 40), mat(0xe6f6fd)); lake.rotation.x = -Math.PI / 2; lake.position.set(LAKE[0], 0.02, LAKE[1]); root.add(lake);
-  const rim = new THREE.Mesh(new THREE.RingGeometry(LAKE[2], LAKE[2] + 0.7, 40), mat(0xd9eef8)); rim.rotation.x = -Math.PI / 2; rim.position.set(LAKE[0], 0.025, LAKE[1]); root.add(rim);
+  const ground = new THREE.Mesh(new THREE.CircleGeometry(44, 48), mat(0x6f9dbd)); ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; root.add(ground);
+  const lake = new THREE.Mesh(new THREE.CircleGeometry(LAKE[2], 40), mat(0x8cc4e6)); lake.rotation.x = -Math.PI / 2; lake.position.set(LAKE[0], 0.02, LAKE[1]); root.add(lake);
+  const rim = new THREE.Mesh(new THREE.RingGeometry(LAKE[2], LAKE[2] + 0.7, 40), mat(0xbfe0f2)); rim.rotation.x = -Math.PI / 2; rim.position.set(LAKE[0], 0.025, LAKE[1]); root.add(rim);
   const cracks = new THREE.Group(); cracks.visible = false; root.add(cracks);
   for (let i = 0; i < 9; i++) {                                           // 崩裂時浮現的裂縫：從湖心往外的白色折線
     const a = i / 9 * Math.PI * 2 + 0.3, len = 5.5 + (i % 3) * 0.9, c = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.03, len), new THREE.MeshBasicMaterial({ color: 0xffffff }));
@@ -70,7 +72,7 @@ const stage1 = (() => {
   const warm = new THREE.Mesh(new THREE.CircleGeometry(1, 40), new THREE.MeshBasicMaterial({ color: 0xffd88a, transparent: true, opacity: 0.28, depthWrite: false })); warm.rotation.x = -Math.PI / 2; warm.position.set(FIRE[0], 0.03, FIRE[1]); root.add(warm);
   const fireLabel = makeLabel(); fireLabel.scale.set(3, 1.5, 1); fireLabel.position.set(FIRE[0], 2.6, FIRE[1]); root.add(fireLabel);
   // 雪堆（鏟子自動挖）、枯枝、冰洞
-  BANKS.forEach(([x, z]) => { const g = new THREE.Group(); g.position.set(x, 0, z); root.add(g); ell(mat(0xffffff), 1.15, 0.6, 1.1, 0, 0.25, 0, g); ell(mat(0xf3fafe), 0.6, 0.38, 0.55, 0.55, 0.15, 0.5, g); banks.push({ x, z, g, hp: CFG1.bankHp, alive: true, t: 0 }); });
+  BANKS.forEach(([x, z]) => { const g = new THREE.Group(); g.position.set(x, 0, z); root.add(g); ell(mat(0xc9deee), 1.2, 0.62, 1.15, 0, 0.25, 0, g); ell(mat(0xbdd5e8), 0.65, 0.4, 0.6, 0.6, 0.15, 0.5, g); ell(mat(0xd6e6f2), 0.5, 0.3, 0.45, -0.5, 0.45, -0.1, g); banks.push({ x, z, g, hp: CFG1.bankHp, alive: true, t: 0 }); });
   TWIGS.forEach(([x, z]) => { const g = new THREE.Group(); g.position.set(x, 0, z); root.add(g);
     [0.3, 1.5, 2.6].forEach((ry, i) => { const s = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 1.1, 6), mat(0x7a5230)); s.rotation.z = Math.PI / 2; s.rotation.y = ry; s.position.set(0, 0.12 + i * 0.1, 0); g.add(s); });
     twigs.push({ x, z, g, t: 0, alive: true }); });
@@ -84,13 +86,23 @@ const stage1 = (() => {
   const shovel = new THREE.Group(); shovel.position.set(0.55, 0.9, 0.3);
   { const h = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 1.1), mat(0x7a4a2a)); h.position.z = 0.45; shovel.add(h); const b = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.05, 0.42), mat(0xa9b4c0)); b.position.z = 1.1; shovel.add(b); }
   player.add(shovel);
+  // 魚竿（自己拼的，參考 KayKit RPG Tools Extra 的樣子：粗握把、細長竿、小捲線輪；Extra 要付費所以不是他的模型）
+  const rodG = new THREE.Group(); rodG.position.set(0.5, 1.0, 0.25); rodG.rotation.x = -0.75; rodG.visible = false; player.add(rodG);
+  { const grip = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.5, 8), mat(0xc96a28)); grip.rotation.x = Math.PI / 2; grip.position.z = 0.1; rodG.add(grip);
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.04, 2.0, 6), mat(0x7a4a2a)); pole.rotation.x = Math.PI / 2; pole.position.z = 1.3; rodG.add(pole);
+    const reel = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.13, 0.08, 10), mat(0xd9d2c0)); reel.rotation.z = Math.PI / 2; reel.position.set(0.12, -0.08, 0.28); rodG.add(reel); }
+  const rodTip = new THREE.Object3D(); rodTip.position.z = 2.3; rodG.add(rodTip);
+  const bobber = new THREE.Group(); bobber.visible = false; root.add(bobber); ell(mat(0xe8453c), 0.17, 0.17, 0.17, 0, 0.1, 0, bobber); ell(mat(0xffffff), 0.17, 0.1, 0.17, 0, -0.03, 0, bobber);
+  const lineGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]), fishLine = new THREE.Line(lineGeo, new THREE.LineBasicMaterial({ color: 0xf4fbff })); fishLine.frustumCulled = false; fishLine.visible = false; root.add(fishLine);
+  const tipV = new THREE.Vector3();
 
   // 冰屋（v1.18 放大：圓頂半徑 2.4、高 2.2，門洞 1.1 寬 1.5 高，主角站得進去）
   const IG = { rx: 2.4, ry: 2.2, hit: 2.6 };
   function buildIgloo(i, pop = true) {
     const [x, z] = SLOTS[i], g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = Math.atan2(FIRE[0] - x, FIRE[1] - z); root.add(g);
-    const ice = mat(0xf2fafe), line = mat(0xc4dfec);
-    ell(ice, IG.rx, IG.ry, IG.rx, 0, 0, 0, g);
+    const ice = M(0x9fd3ee); ice.transparent = true; ice.opacity = 0.74; ice.depthWrite = false; const line = mat(0xe9f8ff);   // v1.19（作者：冰屋太白傷眼）：半透明冰藍色＋深藍內核，透出裡面
+    ell(mat(0x4f93c4), IG.rx * 0.93, IG.ry * 0.93, IG.rx * 0.93, 0, 0, 0, g); ell(ice, IG.rx, IG.ry, IG.rx, 0, 0, 0, g);
+    [[-0.6, 2.05, 0.4, 0.2], [0.5, 2.15, -0.3, -0.25], [0.1, 2.25, 0.9, 0.1]].forEach(([x, y, z, r]) => { const c = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.75, 5), ice); c.position.set(x, y, z); c.rotation.z = r; g.add(c); });
     [0.5, 1.0, 1.5].forEach(y => { const t = new THREE.Mesh(new THREE.TorusGeometry(IG.rx * Math.sqrt(1 - (y / IG.ry) ** 2) * 0.99, 0.055, 6, 32), line); t.rotation.x = Math.PI / 2; t.position.y = y; g.add(t); }); // 冰磚的橫縫
     const tun = new THREE.Mesh(new THREE.CylinderGeometry(0.85, 0.95, 1.7, 14), ice); tun.rotation.x = Math.PI / 2; tun.position.set(0, 0.6, 2.2); tun.scale.set(1, 1, 0.85); g.add(tun);
     const door = new THREE.Mesh(new THREE.CircleGeometry(0.62, 16), mat(0x2b3f52)); door.position.set(0, 0.55, 3.0); g.add(door);
@@ -112,10 +124,17 @@ const stage1 = (() => {
   const smoke = []; for (let i = 0; i < 3; i++) { const s = ell(new THREE.MeshBasicMaterial({ color: 0xdfe8ee, transparent: true, opacity: 0.5, depthWrite: false }), 0.3, 0.3, 0.3, 0, 2, -0.6, stallG); smoke.push(s); }
 
   // ---- 背包 ----
+  function fishMesh() {                                                      // 魚：藍銀色橢圓身體、三角尾巴、背鰭、小眼睛
+    const g = new THREE.Group(), body = mat(0x8fb7d4);
+    ell(body, 0.42, 0.15, 0.17, 0, 0, 0, g); ell(mat(0xe8f4fa), 0.36, 0.08, 0.15, 0, -0.07, 0, g);
+    const tail = new THREE.Mesh(new THREE.ConeGeometry(0.17, 0.3, 4), body); tail.rotation.z = -Math.PI / 2; tail.position.x = -0.5; g.add(tail);
+    const fin = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.2, 4), mat(0x5f8fb0)); fin.position.set(0.02, 0.2, 0); g.add(fin);
+    ell(mat(0x1d2a38), 0.03, 0.03, 0.03, 0.3, 0.05, 0.14, g); ell(mat(0x1d2a38), 0.03, 0.03, 0.03, 0.3, 0.05, -0.14, g); return g;
+  }
   const bagMesh = type => type === 'brick' ? new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.3, 0.42), mat(0xbfe6f6))
     : type === 'twig' ? (() => { const m = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.7, 6), mat(0x7a5230)); m.rotation.z = Math.PI / 2; return m; })()
     : type === 'log' ? (() => { const m = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.8, 8), mats.log); m.rotation.z = Math.PI / 2; return m; })()
-    : ell(mat(0xa9c8d8), 0.4, 0.14, 0.2, 0, 0, 0, new THREE.Group());
+    : fishMesh();
   function addBag(type) { if (bag.length >= CFG1.cap) return false; const m = bagMesh(type); stackRoot.add(m); bag.push({ type, m }); restackBag(); return true; }
   function restackBag() { bag.forEach((b, i) => { b.m.position.set(0, i * 0.3, 0); b.m.rotation.y = 0; }); }
   function takeBag(type) { const k = bag.findIndex(b => b.type === type); if (k < 0) return false; stackRoot.remove(bag[k].m); bag.splice(k, 1); restackBag(); return true; }
@@ -172,7 +191,7 @@ const stage1 = (() => {
     else if (!st.axe && st.pop >= 2) g = '🪓 北邊綠色格可以做石斧（' + CFG1.axePrice + ' 🪵），之後自動砍樹，木頭比枯枝耐燒';
     else if (!selfSufficient()) g = '📋 自給自足：🍢 烤魚攤 ' + (st.stall ? '✔' : '✘') + '　🏠 冰屋 ' + st.igloos + '/' + CFG1.need.igloos + '　👥 ' + st.pop + '/' + CFG1.need.pop + '　🔥 ' + f + '/' + CFG1.need.fuel;
     else g = '✅ 自給自足了！';
-    goalEl.textContent = g;
+    goalEl.textContent = g; hudEl.style.top = (goalEl.offsetHeight + 20) + 'px';   // 目標列變成 2～3 行時，下面的小標籤跟著往下，不要互蓋
     padLabel.visible = st.igloos < CFG1.maxIgloo && st.dis === 0;
     if (padLabel.visible) padLabel.set(['🧊 蓋冰屋 +' + CFG1.bedPer + ' 床', '🧊 ' + Math.min(price(), pad.userData.paid + brickCount()) + '/' + price()], '#ffe066', [36, 68]);
     axeLabel.visible = !st.axe && st.pop >= 2 && st.dis === 0;
@@ -199,7 +218,7 @@ const stage1 = (() => {
     if (moving) {
       if (hintOn) { hintOn = false; $('hint').style.display = 'none'; }
       let nx = px + mx * CFG.speed * dt, nz = pz + mz * CFG.speed * dt;
-      nx = Math.max(-30, Math.min(30, nx)); nz = Math.max(-10, Math.min(24, nz));
+      nx = Math.max(-30, Math.min(30, nx)); nz = Math.max(-10, Math.min(42, nz));
       if (onFence(nx, nz)) { if (!onFence(nx, pz)) nz = pz; else if (!onFence(px, nz)) nx = px; else { nx = px; nz = pz; } }
       for (const o of igloos) { const d = Math.hypot(nx - o.x, nz - o.z); if (d < IG.hit && d > 0) { nx = o.x + (nx - o.x) / d * IG.hit; nz = o.z + (nz - o.z) / d * IG.hit; } }
       if (st.stall) { const sx = Math.abs(nx - STALL[0]), sz = Math.abs(nz - STALL[1]); if (sx < 1.7 && sz < 1.1) { nx = px; nz = pz; } }   // 烤魚攤本體不能穿
@@ -255,7 +274,14 @@ const stage1 = (() => {
       }
     } else { swooshMat.opacity = 0; chopT = Math.min(chopT, 0.2); }
     for (const t of forest) if (t.shake > 0) { t.shake -= dt; t.g.rotation.z = Math.sin(t.shake * 60) * 0.08; } else t.g.rotation.z = 0;
-    // 冰洞釣魚
+    // 冰洞釣魚：靠近冰洞就拿出魚竿，線和浮標連到洞上
+    let fishing = null; for (const h of holes) if (dist(h, X, Z) < 1.6 && bag.length < CFG1.cap) fishing = h;
+    rodG.visible = !!fishing; shovel.visible = !fishing; fishLine.visible = bobber.visible = !!fishing;
+    if (fishing) {
+      const bite = fishing.prog > CFG1.fishT - 0.7; shovT += dt; bobber.position.set(fishing.x, 0.06 + Math.sin(shovT * 3) * 0.04 - (bite ? 0.12 : 0), fishing.z); rodG.rotation.x = -0.75 + (bite ? Math.sin(shovT * 30) * 0.08 : Math.sin(shovT * 2) * 0.03);
+      rodTip.getWorldPosition(tipV); const p = lineGeo.attributes.position; p.setXYZ(0, tipV.x, tipV.y, tipV.z); p.setXYZ(1, bobber.position.x, bobber.position.y + 0.15, bobber.position.z); p.needsUpdate = true;
+      player.rotation.y = Math.atan2(fishing.x - X, fishing.z - Z);
+    }
     for (const h of holes) {
       if (dist(h, X, Z) < 1.3 && bag.length < CFG1.cap) { h.prog += dt; if (h.prog >= CFG1.fishT) { h.prog = 0; addBag('fish'); sfx.coin(); floatText('+🐟', h.x, h.z, '#bfe8ff'); } }
       else h.prog = Math.max(0, h.prog - dt);
@@ -338,7 +364,7 @@ const stage1 = (() => {
       } else if (st.dis === 2) {
         st.disT -= dt; shake = 0.12;
         const k = 1 - st.disT / CFG1.dis; cracks.children.forEach(c => { c.visible = k >= c.userData.k * 0.8; }); lake.material.color.setRGB(0.9 - k * 0.55, 0.96 - k * 0.4, 0.99 - k * 0.2);
-        if (st.fuel <= 0) { st.dis = 0; st.retryT = CFG1.retry; cracks.visible = false; lake.material.color.setHex(0xe6f6fd); toast('🔥 火堆熄了…冰裂縫又合起來，晚點再來'); }
+        if (st.fuel <= 0) { st.dis = 0; st.retryT = CFG1.retry; cracks.visible = false; lake.material.color.setHex(0x8cc4e6); toast('🔥 火堆熄了…冰裂縫又合起來，晚點再來'); }
         else if (st.disT <= 0) { st.done = true; finish(); }
       }
     }
@@ -384,7 +410,7 @@ const stage1 = (() => {
     QUEUE.forEach((q, i) => pts.forEach(p => { if (p[0] !== '烤魚攤' && Math.hypot(q[0] - p[1], q[1] - p[2]) < p[3] + 0.8) out.push('第1關排隊位置太靠近：' + p[0]); }));
     return out;
   };
-  S.spots = [[0, 10], PAD, FIRE, AXEPAD, STALL, RAWPAD, ...HOLES, BANKS[0], BANKS[3], TWIGS[0], TWIGS[1], SLOTS[0], SLOTS[3], QUEUE[1]];   // layout-check 讓主角走過去看的位置
+  S.spots = [[0, 10], PAD, FIRE, AXEPAD, STALL, RAWPAD, ...HOLES, BANKS[0], BANKS[3], [0, 30], TWIGS[0], TWIGS[1], SLOTS[0], SLOTS[3], QUEUE[1]];   // layout-check 讓主角走過去看的位置
   S.state = st; S.addResident = addResident; S.addCustomer = addCustomer; S.buildIgloo = buildIgloo; S.bag = bag; S.folks = folks; S.igloos = igloos; S.banks = banks; S.forest = forest; S.twigs = twigs; S.queue = queue; S.stallG = stallG;
   S.step = step;
   S.enter = () => {
