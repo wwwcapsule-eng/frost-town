@@ -48,7 +48,6 @@ function addProc(k, x, z) {
       const lv = save.smithLv; m.value = Math.round(CFG.coalValue * (1 + 0.5 * lv)); m.time = 1.5 / (1 + 0.3 * lv);
       m.g.scale.setScalar(1 + 0.07 * lv);
       if (lv >= 1 && !m.chim && !m.g.kk) { m.chim = box(0.4, 1.1, 0.4, M(0x555b66)); m.chim.position.set(-1, 2.2, -0.5); m.g.add(m.chim); }
-      if (lv >= 2 && !m.lamp) { m.lamp = true; kit('lantern', m.g, 1.7, 0, 1.3); kit('lantern', m.g, -1.7, 0, 1.3); }
       if (lv >= 3) setRoofTint(m.g, 0xd9a520);
     };
     kit('anvil', m.g, 2.0, 0, 0.9, -0.5); look();
@@ -317,6 +316,7 @@ function addMillUnlocks() {
 function millLook() {
   const m = mills[0], g = m.g, lv = save.millLv;
   m.time = CFG.millTime / (1 + lv); m.name = '鋸木廠' + (lv ? ' Lv' + (lv + 1) : '');
+  if (g.kk) { g.scale.setScalar(1 + 0.08 * lv); m.bld.r = 1.8 + 0.15 * lv; return; }       // v1.15：KayKit 伐木場升級只長大一點，不再多出沒用的圓鋸、原木堆、棚子
   if (lv >= 1 && !m.saw2) {
     kit('logs', g, 2.1, 0, -0.1, Math.PI / 2);
     m.saw2 = m.saw.clone(); m.saw2.position.x = -0.85; g.add(m.saw2); m.bld.r = 2.0;
@@ -406,7 +406,7 @@ function buildWarehouse() {
   const roof = box(3, 0.3, 2.6, M(0x4f6f8f)); roof.position.y = 1.75; g.add(roof);
   const door = box(1.2, 1.1, 0.06, mats.trunk); door.position.set(0, 0.55, 1.12); g.add(door);
   cabinBody(g, { w: 3, d: 2, s: 1.25, old: [base, roof, door], front: ['cwall', 'cdoor', 'cwall'], side: ['cwall', 'cwall'], back: ['cwin', 'cwall', 'cwin'], roofTint: 0x6f95bf, chim: true, kk: 'bMarket' }); // v0.95 倉庫：大一點的藍屋頂木屋
-  kit('barrel', g, -1.7, 0, 0.6); kit('barrel', g, -1.75, 0, -0.2, 1); kit('crate', g, -1.65, 0, -1, 0.3); kit('chest', g, 0.9, 0, 1.45); // 木桶、木箱（Kenney）
+  // v1.15（作者：倉庫旁的箱子木桶沒有作用、多餘的標誌去掉）：不再放木桶、木箱
   g.position.set(x, 0, z); scene.add(g);
   wh.pad = makePad(x, z + 2.7, 1.8, 0xffffff, '📦');
   wh.label = makeLabel(); wh.label.scale.set(3, 1.5, 1); wh.label.position.set(x, 3, z); scene.add(wh.label);
@@ -896,6 +896,7 @@ function buildHeater(x, z, i) {
   const p = box(0.9, 2.2, 0.9, M(0x8a8f99)); p.position.y = 1.1; g.add(p);
   const top = box(1.2, 0.3, 1.2, mats.trunk); top.position.y = 2.3; g.add(top);
   const fl = new THREE.Mesh(new THREE.ConeGeometry(0.4, 0.8, 6), new THREE.MeshBasicMaterial({ color: 0xff8a1f })); fl.position.y = 2.85; g.add(fl);
+  kit('bHeater', g, 0, 0, 0, 0, 1, m => { kkSoft(m); p.visible = top.visible = false; fl.position.y = 2.7; });   // v1.15：暖氣塔換成 KayKit 矮塔，頂上留火焰
   g.position.set(x, 0, z); scene.add(g);
   const ring = new THREE.Mesh(heatRing.geometry, heatRing.material), fill = new THREE.Mesh(heatFill.geometry, heatFill.material);
   [ring, fill].forEach(m => { m.rotation.x = -Math.PI / 2; m.position.set(x, 0.026, z); scene.add(decal(m, 3)); });

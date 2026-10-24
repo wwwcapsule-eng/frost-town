@@ -56,7 +56,7 @@ const KIT = {
   sign: ['survival/signpost.glb', 1.6], lantern: ['holiday/lantern.glb', 0.6],
   // v1.13 房屋換 KayKit Medieval Hexagon（淡藍色那組）：高度＝原始高度×放大倍率
   bLumber: ['kaykit/bld/building_lumbermill_blue.gltf', 3.0], bTavern: ['kaykit/bld/building_tavern_blue.gltf', 3.2], bSmith: ['kaykit/bld/building_blacksmith_blue.gltf', 2.4],
-  bMarket: ['kaykit/bld/building_market_blue.gltf', 2.3], bHomeA: ['kaykit/bld/building_home_A_blue.gltf', 2.3], bHomeB: ['kaykit/bld/building_home_B_blue.gltf', 3.0], bMine: ['kaykit/bld/building_mine_blue.gltf', 2.6], bTower: ['kaykit/bld/building_tower_catapult_blue.gltf', 3.4],
+  bMarket: ['kaykit/bld/building_market_blue.gltf', 2.3], bHomeA: ['kaykit/bld/building_home_A_blue.gltf', 2.3], bHomeB: ['kaykit/bld/building_home_B_blue.gltf', 3.0], bMine: ['kaykit/bld/building_mine_blue.gltf', 2.6], bTower: ['kaykit/bld/building_tower_catapult_blue.gltf', 3.4], bHeater: ['kaykit/bld/building_tower_base_blue.gltf', 2.4],
   kkBarbarian: ['kaykit/Barbarian.glb', 1.6], kkRanger: ['kaykit/Ranger.glb', 1.6], kkKnight: ['kaykit/Knight.glb', 2.0], // v1.06 KayKit Adventurers（CC0）
   rockA: ['survival/rock-a.glb', 1.2], rockB: ['survival/rock-b.glb', 0.9], rockC: ['survival/rock-c.glb', 1.5],
 };
