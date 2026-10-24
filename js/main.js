@@ -142,7 +142,7 @@ function undeclutter() { for (const l of dcHidden) l.visible = true; dcHidden.le
 let hudRs = [], hudT = 0;                                         // 介面（上方血條、目標、左下背包、右下按鈕）在螢幕上的範圍，每 0.5 秒量一次
 function hudRects() {
   const W = innerWidth, H = innerHeight, out = [];
-  for (const id of ['hud', 'bars', 'goal', 'bl', 'alert', 'camBtn', 'planBtn', 'reset']) {
+  for (const id of ['hud', 'bars', 'goal', 'bl', 'alert', 'camBtn', 'planBtn', 'reset', 's1hud', 's1goal']) {
     const e = $(id); if (!e || e.offsetParent === null && getComputedStyle(e).position !== 'fixed') continue;
     for (const c of e.children.length && id !== 'goal' && id !== 'alert' ? [...e.children, ...(id === 'bl' ? [...$('bag').children] : [])] : [e]) {
       const r = c.getBoundingClientRect(); if (r.width && r.height && getComputedStyle(c).display !== 'none') out.push([r.left / W * 2 - 1, 1 - r.bottom / H * 2, r.right / W * 2 - 1, 1 - r.top / H * 2]);
@@ -178,6 +178,7 @@ function quietLabels() {
 let inkT = 0;
 function step(dt) {
   if (gameOver || paused) return;
+  if (typeof stage1 !== 'undefined' && stage1.on) { stage1.step(dt); return; }   // v1.16 第 1 關冰湖營地
   undeclutter();
   if ((spreadT -= dt) <= 0) { spreadT = 1; spreadPads(); }                       // v1.14 格子保持間距
   if ((inkT -= dt) <= 0) { inkT = 0.5; inkAll(scene); }          // 新出現的建築、人物、模型補上描邊
@@ -407,8 +408,9 @@ function loop() {
   requestAnimationFrame(loop);
   const dt = Math.min(clock.getDelta(), 0.05);
   if (plan.on) planCamera(dt); else step(dt);
-  document.getElementById('planBtn').style.display = (save.level >= 1 || PRO) && !plan.on && !camMode.on && !gameOver ? 'block' : 'none';
-  document.getElementById('camBtn').style.display = !plan.on && !gameOver ? 'block' : 'none';
+  const s1 = typeof stage1 !== 'undefined' && stage1.on;
+  document.getElementById('planBtn').style.display = (save.level >= 1 || PRO) && !plan.on && !camMode.on && !gameOver && !s1 ? 'block' : 'none';
+  document.getElementById('camBtn').style.display = !plan.on && !gameOver && !s1 ? 'block' : 'none';
   renderer.render(scene, camera);
 }
 loop();

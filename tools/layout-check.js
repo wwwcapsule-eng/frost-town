@@ -13,6 +13,7 @@
     { name: '村莊＋煤礦', wh: true, tower: true, tower2: true, territory: 2, east: true, buys: 9, cash: 900, level: 1, res: 40, tents: 4, houses: 6, mine: true, shovel: true },
     { name: '小鎮＋石爐', wh: true, tower: true, tower2: true, workers: 2, hunters: 1, territory: 2, east: true, buys: 15, cash: 2000, level: 2, res: 90, tents: 4, houses: 14, mine: true, shovel: true, stove: 1, quarry: true },
     { name: '小鎮＋圍欄外鐵匠鋪＋石屋', wh: true, territory: 2, east: true, buys: 18, cash: 2000, level: 2, res: 90, tents: 4, houses: 14, mine: true, shovel: true, stove: 1, quarry: true, porters: 3, coalers: 1, plan: [{ k: 'smith', x: -24, z: -5 }], stoneHouses: ['民房0', '民房1', '民房2'] }, // v1.02 作者回報的情況
+    { name: '第1關冰湖營地', stage: 1, s1: { igloos: 3, pop: 6, fuel: 70, fish: 6 } },
   ];
   const inkCache = new Map();
   function ink(sp) {                                   // 標籤圖上真的有字的範圍（0～1）
@@ -99,16 +100,15 @@
   }
   function all() {
     const g = __game, found = new Set(), p0 = g.player.position.clone();
-    const spots = [[0, 2], ...g.unlocks.filter(u => !u.done && u.pad.parent).map(u => [u.x, u.z]), ...g.buildings.filter(b => !b.dead).map(b => [b.x, b.z + b.r + 1.2])];
+    const s1 = g.stage1 && g.stage1.on;                  // v1.16 第 1 關冰湖營地：只檢查第 1 關自己的東西
+    const spots = s1 ? g.stage1.spots : [[0, 2], ...g.unlocks.filter(u => !u.done && u.pad.parent).map(u => [u.x, u.z]), ...g.buildings.filter(b => !b.dead).map(b => [b.x, b.z + b.r + 1.2])];
     for (const [x, z] of spots) {                      // 主角站到每個付款格、每棟建築門口看一次
       g.player.position.set(x, 0, z);
       g.camera.position.copy(g.player.position).add(camOffset); g.camera.lookAt(x, 0.8, z); g.camera.updateMatrixWorld(); // 鏡頭先就位，遊戲裡的避讓才算得準
       for (let i = 0; i < 3; i++) g.step(1 / 30);
       g.render(); checkHere('(' + x.toFixed(1) + ',' + z.toFixed(1) + ')', found);
     }
-    checkPads(found);
-    checkTowers(found);
-    checkSpacing(found);
+    if (s1) g.stage1.check().forEach(m => found.add(m)); else { checkPads(found); checkTowers(found); checkSpacing(found); }
     checkHud(found);
     g.player.position.copy(p0);
     const list = [...found];
