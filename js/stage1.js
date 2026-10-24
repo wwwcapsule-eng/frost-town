@@ -174,8 +174,13 @@ const stage1 = (() => {
     [0.45, 0.9, 1.35].forEach(y => { const l = box(3.24, 0.05, 2.44, mat(0x9fc4da)); l.position.y = y; whG.add(l); });
     const roof = box(3.6, 0.22, 2.9, mats.wood); roof.position.set(0, 1.85, 0); roof.rotation.x = -0.12; whG.add(roof);
     ell(mat(0xf4fafd), 1.9, 0.3, 1.5, 0, 1.98, -0.05, whG);
-    const door = box(1.0, 1.2, 0.06, mats.trunk); door.position.set(0, 0.6, 1.22); whG.add(door);
-    [[-1.2, 1.6], [-0.55, 1.7]].forEach(([x, z]) => { const c = box(0.5, 0.4, 0.4, mats.wood); c.position.set(x, 0.2, z); whG.add(c); }); }
+    // v1.31（作者：冰窖不要前面的小通道，用門）：貼在牆上的木框大門——兩根門柱、橫樑、雙扇深色門板、金色門把，前面什麼都不突出來
+    const frame = mats.trunk, door = new THREE.Group(); door.position.set(0, 0, 1.2); whG.add(door);
+    [-0.62, 0.62].forEach(x => { const p = box(0.16, 1.45, 0.14, frame); p.position.set(x, 0.72, 0.05); door.add(p); });
+    { const lin = box(1.5, 0.18, 0.16, frame); lin.position.set(0, 1.5, 0.05); door.add(lin);
+      [-0.28, 0.28].forEach(x => { const d = box(0.52, 1.3, 0.08, mat(0x4a3a2a)); d.position.set(x, 0.68, 0.03); door.add(d); });
+      [-0.1, 0.1].forEach(x => ell(mats.wood, 0.05, 0.05, 0.05, x, 0.7, 0.1, door).material = M(0xd9a441)); }
+  }
   const whX = new THREE.Group(), whFlag = new THREE.Group(); whG.add(whX, whFlag);                       // 升級外觀：Lv2 多一堆箱子桶子、Lv3 屋頂插金旗
   [[1.95, 0.2, 0.6], [1.95, 0.2, -0.2], [1.95, 0.6, 0.2], [-1.95, 0.2, 0.5], [-1.95, 0.2, -0.3]].forEach(([x, y, z]) => { const c = box(0.55, 0.4, 0.5, mats.wood); c.position.set(x, y, z); whX.add(c); });
   { const pole = box(0.06, 1.2, 0.06, mats.trunk); pole.position.set(0.9, 2.5, -0.5); whFlag.add(pole); const fl = box(0.6, 0.4, 0.04, mat(0xffd34d)); fl.position.set(1.22, 2.9, -0.5); whFlag.add(fl); }
