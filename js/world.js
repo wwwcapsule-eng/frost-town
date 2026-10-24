@@ -54,6 +54,7 @@ const KIT = {
   anvil: ['survival/workbench-anvil.glb', 0.9],
   ...Object.fromEntries(['male-a', 'female-a', 'male-b', 'female-b', 'male-c', 'female-c', 'male-d', 'female-d', 'male-e', 'female-e', 'male-f', 'female-f'].map((n, i) => ['mc' + i, ['mini/character-' + n + '.glb', 1.45]])), // v0.96 Kenney mini-characters 12 個人物
   sign: ['survival/signpost.glb', 1.6], lantern: ['holiday/lantern.glb', 0.6],
+  kkBarbarian: ['kaykit/Barbarian.glb', 1.6], kkRanger: ['kaykit/Ranger.glb', 1.6], // v1.06 KayKit Adventurers（CC0）
   rockA: ['survival/rock-a.glb', 1.2], rockB: ['survival/rock-b.glb', 0.9], rockC: ['survival/rock-c.glb', 1.5],
 };
 const kitWait = {};
@@ -505,6 +506,33 @@ function dress(g, olds, n, s = 1, cb) {
     mixers.push({ g, mixer, walk, idle, x: g.position.x, z: g.position.z });
     if (cb) cb(m);
   });
+}
+// ===== KayKit Adventurers 人物（v1.06，作者選的工種造型）：角色檔不含動畫，走路／待機在另一個檔（骨架同名可直接套）；武器是獨立模型，掛在右手骨頭上 =====
+let kkClips = null; const kkWait = [];
+function withKKClips(cb) {
+  if (kkClips) return cb(kkClips);
+  kkWait.push(cb); if (kkWait.length > 1 || !gltf) return;
+  const got = {}, done = () => { if (got.walk && got.idle) { kkClips = got; kkWait.forEach(f => f(kkClips)); } };
+  gltf.load('assets/models/kaykit/Rig_Medium_MovementBasic.glb', r => { got.walk = r.animations.find(a => a.name === 'Walking_A'); done(); });
+  gltf.load('assets/models/kaykit/Rig_Medium_General.glb', r => { got.idle = r.animations.find(a => a.name === 'Idle_A'); done(); });
+}
+const kkTool = {};
+function kkHold(m, file) {                                    // file：武器檔名（assets/models/kaykit/ 底下）
+  let hand = null; m.traverse(o => { if (/^handslot.?r$/.test(o.name)) hand = o; }); if (!hand || !gltf) return; // three 載入時會把骨頭名字的「.」拿掉
+  const put = o => { const c = o.clone(); hand.add(c); };
+  if (kkTool[file]) return put(kkTool[file]);
+  gltf.load('assets/models/kaykit/' + file, r => {
+    r.scene.traverse(o => { if (o.isMesh) o.material = new THREE.MeshToonMaterial({ map: o.material.map, color: o.material.color, gradientMap: TOON }); });
+    kkTool[file] = r.scene; put(r.scene);
+  });
+}
+function dressKK(g, olds, key, weapon) {                     // 載不到就保留舊的方塊小人
+  withKKClips(clips => kit(key, g, 0, 0, 0, 0, 1, m => {
+    olds.forEach(o => o.visible = false);
+    const mixer = new THREE.AnimationMixer(m), walk = mixer.clipAction(clips.walk), idle = mixer.clipAction(clips.idle); walk.play(); idle.play();
+    mixers.push({ g, mixer, walk, idle, x: g.position.x, z: g.position.z });
+    if (weapon) kkHold(m, weapon);
+  }));
 }
 function updateMixers(dt) {
   for (let i = mixers.length - 1; i >= 0; i--) {

@@ -533,8 +533,8 @@ const hunters = [];
 function addHunter() {
   const g = new THREE.Group();
   const b = box(0.6, 0.75, 0.45, M(0x6b4a2b)); b.position.y = 0.6; g.add(b);
-  const h = box(0.45, 0.42, 0.42, mats.skin); h.position.y = 1.2; g.add(h); dress(g, [b, h], 6); vest(g, 0x2f5d3a);   // 獵人：森林綠背心＋弓
-  const bow = box(0.08, 0.9, 0.08, mats.trunk); bow.position.set(0.38, 0.75, 0.15); g.add(bow);
+  const h = box(0.45, 0.42, 0.42, mats.skin); h.position.y = 1.2; g.add(h); dressKK(g, [b, h], 'kkRanger', 'bow_withString.gltf');   // 獵人：森林綠背心＋弓
+  const bow = box(0.08, 0.9, 0.08, mats.trunk); bow.visible = false; g.add(bow);
   const back = new THREE.Group(); back.position.set(0, 1.0, -0.4); g.add(back);
   g.position.set(LOT.hunter[0] + 1.4, 0, towerPadZ() + 1.2); scene.add(g);
   hunters.push({ g, back, load: 0, bear: null, cd: 0, walk: 0 });

@@ -310,7 +310,7 @@ const workers = [];
 function addWorker() {
   const g = new THREE.Group();
   const b = box(0.6, 0.75, 0.45, M(0xf08a24)); b.position.y = 0.6; g.add(b);
-  const h = box(0.45, 0.42, 0.42, mats.skin); h.position.y = 1.2; g.add(h); dress(g, [b, h], 0); vest(g, 0xf08a24); handTool(g, 'axe');   // 伐木工：橘背心＋斧頭（v1.02 作者：只有主角戴帽子，工人靠背心和工具分）
+  const h = box(0.45, 0.42, 0.42, mats.skin); h.position.y = 1.2; g.add(h); dressKK(g, [b, h], 'kkBarbarian', 'axe_1handed.gltf');   // 伐木工：橘背心＋斧頭（v1.02 作者：只有主角戴帽子，工人靠背心和工具分）
   const back = new THREE.Group(); back.position.set(0, 1.0, -0.4); g.add(back);
   g.position.set(3.5, 0, 3); scene.add(g);
   workers.push({ g, back, load: 0, tree: null, cd: 0, walk: 0 });
