@@ -1,5 +1,5 @@
 'use strict';
-const VERSION = '1.13';
+const VERSION = '1.16';
 
 // ===== 數值（之後平衡都改這裡） =====
 const CFG = {
@@ -51,7 +51,7 @@ const CFG = {
   buyPlank: [20, 60], buyStone: [10, 120], // v1.02 🛷 商隊（作者：錢很多不知道買什麼）：倉庫旁用錢買一批建材——20 木材 60 元，開了採石場再加 10 石材 120 元（賣出 1 元／根，買比賣貴）
   hordeWaves: 3, hordeGap: 15, hordeWarn: 30, hordeReward: 80, // v1.01 🐾 獸潮（營地→村莊前的遷徙天災）：幾波、每波打完隔幾秒、預告幾秒、撐過的獎金；最後一波帶熊王
   blizAt: 0.9, blizRetry: 60, blizWarn: 30, blizLen: 60, blizSnow: 5, blizMax: 20, blizSlow: 0.75, blizReward: 50, // v0.99 大暴雪（村莊開始）：居民到下一級的幾成時來、失敗後幾秒再來、預告幾秒、持續幾秒、積雪幾倍快、雪堆上限、主角走路剩幾成、撐過去的獎金
-  coldFirst: 120, coldEvery: 150, coldLen: 30, coldBurn: 3, coldShrink: 0.75, coldReward: 30, // 寒潮（村莊開始）：第一次幾秒後、之後每幾秒、持續幾秒、火爐燒幾倍快、暖氣圈縮成幾成、撐過去的獎金 // 火爐升級（村莊解鎖）：暖氣圈最大半徑 +7
+  coldFirst: 120, coldEvery: 150, coldLen: 30, coldBurn: 3, coldShrink: 0.75, coldWork: 0.95, coldReward: 30, // 寒潮（村莊開始）：第一次幾秒後、之後每幾秒、持續幾秒、火爐燒幾倍快、暖氣圈縮成幾成、撐過去的獎金 // 火爐升級（村莊解鎖）：暖氣圈最大半徑 +7
 };
 // 城市等級：人口到門檻就升級（藍圖見 docs/企劃評估.md 第 8 節）；houses＝這一級最多能蓋幾間民房
 // cam＝鏡頭拉遠倍數；unlock＝升級卡片上列的新東西
@@ -88,7 +88,7 @@ LOT.minePad = LOT.cart = [+(MINE.x + 4.1).toFixed(2), +(MINE.z - 0.55).toFixed(2
 const QUARRY = { x: -12.4 * TS, z: -8.6 * TS }; // v0.85 採石場：煤礦坑北邊、圍欄裡；切開的岩壁朝東
 LOT.quarry = [+(QUARRY.x + 4.6).toFixed(2), +(QUARRY.z + 1.6).toFixed(2)];
 LOT.quarrier = [+(QUARRY.x + 4.6).toFixed(2), +(QUARRY.z - 1.2).toFixed(2)]; // v0.89 雇用採石工：開採石場格子的北邊
-LOT.coaler = [+(MINE.x + 4.1).toFixed(2), +(MINE.z - 3.2).toFixed(2)]; // v0.82 雇用煤礦工：煤堆北邊 // v0.81（作者：礦場的格子不在附近）：開採、礦車格都在坑口前（之後煤堆的位置）
+LOT.coaler = [+(MINE.x + 4.1).toFixed(2), +(MINE.z - 3.7).toFixed(2)]; // v0.82 雇用煤礦工：煤堆北邊 // v0.81（作者：礦場的格子不在附近）：開採、礦車格都在坑口前（之後煤堆的位置）
 
 // ===== 存檔 =====
 // 關卡（企劃 9.2）：教學關沿用原本的存檔；正式關（自己蓋／電腦託管）各有自己的存檔
@@ -97,6 +97,7 @@ const MODE_KEY = 'frost-town-mode';
 const MODE = 'tutorial', firstRun = false;
 const PRO = MODE !== 'tutorial';
 const SAVE_KEY = 'frost-town-save-v1' + (PRO ? '-' + MODE : '');
+let hadSave = false; try { hadSave = !!localStorage.getItem(SAVE_KEY); } catch (e) {}
 let save = { cash: 0, bag: 0, axe: 0, east: false, mill2: false, tower: false, workers: 0, level: 0, houses: 0, stove: 0 };
 try { Object.assign(save, JSON.parse(localStorage.getItem(SAVE_KEY) || '{}')); } catch (e) {}
 if (save.plan && !save.scaled) {                                // v0.60 前的存檔：規劃蓋的、搬過的建築位置跟著城鎮放大
@@ -104,6 +105,7 @@ if (save.plan && !save.scaled) {                                // v0.60 前的�
   for (const k in save.moved || {}) save.moved[k] = save.moved[k].map(v => v * TS);
 }
 save.scaled = TS;
+if (save.stage == null) save.stage = hadSave ? 2 : 1;   // v1.16：新玩家從第 1 關冰湖營地開始；舊存檔當第 2 關（森林營地）
 if (save.territory == null) save.territory = save.furnace ? (save.east ? 2 : 1) : 0;          // 舊進度：火爐升級過就當作領地擴大過
 if (save.buys == null) save.buys = (save.bag || 0) + (save.axe || 0) + (save.tower ? 1 : 0) + (save.tower2 ? 1 : 0) + (save.workers || 0) + (save.east ? 1 : 0) + (save.mill2 ? 1 : 0);
 let resetting = false; // 重新開始時不要再把舊進度寫回去

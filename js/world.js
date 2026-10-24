@@ -56,7 +56,7 @@ const KIT = {
   sign: ['survival/signpost.glb', 1.6], lantern: ['holiday/lantern.glb', 0.6],
   // v1.13 房屋換 KayKit Medieval Hexagon（淡藍色那組）：高度＝原始高度×放大倍率
   bLumber: ['kaykit/bld/building_lumbermill_blue.gltf', 3.0], bTavern: ['kaykit/bld/building_tavern_blue.gltf', 3.2], bSmith: ['kaykit/bld/building_blacksmith_blue.gltf', 2.4],
-  bMarket: ['kaykit/bld/building_market_blue.gltf', 2.3], bHomeA: ['kaykit/bld/building_home_A_blue.gltf', 2.3], bHomeB: ['kaykit/bld/building_home_B_blue.gltf', 3.0], bMine: ['kaykit/bld/building_mine_blue.gltf', 2.6],
+  bMarket: ['kaykit/bld/building_market_blue.gltf', 2.3], bHomeA: ['kaykit/bld/building_home_A_blue.gltf', 2.3], bHomeB: ['kaykit/bld/building_home_B_blue.gltf', 3.0], bMine: ['kaykit/bld/building_mine_blue.gltf', 2.6], bTower: ['kaykit/bld/building_tower_catapult_blue.gltf', 3.4], bHeater: ['kaykit/bld/building_tower_base_blue.gltf', 2.4],
   kkBarbarian: ['kaykit/Barbarian.glb', 1.6], kkRanger: ['kaykit/Ranger.glb', 1.6], kkKnight: ['kaykit/Knight.glb', 2.0], // v1.06 KayKit Adventurers（CC0）
   rockA: ['survival/rock-a.glb', 1.2], rockB: ['survival/rock-b.glb', 0.9], rockC: ['survival/rock-c.glb', 1.5],
 };
@@ -431,7 +431,8 @@ function updateBears(dt) {
     if (b.turn <= 0) { b.turn = rand(1.5, 4); b.dir = rand(0, 6.28); b.idle = Math.random() < 0.35; }
     if (b.aggro && b.shake <= 0) {                 // 熊群來襲：衝向北門，北門破了就去拆最近的建築
       let tx, tz, reach = 0.3, prey = null;
-      if (gate.hp > 0) { tx = Math.max(-3, Math.min(3, b.x)); tz = -FENCE_R - 1.1; }
+      // v1.14（作者：門修好後，已經進營地的熊還跑回去打門，不合理）：門修好只擋還在外面的熊；已經在營地裡的繼續拆建築
+      if (gate.hp > 0 && fd(b.x, b.z) >= FENCE_R - 0.3) { tx = Math.max(-3, Math.min(3, b.x)); tz = -FENCE_R - 1.1; }
       else {
         prey = buildings.filter(o => !o.dead).sort((p, q) => Math.hypot(p.x - b.x, p.z - b.z) - Math.hypot(q.x - b.x, q.z - b.z))[0];
         if (prey) { tx = prey.x; tz = prey.z; reach = prey.r + 0.9; } else { tx = CX; tz = CZ - 1.5; }
@@ -442,8 +443,8 @@ function updateBears(dt) {
       const dx = tx - b.x, dz = tz - b.z, d = Math.hypot(dx, dz);
       const sp = b.wolf ? CFG.wolfSpeed : 2.2;
       if (d > reach) { b.dir = Math.atan2(dx, dz); b.x += dx / d * sp * dt; b.z += dz / d * sp * dt; }
-      else if (gate.hp > 0) { gate.hp -= CFG.bearDps * mobDmg(b) * dt; gate.hit = 0.2; }
       else if (prey) { b.dir = Math.atan2(dx, dz); prey.hp -= CFG.bearBuildDps * mobDmg(b) * dt; prey.hit = 0.2; }
+      else if (gate.hp > 0) { gate.hp -= CFG.bearDps * mobDmg(b) * dt; gate.hit = 0.2; }
     } else if (b.shake <= 0 && huntable(b)) {     // 野外的熊：主角在營地外又靠太近，就追過去打
       const dx = player.position.x - b.x, dz = player.position.z - b.z, d = Math.hypot(dx, dz);
       b.dir = Math.atan2(dx, dz); b.hunting = true;
