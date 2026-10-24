@@ -526,9 +526,22 @@ function kkHold(m, file) {                                    // file：武器�
     kkTool[file] = r.scene; put(r.scene);
   });
 }
+// 造型微調（v1.10，作者：野蠻人不要戴帽子、騎士不要穿盔甲）：hide＝依零件名稱藏起來（頭盔、披風、熊皮帽是獨立零件）；tint＝把這些零件的貼圖換成單色（盔甲是畫在貼圖上的，只能改成素色衣服）
+const KKLOOK = {
+  kkBarbarian: { hide: /BearHat/ },
+  kkKnight: { hide: /Helmet|Cape/, tint: [[/Body|Arm/, 0x3f6fa8], [/Leg/, 0x4a4a55]] },
+};
+function kkLook(m, key) {
+  const lk = KKLOOK[key]; if (!lk) return;
+  m.traverse(o => {
+    if (!o.isMesh) return;
+    if (lk.hide && lk.hide.test(o.name)) o.visible = false;
+    (lk.tint || []).forEach(([re, col]) => { if (re.test(o.name)) { o.material = o.material.clone(); o.material.map = null; o.material.color.setHex(col); } });
+  });
+}
 function dressKK(g, olds, key, weapon, cb) {                     // 載不到就保留舊的方塊小人
   withKKClips(clips => kit(key, g, 0, 0, 0, 0, 1, m => {
-    olds.forEach(o => o.visible = false);
+    olds.forEach(o => o.visible = false); kkLook(m, key);
     const mixer = new THREE.AnimationMixer(m), walk = mixer.clipAction(clips.walk), idle = mixer.clipAction(clips.idle); walk.play(); idle.play();
     mixers.push({ g, mixer, walk, idle, x: g.position.x, z: g.position.z });
     if (weapon) kkHold(m, weapon);
