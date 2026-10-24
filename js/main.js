@@ -96,7 +96,10 @@ function updateGoal(dt) {
 let shownAlert = '';
 function updateAlert() {
   let t = '', cls = '';
-  if (gate.raiding) { t = '🐻 熊群來襲！守住北門'; }
+  if (horde.wave > 0) { t = gate.raiding ? '🐾 獸潮第 ' + horde.wave + '/' + CFG.hordeWaves + ' 波，守住北門' : '🐾 下一波 ' + Math.ceil(horde.gap) + ' 秒後來，快修門'; cls = 'warn'; }
+  else if (horde.warn > 0) { t = '🐾 獸潮 ' + Math.ceil(horde.warn) + ' 秒後來，先修門'; cls = 'warn'; }
+  else if (hordeGate() && population() >= LEVELS[1].need) { t = '🐾 撐過獸潮才能升級村莊'; cls = 'warn'; }
+  else if (gate.raiding) { t = '🐻 熊群來襲！守住北門'; }
   else if (blizzard.on > 0) { t = '🌨️ 大暴雪 ' + Math.ceil(blizzard.on) + ' 秒，鏟雪、顧好營火'; cls = 'cold'; }
   else if (save.level >= 1 && coldWave.on > 0) { t = '❄️ 寒潮中 ' + Math.ceil(coldWave.on) + ' 秒，顧好營火'; cls = 'cold'; }
   else if (hero.over > 0 && hero.hp < 60) { t = '🥶 好冷！回營火旁取暖'; cls = 'cold'; }
@@ -341,6 +344,7 @@ function step(dt) {
   updateGate(dt);
   updateColdWave(dt);
   updateBlizzard(dt);
+  updateHorde(dt);
   updateFog(dt);
   updateSnow(dt);
   if (roadsDirty) rebuildRoads();
@@ -415,5 +419,5 @@ if (firstRun) {
   if (old) { try { localStorage.setItem(MODE_KEY, 'tutorial'); } catch (e) {} }
   else { resetting = true; showMenu(true); }
 }
-window.__game = { blizzard, hunters, tentGs, camera, coldOver, fireStage: () => fireStage, raidCount, plan, setPlan, planPointer, canBuild, heaters, piles, shovelers, spawnPile, seam, mine, coldWave, hero, save, furnace, houses, player, carried, mills, unlocks, trees, bears, gate, buildings, towers, step, render: () => renderer.render(scene, camera) }; // 測試用
+window.__game = { horde, blizzard, hunters, tentGs, camera, coldOver, fireStage: () => fireStage, raidCount, plan, setPlan, planPointer, canBuild, heaters, piles, shovelers, spawnPile, seam, mine, coldWave, hero, save, furnace, houses, player, carried, mills, unlocks, trees, bears, gate, buildings, towers, step, render: () => renderer.render(scene, camera) }; // 測試用
 if (/check/.test(location.search)) document.body.appendChild(Object.assign(document.createElement('script'), { src: 'tools/layout-check.js' })); // 本機畫面自動檢查（tools/layout-check.js）

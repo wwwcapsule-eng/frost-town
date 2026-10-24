@@ -14,9 +14,10 @@
   /* 手機介面分區（v0.55）：左上＝錢、人口、城市等級；中上＝血量、營火、目標；右上＝選單；左下＝背包；右下＝規劃 */
   #hud{position:fixed;top:calc(10px + env(safe-area-inset-top));left:10px;display:flex;flex-direction:column;align-items:flex-start;gap:5px;pointer-events:none}
   #ver{font-size:12px;font-weight:900;color:#25415e;text-shadow:0 1px 0 #fff;padding-left:4px}
-  #bag{position:fixed;left:10px;bottom:calc(14px + env(safe-area-inset-bottom));display:flex;gap:6px;pointer-events:none}
+  #bl{position:fixed;left:10px;bottom:calc(14px + env(safe-area-inset-bottom));max-width:calc(100vw - 130px);display:flex;flex-direction:column;align-items:flex-start;gap:6px;pointer-events:none} /* v1.01（畫面檢查抓到：第 4 格被規劃按鈕蓋住）：左下整組不超過按鈕，放不下就往上換行，倉庫列跟著往上推 */
+  #bag{display:flex;flex-wrap:wrap-reverse;gap:6px}
   #bag .pill{min-width:0;padding:3px 9px 3px 6px}
-  #pStore{position:fixed;left:10px;bottom:calc(56px + env(safe-area-inset-bottom));pointer-events:none} /* 倉庫存量：在背包上面一排 */
+  /* #pStore 倉庫存量：在 #bl 裡、背包上面一排 */
   .pill{background:rgba(30,40,60,.72);color:#fff;border-radius:16px;padding:4px 12px 4px 8px;font-weight:700;font-size:18px;
     display:flex;align-items:center;gap:6px;min-width:76px}
   .pill b{font-size:20px}
@@ -25,6 +26,7 @@
   .cap{font-size:13px;opacity:.75}
   .pill.full{background:rgba(200,120,20,.85)}
   .pill.danger{background:rgba(200,40,40,.85);animation:blink .8s infinite}
+  @media (max-width:500px){#bars{left:auto !important;right:62px;transform:none !important;width:min(180px, calc(100vw - 215px)) !important}} /* v1.01：手機上營火條靠右、夾在人口欄和選單鈕中間，不壓到人口 */
   #bars{position:fixed;top:calc(10px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);width:min(180px, calc(100vw - 220px));display:flex;flex-direction:column;gap:5px;pointer-events:none}
   .bar{position:relative;height:20px;border-radius:10px;background:rgba(30,40,60,.72);overflow:hidden;color:#fff;font-weight:900;font-size:13px}
   .bar i{position:absolute;left:0;top:0;bottom:0;border-radius:10px;transition:width .2s}
@@ -35,7 +37,7 @@
     background:rgba(255,255,255,.88);color:#25415e;font-weight:900;font-size:13px;line-height:1.35;padding:5px 10px;border-radius:12px;
     text-align:center;pointer-events:none;box-shadow:0 2px 0 rgba(0,0,0,.12)}
   #goal.done{background:#ffd34d;animation:bump .4s}
-  #alert{position:fixed;bottom:calc(104px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);background:rgba(200,40,40,.88);color:#fff;
+  #alert{position:fixed;bottom:calc(134px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);background:rgba(200,40,40,.88);color:#fff;
     font-weight:900;font-size:16px;padding:6px 14px;border-radius:14px;white-space:nowrap;pointer-events:none;display:none}
   #alert.cold{background:rgba(40,120,200,.88)}
   #alert.warn{background:rgba(220,140,20,.9)}
@@ -61,7 +63,7 @@
   #planBar #planGo{background:#5fd068}#planBar #planGo:disabled{opacity:.4}
   #toast{position:fixed;left:50%;top:22%;transform:translateX(-50%);background:rgba(30,40,60,.8);color:#fff;font-weight:700;
     padding:8px 16px;border-radius:14px;font-size:16px;opacity:0;transition:opacity .25s;pointer-events:none;white-space:nowrap}
-  #hint{position:fixed;left:50%;bottom:calc(150px + env(safe-area-inset-bottom));transform:translateX(-50%);color:#25415e;font-weight:900;font-size:18px;
+  #hint{position:fixed;left:50%;bottom:calc(184px + env(safe-area-inset-bottom));transform:translateX(-50%);color:#25415e;font-weight:900;font-size:18px;
     text-shadow:0 2px 0 #fff;pointer-events:none;text-align:center;animation:blink 1.4s infinite}
   @keyframes blink{50%{opacity:.35}}
   #joy{position:fixed;width:120px;height:120px;margin:-60px 0 0 -60px;border-radius:50%;background:rgba(255,255,255,.25);
@@ -82,13 +84,15 @@
   <div class="pill" id="pPop">👥 <b id="pop">0</b><span class="cap" id="capP"></span><span class="cap" id="beds"></span></div>
   <div id="ver"></div>
 </div>
+<div id="bl">
+<div class="pill" id="pStore" style="display:none">📦 🪵<b id="sPlank">0</b><span class="cap" id="sNeed"></span> 🍖<b id="sFood">0</b><span id="sJerkyW" style="display:none"> 🥓<b id="sJerky">0</b></span><span id="sCoalW" style="display:none"> ⚫<b id="sCoal">0</b></span><span id="sStoneW" style="display:none"> 🪨<b id="sStone">0</b></span></div>
 <div id="bag">
   <div class="pill" id="pMeat">🍖 <b id="meat">0</b><span class="cap" id="capM"></span></div>
   <div class="pill" id="pCoal" style="display:none">⚫ <b id="coal">0</b><span class="cap" id="capC"></span></div>
   <div class="pill" id="pStone" style="display:none">🪨 <b id="stone">0</b><span class="cap" id="capS"></span></div>
   <div class="pill" id="pWood">🪵 <b id="wood">0</b><span class="cap" id="capW"></span></div>
 </div>
-<div class="pill" id="pStore" style="display:none">📦 🪵<b id="sPlank">0</b><span class="cap" id="sNeed"></span> 🍖<b id="sFood">0</b><span id="sJerkyW" style="display:none"> 🥓<b id="sJerky">0</b></span><span id="sCoalW" style="display:none"> ⚫<b id="sCoal">0</b></span><span id="sStoneW" style="display:none"> 🪨<b id="sStone">0</b></span></div>
+</div>
 <div id="bars">
   <div class="bar" id="hpBar"><i></i><span>❤️ <b id="hp">100</b></span></div>
   <div class="bar" id="fuelBar"><i></i><span>🔥 <em id="fireName" style="font-style:normal">營火</em> <b id="fuel">100</b>%</span></div>

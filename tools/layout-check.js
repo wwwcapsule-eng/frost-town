@@ -1,6 +1,7 @@
 // 畫面自動檢查（v1.00 加，作者 10/24：標示、建築、文字遮擋這些錯不要一直重犯）
 // 每次更新開 PR 前跑一次：本機開 http://localhost:8080/?check （手機尺寸 375×812），網址有 ?check 就會自動載入這個檔
 // 也可以在 console 打 layoutCheck.all() 重跑；結果印在 console，也存在 window.layoutResult
+// ⑥上方說明列（用最長的句子）跟按鈕、目標等介面互蓋
 // 檢查：①標籤互相疊 ②主角附近的標籤字超出畫面（被切掉）③主角附近的標籤被上下的介面（目標、按鈕、提示）蓋住 ④付款格彼此重疊 ⑤付款格壓到建築
 // 只檢查「目前存檔的進度」；layoutCheck.preset(n) 換成預設的幾個進度再重跑（會重新載入、蓋掉這台瀏覽器的存檔）
 (function () {
@@ -40,7 +41,7 @@
       if (e.tagName === 'CANVAS' || e.id === 'frost' || e.id === 'toast') return false;
       const s = getComputedStyle(e); if (s.position !== 'fixed' || s.display === 'none' || s.visibility === 'hidden' || +s.opacity < 0.1) return false;
       const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0 && r.width < innerWidth * 0.98 && e.textContent.trim();
-    }).map(e => ({ r: e.getBoundingClientRect(), id: e.id || e.className || e.tagName }));
+    }).map(e => ({ r: e.getBoundingClientRect(), id: e.id || e.className || e.tagName, e }));
   }
   const area = (a, b) => Math.max(0, Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0)) * Math.max(0, Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0));
   function where(sp) { const p = sp.getWorldPosition(new THREE.Vector3()); return '(' + p.x.toFixed(1) + ',' + p.z.toFixed(1) + ')'; }
@@ -65,6 +66,16 @@
       for (const b of g.buildings) if (!b.dead && Math.hypot(a.x - b.x, a.z - b.z) < b.r + ra * 0.6) found.add('付款格壓到建築：' + a.name() + ' 壓到 ' + b.key);
     }
   }
+  function checkHud(found) {                         // ⑥介面互蓋：上方說明列用最長的句子強制顯示一次，跟按鈕、目標、背包列比
+    const al = document.getElementById('alert'), keep = [al.textContent, al.style.display];
+    al.textContent = '🐻 3 隻熊＋🐺 狼群＋👑 熊王 15 秒後來襲'; al.style.display = 'block';
+    const H = hudRects();
+    for (let i = 0; i < H.length; i++) for (let j = i + 1; j < H.length; j++) {
+      const a = H[i].r, b = H[j].r, ov = area({ x0: a.left, y0: a.top, x1: a.right, y1: a.bottom }, { x0: b.left, y0: b.top, x1: b.right, y1: b.bottom });
+      if (ov > 0.1 * Math.min(a.width * a.height, b.width * b.height) && !H[i].e.contains(H[j].e) && !H[j].e.contains(H[i].e)) found.add('介面互蓋：#' + H[i].id + ' 和 #' + H[j].id);
+    }
+    al.textContent = keep[0]; al.style.display = keep[1];
+  }
   function all() {
     const g = __game, found = new Set(), p0 = g.player.position.clone();
     const spots = [[0, 2], ...g.unlocks.filter(u => !u.done && u.pad.parent).map(u => [u.x, u.z]), ...g.buildings.filter(b => !b.dead).map(b => [b.x, b.z + b.r + 1.2])];
@@ -75,6 +86,7 @@
       g.render(); checkHere('(' + x.toFixed(1) + ',' + z.toFixed(1) + ')', found);
     }
     checkPads(found);
+    checkHud(found);
     g.player.position.copy(p0);
     const list = [...found];
     window.layoutResult = list;

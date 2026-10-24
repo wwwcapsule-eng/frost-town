@@ -434,13 +434,13 @@ levelUnlocks();
 if (save.shovel) addShoveler();
 function checkLevel() {
   const next = LEVELS[save.level + 1];
-  if (!next || population() < next.need || blizGate()) return; // v0.99：要先撐過大暴雪
+  if (!next || paused || population() < next.need || blizGate() || hordeGate()) return; // v0.99：要先撐過大暴雪；v1.01：營地要先撐過獸潮
   save.level++; writeSave(); levelUnlocks(); resize();
-  $('lvTitle').textContent = '🎉 升級為' + next.name + '！';
-  $('lvList').innerHTML = '新解鎖：<br>' + next.unlock.join('<br>');
-  $('lvup').style.display = 'flex'; paused = true;
+  story('🎉 升級為' + next.name + '！', ['新解鎖：', ...next.unlock], '太好了！');
   sfx.unlock(); sparkle(player.position.x, player.position.z);
 }
+// 卡片（升級、劇情共用）：遊戲暫停到按下按鈕
+function story(title, lines, ok) { $('lvTitle').textContent = title; $('lvList').innerHTML = lines.join('<br>'); $('lvOk').textContent = ok; $('lvup').style.display = 'flex'; paused = true; }
 document.getElementById('lvOk').onclick = () => { $('lvup').style.display = 'none'; paused = false; clock.getDelta(); };
 // 圍欄裡外要走門：先走到最近的門口，穿過門再走向目標
 function routeTo(w, x, z, dt) {

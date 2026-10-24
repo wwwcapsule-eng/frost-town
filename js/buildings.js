@@ -220,23 +220,24 @@ const gateLabel = makeLabel(); gateLabel.scale.set(3, 1.5, 1); gateLabel.positio
 const repairPad = makePad(0, -6.6, 1.8, 0xb06a35, '🔨');
 const repairLabel = makeLabel(); repairLabel.scale.set(2.4, 1.2, 1); repairLabel.position.set(0, 1.2, -6.6); repairLabel.set(['修門', '🪵 1 根 +10']); scene.add(repairLabel);
 let repairCd = 0;
+// 熊群出動（v1.01 抽出來，平常的熊群和獸潮共用）：extra＝多來幾隻、k＝這波帶熊王、quiet＝不跳平常的提示
+function startRaid(extra, k, quiet) {
+  const n = raidCount() + extra, wild = () => bears.filter(b => !b.wolf && b.alive && !b.aggro);
+  while (wild().length < n && bears.filter(b => !b.wolf).length < CFG.bearMax) makeMob(false); // 熊不夠就從森林深處多來幾隻
+  const pool = wild().sort((a, b) => b.z - a.z).slice(0, n);
+  if (wolvesCome()) for (let i = 4 + Math.floor(rand(0, 3)); i > 0; i--) {   // 冰狼 4～6 隻，重用打倒的狼
+    const w = bears.find(b => b.wolf && !b.alive && !pool.includes(b)) || makeMob(true);
+    [w.x, w.z] = bearSpot(); w.alive = true; w.g.scale.setScalar(1); pool.push(w);
+  }
+  save.raidN = (save.raidN || 0) + 1;
+  if (k) pool.push(callKing());
+  pool.forEach(b => { b.aggro = true; b.hp = Math.max(b.hp, mobHp(b)); });
+  if (pool.length && !quiet) { toast(k ? '👑 熊王帶著熊群來了！血很多，集中火力守住北門！' : wolvesCome() ? '🐺 冰狼群跟熊一起來了！守住北門！' : '🐻 熊群來襲！守住北門！'); beep(220, 0.4, 'sawtooth', 0.06, 0.6); }
+}
 function updateGate(dt) {
   // 熊群來襲
   gate.raidT -= dt;
-  if (gate.raidT <= 0) {
-    gate.raidT = CFG.raidEvery;
-    const n = raidCount(), wild = () => bears.filter(b => !b.wolf && b.alive && !b.aggro);
-    while (wild().length < n && bears.filter(b => !b.wolf).length < CFG.bearMax) makeMob(false); // 熊不夠就從森林深處多來幾隻
-    const pool = wild().sort((a, b) => b.z - a.z).slice(0, n);
-    if (wolvesCome()) for (let i = 4 + Math.floor(rand(0, 3)); i > 0; i--) {   // 冰狼 4～6 隻，重用打倒的狼
-      const w = bears.find(b => b.wolf && !b.alive && !pool.includes(b)) || makeMob(true);
-      [w.x, w.z] = bearSpot(); w.alive = true; w.g.scale.setScalar(1); pool.push(w);
-    }
-    const k = kingNext(); save.raidN = (save.raidN || 0) + 1;
-    if (k) pool.push(callKing());
-    pool.forEach(b => { b.aggro = true; b.hp = Math.max(b.hp, mobHp(b)); });
-    if (pool.length) { toast(k ? '👑 熊王帶著熊群來了！血很多，集中火力守住北門！' : wolvesCome() ? '🐺 冰狼群跟熊一起來了！守住北門！' : '🐻 熊群來襲！守住北門！'); beep(220, 0.4, 'sawtooth', 0.06, 0.6); }
-  }
+  if (gate.raidT <= 0) { gate.raidT = CFG.raidEvery; startRaid(0, kingNext()); }
   // 北門狀態
   gate.hp = Math.max(0, gate.hp);
   save.gateHp = gate.hp; save.raidT = gate.raidT; // 存檔：關掉再開，北門血量和倒數會接著算
@@ -787,6 +788,29 @@ function updateBlizzard(dt) {
     if (b.warn <= 0 && coldWave.on > 0) b.warn = 1;              // 寒潮還沒過，等寒潮結束再來
     else if (b.warn <= 0) { b.on = CFG.blizLen; b.failed = false; toast('🌨️ 大暴雪來了！看不遠、雪堆得很快，撐住 ' + CFG.blizLen + ' 秒！'); beep(220, 0.8, 'triangle', 0.06, 0.5); }
   } else if (population() >= LEVELS[save.level + 1].need * CFG.blizAt) { b.warn = CFG.blizWarn; toast('🌨️ 升級' + LEVELS[save.level + 1].name + '前的考驗：' + CFG.blizWarn + ' 秒後大暴雪！先把營火加滿、雇鏟雪工'); }
+}
+
+// ===== v1.01 🐾 獸潮（企劃 12.4 第 2 關的遷徙天災）：營地居民快到村莊（9 成）時，熊群連來 3 波、一波比一波多，最後一波熊王帶隊；
+// 3 波都打退才能升級村莊，撐過後跳劇情卡（族人決定之後要遷徙）。獸潮期間平常的熊群不另外來
+const horde = { warn: 0, wave: 0, gap: 0 };
+const hordeGate = () => save.level === 0 && !save.hordeDone;
+function updateHorde(dt) {
+  if (!hordeGate()) return;
+  const h = horde, fighting = bears.some(b => b.alive && b.aggro);
+  if (h.wave > 0) gate.raidT = Math.max(gate.raidT, 20);
+  if (h.warn > 0) {
+    h.warn -= dt;
+    if (h.warn <= 0) { h.wave = 1; startRaid(0, false, true); toast('🐾 獸潮第 1 波！守住北門！'); beep(200, 0.6, 'sawtooth', 0.07, 0.6); }
+  } else if (h.wave > 0) {
+    if (fighting) { h.gap = CFG.hordeGap; return; }
+    if (h.wave >= CFG.hordeWaves) {
+      h.wave = 0; save.hordeDone = true; save.cash += CFG.hordeReward; sfx.unlock(); writeSave();
+      story('🐾 撐過獸潮了！', ['獎金 +' + CFG.hordeReward + ' 元', '可是熊群一波比一波多，森林快養不活大家了。', '長老說：等村子站穩，就帶著火種往北邊的岩山遷徙。', '（第 3 關「岩山」製作中，先在這裡蓋成村莊吧）'], '好，先撐下去！');
+      return;
+    }
+    h.gap -= dt;
+    if (h.gap <= 0) { h.wave++; const last = h.wave === CFG.hordeWaves; startRaid(h.wave - 1, last, true); toast(last ? '👑 獸潮最後一波：熊王帶隊來了！' : '🐾 獸潮第 ' + h.wave + ' 波！熊更多了！'); beep(200, 0.6, 'sawtooth', 0.07, 0.6); }
+  } else if (population() >= LEVELS[1].need * CFG.blizAt) { h.warn = CFG.hordeWarn; toast('🐾 升級村莊前的考驗：' + CFG.hordeWarn + ' 秒後獸潮！先修好北門、多蓋弩砲塔'); }
 }
 
 // ===== 暖氣塔：把火爐的熱送到遠一點的地方（規劃模式蓋） =====
