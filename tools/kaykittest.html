@@ -1,0 +1,32 @@
+<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<body style="margin:0;background:#cfe3f2;font:600 14px sans-serif">
+<script src="../js/lib/three.min.js"></script><script src="../js/lib/GLTFLoader.js"></script>
+<script>
+// KayKit Adventurers 角色預覽（v1.05）：node tools/serve.js 後開 http://localhost:8080/tools/kaykittest.html
+// 6 個角色並排走路，跟遊戲裡一樣用賽璐璐材質；動畫是另一個檔（Rig_Medium_MovementBasic），套同名骨架
+const W = innerWidth, H = innerHeight, r = new THREE.WebGLRenderer({ antialias: true }); r.setSize(W, H); document.body.appendChild(r.domElement);
+const scene = new THREE.Scene(), cam = new THREE.PerspectiveCamera(32, W / H, .1, 100), narrow = W < H;
+cam.position.set(0, narrow ? 3 : 2.4, narrow ? 21 : 13); cam.lookAt(0, 0.9, 0);
+const dl = new THREE.DirectionalLight(0xffffff, .8); dl.position.set(3, 6, 5); scene.add(new THREE.HemisphereLight(0xffffff, 0x99a, 1), dl);
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(40, 8), new THREE.MeshLambertMaterial({ color: 0xeef4fa })); ground.rotation.x = -Math.PI / 2; scene.add(ground);
+const c = document.createElement('canvas'); c.width = 3; c.height = 1; const g = c.getContext('2d'); ['#777', '#bbb', '#fff'].forEach((v, i) => { g.fillStyle = v; g.fillRect(i, 0, 1, 1); });
+const TOON = new THREE.CanvasTexture(c); TOON.minFilter = TOON.magFilter = THREE.NearestFilter;
+const ld = new THREE.GLTFLoader(), mixers = [], B = '../assets/kaykit_adventurers/';
+const names = ['Knight', 'Barbarian', 'Mage', 'Ranger', 'Rogue', 'Rogue_Hooded'], zh = ['騎士', '野蠻人', '法師', '遊俠', '盜賊', '兜帽盜賊'];
+const span = narrow ? 1.2 : 1.8;
+ld.load(B + 'Animations/gltf/Rig_Medium/Rig_Medium_MovementBasic.glb', an => {
+  const clip = an.animations.find(a => a.name === 'Walking_A');
+  names.forEach((n, i) => {
+    const x = (i - 2.5) * span, d = document.createElement('div'); d.textContent = zh[i];
+    d.style.cssText = 'position:fixed;top:8px;width:' + 100 / 6 + '%;left:' + i * 100 / 6 + '%;text-align:center;text-shadow:0 1px #fff'; document.body.appendChild(d);
+    ld.load(B + 'Characters/gltf/' + n + '.glb', gl => {
+      const o = gl.scene;
+      o.traverse(m => { if (m.isMesh) { m.material = new THREE.MeshToonMaterial({ map: m.material.map, color: m.material.color, gradientMap: TOON, skinning: !!m.isSkinnedMesh }); m.frustumCulled = false; } });
+      const s = new THREE.Box3().setFromObject(o).getSize(new THREE.Vector3()); o.scale.setScalar(2.0 / s.y); o.position.x = x; scene.add(o);
+      const mx = new THREE.AnimationMixer(o); mx.clipAction(clip).play(); mixers.push(mx);
+    });
+  });
+});
+const clock = new THREE.Clock();
+(function loop() { requestAnimationFrame(loop); const dt = clock.getDelta(); mixers.forEach(m => m.update(dt)); r.render(scene, cam); })();
+</script>
