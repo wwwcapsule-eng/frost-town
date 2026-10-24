@@ -5,6 +5,9 @@ const body = box(0.8, 1.0, 0.6, mats.player); body.position.y = 0.75; player.add
 const head = box(0.6, 0.55, 0.55, mats.skin); head.position.y = 1.55; player.add(head);
 const hat = box(0.7, 0.25, 0.65, mats.player); hat.position.y = 1.9; player.add(hat);
 const legs = box(0.7, 0.3, 0.5, M(0x24486b)); legs.position.y = 0.15; player.add(legs);
+// v1.02（作者：最重要的是認得出主角）：只有主角戴帽子，腳下再一圈亮藍光圈
+const heroRing = new THREE.Mesh(new THREE.RingGeometry(0.8, 1.02, 32), new THREE.MeshBasicMaterial({ color: 0x4fc3ff, transparent: true, opacity: 0.9, depthWrite: false }));
+heroRing.rotation.x = -Math.PI / 2; heroRing.position.y = 0.06; player.add(heroRing);
 // v0.97 主角換成 Kenney 人物（比工人高大一點）；方塊身體、頭、腿藏起來，帽子留著；受傷閃紅改成改人物材質的 emissive
 player.skin = [];
 dress(player, [body, head, legs], 4, 1.25, m => m.traverse(o => { if (o.isMesh) { o.material = o.material.clone(); player.skin.push(o.material); } }));
@@ -186,6 +189,11 @@ const camBase = new THREE.Vector3(7, 15, 11), camOffset = camBase.clone();
 const camSph = new THREE.Spherical().setFromVector3(camBase), camRef = camBase.length() * 1.5; // camRef：標籤放大的基準距離（剛開始的手機鏡頭）
 const cam = { yaw: 0, pitch: 0 };                                // v0.88 視角模式：轉的角度
 const fwd = new THREE.Vector2(), right = new THREE.Vector2();
+let fogR = 30, fogK = 0;
+function updateFog(dt) { // v0.99 大暴雪：霧慢慢收近，只看得清主角附近
+  fogK += ((blizzard.on > 0 ? 1 : 0) - fogK) * Math.min(1, dt * 0.8);
+  scene.fog.near = fogR + 10 - fogK * (fogR * 0.55 + 10); scene.fog.far = fogR + 55 - fogK * 40;
+}
 function resize() {
   const w = innerWidth, h = innerHeight;
   renderer.setSize(w, h); camera.aspect = w / h;
@@ -194,7 +202,7 @@ function resize() {
   camOffset.setFromSphericalCoords(r, Math.max(0.25, Math.min(1.25, camSph.phi + cam.pitch)), camSph.theta + cam.yaw);
   fwd.set(-camOffset.x, -camOffset.z).normalize(); right.set(-fwd.y, fwd.x); // 搖桿方向跟著鏡頭轉
   const k = Math.max(1, r / camRef); labelK.set(k, k, 1); player.scale.setScalar(Math.min(1.6, Math.sqrt(k))); // v0.88（作者：營地越大人物越小）：拉遠時標籤、主角跟著放大
-  scene.fog.near = r + 10; scene.fog.far = r + 55; // v0.71：霧跟著鏡頭距離走，鏡頭拉遠時整片地不會被霧蓋白
+  fogR = r; updateFog(0); // v0.71：霧跟著鏡頭距離走，鏡頭拉遠時整片地不會被霧蓋白
   camera.updateProjectionMatrix();
 }
 addEventListener('resize', resize);
@@ -217,11 +225,12 @@ guide.rotation.x = Math.PI; guide.renderOrder = 22; scene.add(guide);
 let guideT = 0;
 function updateGuide(dt) {
   guideT += dt;
-  guide.visible = save.bag + save.axe < 2; // 買過兩次升級就不再指引
+  const aff = unlocks.find(u => !u.done && !u.mat && !u.blk && !(u.cool > 0) && u.price() - u.paid <= save.cash);
+  const rich = aff && save.cash >= 150 && !carried.length;        // v1.02（作者：錢很多不知道要升級什麼）：錢堆起來時，箭頭指向買得起的那一格
+  guide.visible = save.bag + save.axe < 2 || rich; // 買過兩次升級就不再指引
   if (!guide.visible) return;
   let x, z, h = 2.2;
   const out = mills.find(m => m.out.length);
-  const aff = unlocks.find(u => !u.done && !u.mat && u.price() - u.paid <= save.cash);
   if (out) { x = out.outPad.position.x; z = out.outPad.position.z; }
   else if (carried.length >= Math.min(capacity(), 9)) { const s = mills.find(m => m.accept === carried[carried.length - 1].userData.type) || { inPad: fg }; x = s.inPad.position.x; z = s.inPad.position.z; }
   else if (aff && !carried.length) { x = aff.x; z = aff.z; h = 3.2; }

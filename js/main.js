@@ -96,10 +96,16 @@ function updateGoal(dt) {
 let shownAlert = '';
 function updateAlert() {
   let t = '', cls = '';
-  if (gate.raiding) { t = '🐻 熊群來襲！守住北門'; }
+  if (horde.wave > 0) { t = gate.raiding ? '🐾 獸潮第 ' + horde.wave + '/' + CFG.hordeWaves + ' 波，守住北門' : '🐾 下一波 ' + Math.ceil(horde.gap) + ' 秒後來，快修門'; cls = 'warn'; }
+  else if (horde.warn > 0) { t = '🐾 獸潮 ' + Math.ceil(horde.warn) + ' 秒後來，先修門'; cls = 'warn'; }
+  else if (hordeGate() && population() >= LEVELS[1].need) { t = '🐾 撐過獸潮才能升級村莊'; cls = 'warn'; }
+  else if (gate.raiding) { t = '🐻 熊群來襲！守住北門'; }
+  else if (blizzard.on > 0) { t = '🌨️ 大暴雪 ' + Math.ceil(blizzard.on) + ' 秒，鏟雪、顧好營火'; cls = 'cold'; }
   else if (save.level >= 1 && coldWave.on > 0) { t = '❄️ 寒潮中 ' + Math.ceil(coldWave.on) + ' 秒，顧好營火'; cls = 'cold'; }
   else if (hero.over > 0 && hero.hp < 60) { t = '🥶 好冷！回營火旁取暖'; cls = 'cold'; }
   else if (gate.raidT <= 15) { t = '🐻 ' + raidCount() + ' 隻熊' + (wolvesCome() ? '＋🐺 狼群' : '') + (kingNext() ? '＋👑 熊王' : '') + ' ' + Math.ceil(gate.raidT) + ' 秒後來襲'; cls = 'warn'; }
+  else if (blizzard.warn > 0) { t = '🌨️ 大暴雪 ' + Math.ceil(blizzard.warn) + ' 秒後來，先加柴'; cls = 'cold'; }
+  else if (blizGate() && population() >= LEVELS[save.level + 1].need) { t = '🌨️ 撐過大暴雪才能升級'; cls = 'cold'; }
   else if (save.level >= 1 && coldWave.t <= 15) { t = '❄️ 寒潮 ' + Math.ceil(coldWave.t) + ' 秒後來，先加柴'; cls = 'cold'; }
   const key = t + cls; if (key === shownAlert) return; shownAlert = key;
   $('alert').textContent = t; $('alert').className = cls; $('alert').style.display = t ? 'block' : 'none';
@@ -129,6 +135,38 @@ function updateBuildings(dt) {
   }
 }
 
+// v1.00 標籤自動避讓（作者 10/24：標示、文字遮擋不要一直重犯）：每一格把看得到的標籤投影到螢幕上，
+// 離主角近的優先；被更近的標籤蓋到（超過 3%）的先藏起來。下一格開頭先放回來，讓遊戲邏輯照常決定要不要顯示
+const dcHidden = [], dcV = new THREE.Vector3(), dcR = new THREE.Vector3(), dcU = new THREE.Vector3();
+function undeclutter() { for (const l of dcHidden) l.visible = true; dcHidden.length = 0; }
+let hudRs = [], hudT = 0;                                         // 介面（上方血條、目標、左下背包、右下按鈕）在螢幕上的範圍，每 0.5 秒量一次
+function hudRects() {
+  const W = innerWidth, H = innerHeight, out = [];
+  for (const id of ['hud', 'bars', 'goal', 'bl', 'alert', 'camBtn', 'planBtn', 'reset']) {
+    const e = $(id); if (!e || e.offsetParent === null && getComputedStyle(e).position !== 'fixed') continue;
+    for (const c of e.children.length && id !== 'goal' && id !== 'alert' ? [...e.children, ...(id === 'bl' ? [...$('bag').children] : [])] : [e]) {
+      const r = c.getBoundingClientRect(); if (r.width && r.height && getComputedStyle(c).display !== 'none') out.push([r.left / W * 2 - 1, 1 - r.bottom / H * 2, r.right / W * 2 - 1, 1 - r.top / H * 2]);
+    }
+  }
+  return out;
+}
+function declutter() {
+  if ((hudT -= 1) <= 0) { hudT = 30; hudRs = hudRects(); }
+  camera.updateMatrixWorld(); dcR.setFromMatrixColumn(camera.matrixWorld, 0); dcU.setFromMatrixColumn(camera.matrixWorld, 1);
+  const shown = o => { for (let i = 0; o && i < 30; o = o.parent, i++) { if (!o.visible) return false; if (o === scene) return true; } return false; }; // 拿掉的標籤不算
+  const px = player.position.x, pz = player.position.z, kept = [];
+  const list = allLabels.filter(l => l.inkW && shown(l)).map(l => { l.getWorldPosition(dcV); return [l, Math.hypot(dcV.x - px, dcV.z - pz), dcV.clone()]; }).sort((a, b) => a[1] - b[1]);
+  for (const [l, , c] of list) {
+    const hw = l.scale.x * labelK.x * l.inkW / 2, hh = l.scale.y * labelK.y * l.inkH / 2;
+    const a = c.clone().addScaledVector(dcR, -hw).addScaledVector(dcU, hh).project(camera), b = c.addScaledVector(dcR, hw).addScaledVector(dcU, -hh).project(camera);
+    const mx = 8 / innerWidth, my = 6 / innerHeight;                 // 字的四周多留一點空白，貼太近也算擠
+    const r = [a.x - mx, b.y - my, b.x + mx, a.y + my], ar = (r[2] - r[0]) * (r[3] - r[1]);
+    const cut = r[0] < -1 || r[2] > 1 || r[1] < -1 || r[3] > 1;     // v1.02（作者：煤礦的字沒完全顯示）：字有一部分跑出畫面、或被介面蓋住，就整個先藏起來，走近再出現
+    if (cut || [...hudRs, ...kept].some(k => Math.max(0, Math.min(r[2], k[2]) - Math.max(r[0], k[0])) * Math.max(0, Math.min(r[3], k[3]) - Math.max(r[1], k[1])) > 0.03 * Math.min(ar, (k[2] - k[0]) * (k[3] - k[1])))) { l.visible = false; dcHidden.push(l); }
+    else kept.push(r);
+  }
+}
+
 // 標籤不打架（v0.59，作者第三次回饋第 3 點）：建築名稱、付款格價錢、修門、倉庫這些標籤，只顯示主角附近最近的 6 個；
 // 血量、北門、營火這些警告不在這裡管，永遠會顯示；地上的付款格圖示一直都在
 function quietLabels() {
@@ -140,6 +178,7 @@ function quietLabels() {
 let inkT = 0;
 function step(dt) {
   if (gameOver || paused) return;
+  undeclutter();
   if ((inkT -= dt) <= 0) { inkT = 0.5; inkAll(scene); }          // 新出現的建築、人物、模型補上描邊
   // 移動
   let ix = joy.x, iy = joy.y;
@@ -151,7 +190,7 @@ function step(dt) {
   const moving = Math.hypot(mx, mz) > 0.05;
   if (moving) {
     if (hintOn) { hintOn = false; $('hint').style.display = 'none'; }
-    const sp = CFG.speed * slowAt(player.position.x, player.position.z) * dt; // 踩到雪堆走很慢
+    const sp = CFG.speed * slowAt(player.position.x, player.position.z) * (blizzard.on > 0 ? CFG.blizSlow : 1) * dt; // 踩到雪堆走很慢；大暴雪頂風也慢
     let nx = player.position.x + mx * sp, nz = player.position.z + mz * sp;
     if (!save.east && nx > 16 * TS - 0.8) nx = 16 * TS - 0.8;           // 冰牆擋住
     nx = Math.max(-40 * TS, Math.min(40 * TS, nx)); nz = Math.max(-40 * TS, Math.min(40 * TS, nz));
@@ -279,6 +318,7 @@ function step(dt) {
   // 付款格：只有最近的那一格顯示大標籤，並排的格子才不會互相蓋住
   let nearest = null, nd = 6;
   for (const u of unlocks) { const d = Math.hypot(player.position.x - u.x, player.position.z - u.z); if (!u.done && d < nd) { nd = d; nearest = u; } }
+  if (nearest) for (const u of unlocks) if (u !== nearest && !u.done && Math.hypot(u.x - nearest.x, u.z - nearest.z) < 3.6) u.label.visible = false; // v1.00（畫面檢查抓到）：大標籤比格子寬，旁邊格子的小價錢先藏起來
   for (const u of unlocks) {
     if (u.done) continue;
     if (u.cool > 0) { u.cool -= dt; u.pad.visible = u.label.visible = u.cool <= 0; continue; } // 剛升級完：閃亮後要等一下才能再升級
@@ -317,6 +357,9 @@ function step(dt) {
   updateWorkers(dt); updateHunters(dt); updateCoalers(dt); updateMixers(dt);
   updateGate(dt);
   updateColdWave(dt);
+  updateBlizzard(dt);
+  updateHorde(dt);
+  updateFog(dt);
   updateSnow(dt);
   if (roadsDirty) rebuildRoads();
   updateFurnace(dt);
@@ -337,7 +380,7 @@ function step(dt) {
 
   // 下雪
   for (let i = 0; i < snowN; i++) {
-    snowPos[i * 3 + 1] -= dt * (coldWave.on > 0 ? 5 : 1.5); // 寒潮時雪下得又快又急
+    snowPos[i * 3 + 1] -= dt * (blizzard.on > 0 ? 8 : coldWave.on > 0 ? 5 : 1.5); // 寒潮時雪下得又快又急，大暴雪更急
     if (snowPos[i * 3 + 1] < 0) {
       snowPos[i * 3 + 1] = 18;
       snowPos[i * 3] = player.position.x + rand(-25, 25); snowPos[i * 3 + 2] = player.position.z + rand(-25, 25);
@@ -354,6 +397,7 @@ function step(dt) {
 
   if (toastT > 0) { toastT -= dt; if (toastT <= 0) $('toast').style.opacity = 0; }
   saveTimer += dt; if (saveTimer > 2) { saveTimer = 0; writeSave(); }
+  declutter();
   hud();
 }
 
@@ -389,4 +433,5 @@ if (firstRun) {
   if (old) { try { localStorage.setItem(MODE_KEY, 'tutorial'); } catch (e) {} }
   else { resetting = true; showMenu(true); }
 }
-window.__game = { hunters, tentGs, camera, coldOver, fireStage: () => fireStage, raidCount, plan, setPlan, planPointer, canBuild, heaters, piles, shovelers, spawnPile, seam, mine, coldWave, hero, save, furnace, houses, player, carried, mills, unlocks, trees, bears, gate, buildings, towers, step, render: () => renderer.render(scene, camera) }; // 測試用
+window.__game = { horde, blizzard, hunters, tentGs, camera, coldOver, fireStage: () => fireStage, raidCount, plan, setPlan, planPointer, canBuild, heaters, piles, shovelers, spawnPile, seam, mine, coldWave, hero, save, furnace, houses, player, carried, mills, unlocks, trees, bears, gate, buildings, towers, step, render: () => renderer.render(scene, camera) }; // 測試用
+if (/check/.test(location.search)) document.body.appendChild(Object.assign(document.createElement('script'), { src: 'tools/layout-check.js' })); // 本機畫面自動檢查（tools/layout-check.js）

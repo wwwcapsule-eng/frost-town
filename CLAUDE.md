@@ -17,4 +17,6 @@
 - 版本號寫在 `js/config.js` 的 `const VERSION = '0.01'`，每次更新 +0.01，並在 `docs/更新紀錄.md` 加一行
 - **每 5 版**：合併進 main 時版本號跨過 0.05、0.10、0.15…（一次合併好幾版也算），GitHub Actions 會自動發布到 GitHub Pages：https://wwwcapsule-eng.github.io/frost-town/
 - **每 10 版**（0.10、0.20…）要做一次電腦版檢查：在電腦瀏覽器用鍵盤、滑鼠實測，有問題就修，結果寫進更新紀錄
+- **每次開 PR 前跑畫面檢查**：本機開 http://localhost:8080/?check （手機尺寸 375×812），console 用 `layoutCheck.preset(0～4)` 換 5 種進度各跑一次，結果要是「沒有問題」；新增建築、付款格、標籤時，如果新進度沒被涵蓋，就在 `tools/layout-check.js` 的 PRESETS 加一個
+- 標籤一律用 `makeLabel`（會自動避讓）；不要另外用 HTML 疊在 3D 畫面上
 - 每次改動都開新分支 → PR（繁體中文說明）→ 由作者合併，不直接改 main

@@ -51,7 +51,7 @@ function addProc(k, x, z) {
       if (lv >= 3) setRoofTint(m.g, 0xd9a520);
     };
     kit('anvil', m.g, 2.0, 0, 0.9, -0.5); look();
-    m.upU = makeUnlock({ ...freeSpot(x, z, true), up: true, icon: '🔨', mat: 'stone', name: () => '鐵匠鋪升級 Lv' + (save.smithLv + 2),
+    m.upU = makeUnlock({ ...besideSpot(m.bld), owner: m.bld, up: true, icon: '🔨', mat: 'stone', name: () => '鐵匠鋪升級 Lv' + (save.smithLv + 2),
       price: () => [25, 50, 80][save.smithLv] ?? null, buy: () => { save.smithLv++; look(); sparkle(x, z); toast('🔨 鐵匠鋪升級：煤賣 ' + m.value + ' 元、打得更快，伐木工也砍得更快！'); } });
   }
   mills.push(m);
@@ -98,7 +98,6 @@ function makeVillager(i, walkIn) {
   const g = new THREE.Group();
   const b = box(0.55, 0.7, 0.4, M(SHIRTS[(Math.random() * SHIRTS.length) | 0])); b.position.y = 0.55; g.add(b);
   const h = box(0.42, 0.4, 0.4, mats.skin); h.position.y = 1.1; g.add(h); dress(g, [b, h], (Math.random() * 12) | 0);
-  const c = box(0.48, 0.16, 0.45, M(0x24486b)); c.position.y = 1.36; g.add(c);
   const p = QUEUE(i + 4); g.position.set(p.x + rand(-0.3, 0.3), 0, walkIn ? Math.max(p.z, 42) : p.z); g.rotation.y = Math.PI; // v0.81（作者：南邊來人）：新來的流民從南邊的路走進來
   scene.add(g);
   return { g, wait: 0 };
@@ -172,7 +171,7 @@ function makeUnlock(def) {
     // blk：還不能買的原因（每格的 need()，主迴圈更新）；mat：用倉庫的木頭或背上的木頭付，不是錢
     const cost = u.blk || ((u.mat === 'plank' || u.mat === 'stone') && !save.wh ? '先蓋📦倉庫' : ({ plank: '🪵 ', log: '🪵 ', stone: '🪨 ' }[u.mat] || '💵 ') + (p - u.paid));
     if (u.near) { label.set([(u.up ? '⬆ ' : '') + u.name(), cost], '#ffe066', [36, 68]); label.scale.set(3.2, 1.8, 1); label.position.y = 1.9; } // 錢放大，像參考影片
-    else { label.set([u.blk ? '👥 人不夠' : cost], '#ffe066', [60]); label.scale.set(1.9, 1.05, 1); label.position.y = 0.9; } // 遠的只顯示小價錢，不會互相蓋住
+    else { label.set([u.blk ? (u.blk[0] === '👥' ? '👥 人不夠' : u.blk) : cost], '#ffe066', [60]); label.scale.set(1.9, 1.05, 1); label.position.y = 0.9; } // 遠的只顯示小價錢，不會互相蓋住
     pad.fill.scale.y = Math.max(0.0001, u.paid / p);
   };
   u.refresh(); unlocks.push(u);
@@ -220,23 +219,24 @@ const gateLabel = makeLabel(); gateLabel.scale.set(3, 1.5, 1); gateLabel.positio
 const repairPad = makePad(0, -6.6, 1.8, 0xb06a35, '🔨');
 const repairLabel = makeLabel(); repairLabel.scale.set(2.4, 1.2, 1); repairLabel.position.set(0, 1.2, -6.6); repairLabel.set(['修門', '🪵 1 根 +10']); scene.add(repairLabel);
 let repairCd = 0;
+// 熊群出動（v1.01 抽出來，平常的熊群和獸潮共用）：extra＝多來幾隻、k＝這波帶熊王、quiet＝不跳平常的提示
+function startRaid(extra, k, quiet) {
+  const n = raidCount() + extra, wild = () => bears.filter(b => !b.wolf && b.alive && !b.aggro);
+  while (wild().length < n && bears.filter(b => !b.wolf).length < CFG.bearMax) makeMob(false); // 熊不夠就從森林深處多來幾隻
+  const pool = wild().sort((a, b) => b.z - a.z).slice(0, n);
+  if (wolvesCome()) for (let i = 4 + Math.floor(rand(0, 3)); i > 0; i--) {   // 冰狼 4～6 隻，重用打倒的狼
+    const w = bears.find(b => b.wolf && !b.alive && !pool.includes(b)) || makeMob(true);
+    [w.x, w.z] = bearSpot(); w.alive = true; w.g.scale.setScalar(1); pool.push(w);
+  }
+  save.raidN = (save.raidN || 0) + 1;
+  if (k) pool.push(callKing());
+  pool.forEach(b => { b.aggro = true; b.hp = Math.max(b.hp, mobHp(b)); });
+  if (pool.length && !quiet) { toast(k ? '👑 熊王帶著熊群來了！血很多，集中火力守住北門！' : wolvesCome() ? '🐺 冰狼群跟熊一起來了！守住北門！' : '🐻 熊群來襲！守住北門！'); beep(220, 0.4, 'sawtooth', 0.06, 0.6); }
+}
 function updateGate(dt) {
   // 熊群來襲
   gate.raidT -= dt;
-  if (gate.raidT <= 0) {
-    gate.raidT = CFG.raidEvery;
-    const n = raidCount(), wild = () => bears.filter(b => !b.wolf && b.alive && !b.aggro);
-    while (wild().length < n && bears.filter(b => !b.wolf).length < CFG.bearMax) makeMob(false); // 熊不夠就從森林深處多來幾隻
-    const pool = wild().sort((a, b) => b.z - a.z).slice(0, n);
-    if (wolvesCome()) for (let i = 4 + Math.floor(rand(0, 3)); i > 0; i--) {   // 冰狼 4～6 隻，重用打倒的狼
-      const w = bears.find(b => b.wolf && !b.alive && !pool.includes(b)) || makeMob(true);
-      [w.x, w.z] = bearSpot(); w.alive = true; w.g.scale.setScalar(1); pool.push(w);
-    }
-    const k = kingNext(); save.raidN = (save.raidN || 0) + 1;
-    if (k) pool.push(callKing());
-    pool.forEach(b => { b.aggro = true; b.hp = Math.max(b.hp, mobHp(b)); });
-    if (pool.length) { toast(k ? '👑 熊王帶著熊群來了！血很多，集中火力守住北門！' : wolvesCome() ? '🐺 冰狼群跟熊一起來了！守住北門！' : '🐻 熊群來襲！守住北門！'); beep(220, 0.4, 'sawtooth', 0.06, 0.6); }
-  }
+  if (gate.raidT <= 0) { gate.raidT = CFG.raidEvery; startRaid(0, kingNext()); }
   // 北門狀態
   gate.hp = Math.max(0, gate.hp);
   save.gateHp = gate.hp; save.raidT = gate.raidT; // 存檔：關掉再開，北門血量和倒數會接著算
@@ -265,6 +265,12 @@ function updateGate(dt) {
 // 鋸木廠旁邊只剩兩格：👷 雇用伐木工、🪵 升級伐木場（每升 1 級多雇 1 個伐木工）
 save.millLv = save.millLv || (save.mill2 && !PRO ? 1 : 0);          // v0.81：拿掉第二台鋸木機，舊存檔蓋過的當作升過 1 級
 // v0.93（作者：升級標誌太近）：在 (cx,cz) 附近一圈圈找一個離所有付款格、站、建築都 ≥ 3.4 的空位，給大的升級格用
+// v1.02（作者：鐵匠鋪的升級格不在房子旁邊）：升級格、雇人格貼著自己的建築放；依序試前、右、左，再並排往旁邊（北邊被建築擋住不放），圍欄內外都行
+function besideSpot(b) {
+  const d = b.r + 1.7, spots = [[0, d], [d, 0], [-d, 0], [2.8, d], [-2.8, d], [d, 2.8], [-d, 2.8]].map(([dx, dz]) => ({ x: b.x + dx, z: b.z + dz })); // 前、右、左，再來前排兩旁、左右兩側往前一格，都還貼著建築
+  return spots.find(s => unlocks.every(o => o.done || Math.hypot(o.x - s.x, o.z - s.z) > 2.7) && buildings.every(o => o === b || Math.hypot(o.x - s.x, o.z - s.z) > o.r + 1.4)
+    && mills.every(m => [m.inPad, m.outPad].every(p => !p.visible || Math.hypot(p.position.x - s.x, p.position.z - s.z) > 2.3))) || spots[0];
+}
 function freeSpot(cx, cz, sameZone) {
   for (let r = 4; r < 14; r += 1.2) for (let a = 0; a < 16; a++) {
     const x = cx + Math.cos(a * 0.3927) * r, z = cz + Math.sin(a * 0.3927) * r;
@@ -277,10 +283,10 @@ function addMillUnlocks() {
   const m = mills[0], a = m.inPad.position, b = m.outPad.position;
   m.inPad.visible = m.outPad.visible = false;
   mills.forEach(o => { o.outPad.visible = false; o.out.splice(0).forEach(bill => { scene.remove(bill); save.cash += o.value; }); }); // 蓋了倉庫錢直接入帳：所有收錢格（綠框💵）都收起來；還沒收的錢直接入帳
-  makeUnlock({ x: a.x, z: a.z, icon: '👷', name: () => '雇用伐木工',
+  makeUnlock({ x: a.x, z: a.z, owner: m.bld, icon: '👷', name: () => '雇用伐木工',
     need: () => save.workers > save.millLv ? '🪵 先升級伐木場' : needHand(),
     price: () => [60, 120, 200][save.workers], buy: () => { save.workers++; addWorker(); toast('👷 伐木工上工了！木頭會自己送進倉庫'); } });
-  makeUnlock({ x: b.x, z: b.z, up: true, icon: '🪵', mat: 'plank', name: () => '升級伐木場 Lv' + (save.millLv + 2),
+  makeUnlock({ x: b.x, z: b.z, owner: m.bld, up: true, icon: '🪵', mat: 'plank', name: () => '升級伐木場 Lv' + (save.millLv + 2),
     price: () => [P(80), P(160)][save.millLv], buy: () => { save.millLv++; millLook(); toast('🪵 伐木場升級了：多雇 1 個伐木工、鋸得更快！'); } });
 }
 // 伐木場升級的樣子（v0.81，作者：要看得出升級，不要蓋第二台）：每升 1 級鋸得快一倍（倉庫每秒多送 1 根木頭）；
@@ -304,8 +310,7 @@ const workers = [];
 function addWorker() {
   const g = new THREE.Group();
   const b = box(0.6, 0.75, 0.45, M(0xf08a24)); b.position.y = 0.6; g.add(b);
-  const h = box(0.45, 0.42, 0.42, mats.skin); h.position.y = 1.2; g.add(h); dress(g, [b, h], 0); vest(g, 0xf08a24); handTool(g, 'axe');   // 伐木工：橘背心＋紅帽＋斧頭
-  const c = box(0.5, 0.18, 0.48, M(0xc0392b)); c.position.y = 1.48; g.add(c);
+  const h = box(0.45, 0.42, 0.42, mats.skin); h.position.y = 1.2; g.add(h); dress(g, [b, h], 0); vest(g, 0xf08a24); handTool(g, 'axe');   // 伐木工：橘背心＋斧頭（v1.02 作者：只有主角戴帽子，工人靠背心和工具分）
   const back = new THREE.Group(); back.position.set(0, 1.0, -0.4); g.add(back);
   g.position.set(3.5, 0, 3); scene.add(g);
   workers.push({ g, back, load: 0, tree: null, cd: 0, walk: 0 });
@@ -367,8 +372,7 @@ const porters = [];
 function addPorter() {
   const g = new THREE.Group();
   const b = box(0.6, 0.75, 0.45, M(0x8e6b3e)); b.position.y = 0.6; g.add(b);
-  const h = box(0.45, 0.42, 0.42, mats.skin); h.position.y = 1.2; g.add(h); dress(g, [b, h], 2); vest(g, 0x8e6b3e);   // 搬運工：棕背心＋綠帽＋背貨箱
-  const c = box(0.5, 0.18, 0.48, M(0x3fa66b)); c.position.y = 1.48; g.add(c);
+  const h = box(0.45, 0.42, 0.42, mats.skin); h.position.y = 1.2; g.add(h); dress(g, [b, h], 2); vest(g, 0x8e6b3e);   // 搬運工：棕背心＋背貨箱
   const cargo = box(0.55, 0.45, 0.35, mats.wood); cargo.position.set(0, 0.9, -0.4); cargo.visible = false; g.add(cargo);
   g.position.set(LOT.store[0] - 1 + porters.length, 0, LOT.store[1] + 2); scene.add(g);
   porters.push({ g, cargo, job: null, walk: 0 });
@@ -388,12 +392,20 @@ function buildWarehouse() {
   if (!save.porters) save.porters = 1;                             // v0.82：倉庫附 1 個搬運工（揹門口做好的東西回倉庫）
   while (porters.length < save.porters) addPorter();
   addMillUnlocks(); addSmokeUnlock();
+  caravanUnlock();
   // v0.92 倉庫升級（作者：倉庫要有非蓋不可的用處）：每升 1 級每樣多存 150、多雇 1 個搬運工，倉庫變大
   save.whLv = save.whLv || 0; g.scale.setScalar(1 + save.whLv * 0.15);
-  makeUnlock({ ...freeSpot(wh.bld.x, wh.bld.z), up: true, icon: '📦', mat: 'plank', name: () => '倉庫升級 Lv' + (save.whLv + 2),
+  makeUnlock({ ...besideSpot(wh.bld), owner: wh.bld, up: true, icon: '📦', mat: 'plank', name: () => '倉庫升級 Lv' + (save.whLv + 2),
     price: () => [P(200), P(400)][save.whLv] ?? null, buy: () => { save.whLv++; g.scale.setScalar(1 + save.whLv * 0.15); toast('📦 倉庫升級：每樣能存 ' + storeCap() + '，還能多雇 1 個🛒搬運工'); } });
-  makeUnlock({ x: LOT.porter[0], z: LOT.porter[1], icon: '🛒', name: () => '雇用搬運工', need: () => needHand(),
+  makeUnlock({ ...besideSpot(wh.bld), owner: wh.bld, icon: '🛒', name: () => '雇用搬運工', need: () => porterBusy < 0.5 ? '🛒 搬運工還閒著' : needHand(), // v1.02（作者：多雇的搬運工沒事做）：現有的搬運工常常全部在忙，才能再雇
     price: () => save.porters < 3 + (save.whLv || 0) ? [0, 120, 220, 320, 420][save.porters] : null, buy: () => { save.porters++; addPorter(); toast('🛒 搬運工會揹倉庫的木頭去修北門和建築（開了煤礦也會補營火）；賣烤肉的錢現在直接進口袋'); } });
+}
+// v1.02 🛷 商隊：倉庫旁一格，用錢買一批建材（木材；開了採石場後同一批多帶石材），錢一定換得到建材；倉庫滿了就不能買
+function caravanUnlock() {
+  const [pn, pp] = CFG.buyPlank, [sn, sp] = CFG.buyStone, lot = () => [['plank', pn], ...(save.quarry ? [['stone', sn]] : [])];
+  return makeUnlock({ ...besideSpot(wh.bld), owner: wh.bld, icon: '🛷', name: () => '商隊：' + lot().map(([k, n]) => (k === 'plank' ? '🪵' : '🪨') + n).join(' '),
+    need: () => lot().every(([k, n]) => save.store[k] + n > storeCap()) ? '📦 倉庫滿了' : null, price: () => pp + (save.quarry ? sp : 0),
+    buy: () => { for (const [k, n] of lot()) save.store[k] = Math.min(storeCap(), save.store[k] + n); toast('🛷 商隊送來 ' + lot().map(([k, n]) => (k === 'plank' ? '🪵 木材 ' : '🪨 石材 ') + n).join('、') + '，已進倉庫'); } });
 }
 if (save.wh) buildWarehouse();
 else makeUnlock({ x: LOT.store[0], z: LOT.store[1] + 2.7, icon: '📦', mat: 'log', name: () => '蓋倉庫',
@@ -409,9 +421,8 @@ function houseLotOpen() { const l = HOUSE_LOTS[save.houses]; return !!l && l.rin
 function buildHouse(i) { const [x, z] = houseSpot(i); buildHouseAt(x, z, '民房' + i); }
 function buildHouseAt(x, z, key) { const h = addBuilding(key, houseMesh(x, z), 1.3); houses.push(h); if (isStone(h)) stoneLook(h); addStoneUnlock(); }
 // v0.94（作者：要更精細的模組）：民房改用 Kenney 木屋零件（圓木牆、門框、窗、積雪屋頂、煙囪）拼起來；零件還沒載好（或沒網路）先用舊的方塊房子
-function putRoof(g, [ox, oz, k, ry]) {                            // 木屋＝積雪屋頂；石屋＝綠色石板屋頂（升級後從正上方也看得出差別）
-  const st = !!g.stone;
-  kit((st ? 's' : 'c') + k, g, ox, 1, oz, ry, 1, m => { if (st !== !!g.stone) g.remove(m); else g.roofs.push(m); }); // 載好之前就升級了：舊屋頂丟掉
+function putRoof(g, [ox, oz, k, ry]) {                            // 木屋＝積雪屋頂（石屋的屋頂在 stoneLook 自己蓋）
+  kit('c' + k, g, ox, 1, oz, ry, 1, m => { if (g.stone) g.remove(m); else g.roofs.push(m); }); // 載好之前就改建成石屋了：木屋頂丟掉（石屋有自己的石板屋頂）
 }
 function houseMesh(x, z) {
   const g = new THREE.Group(), old = new THREE.Group(); g.add(old); g.walls = [];
@@ -419,7 +430,7 @@ function houseMesh(x, z) {
   const roof = new THREE.Mesh(new THREE.ConeGeometry(1.75, 1.1, 4), mats.roof); roof.position.y = 1.95; roof.rotation.y = Math.PI / 4; roof.castShadow = true; old.add(roof);
   const door = box(0.5, 0.8, 0.06, mats.trunk); door.position.set(0, 0.4, -1.02); old.add(door); // 門朝營地
   const P = Math.PI, hide = () => { old.visible = false; };
-  const side = (ry, ox, oz, kinds) => kinds.forEach((k, i) => kit(k, g, ox + (i - 0.5) * Math.cos(ry), 0, oz - (i - 0.5) * Math.sin(ry), ry, 1, m => { hide(); g.walls.push(m); if (g.stone) tintWall(m); }));
+  const side = (ry, ox, oz, kinds) => kinds.forEach((k, i) => kit(k, g, ox + (i - 0.5) * Math.cos(ry), 0, oz - (i - 0.5) * Math.sin(ry), ry, 1, m => { hide(); g.walls.push(m); if (g.stone) { m.visible = false; g.children[0].visible = false; } }));
   side(0, 0, 0.5, ['cwall', 'cwall']); side(P, 0, -0.5, ['cwin', 'cdoor']); side(P / 2, 0.5, 0, ['cwin', 'cwall']); side(-P / 2, -0.5, 0, ['cwall', 'cwin']);
   g.roofs = []; g.roofSpec = [[-0.4, -0.7, 'roof', P], [-0.4, 0.7, 'roof', P], [0.4, -0.7, 'roofc', 0], [0.4, 0.7, 'roof', 0]];
   g.roofSpec.forEach(s => putRoof(g, s));
@@ -429,13 +440,46 @@ function houseMesh(x, z) {
 // 石屋（v0.86）：開了採石場後，民房一間間用🪨石材改建，每間多 CFG.stoneBeds 張床；記住改建過的民房名字（save.stoneHouses）
 save.stoneHouses = save.stoneHouses || [];
 const isStone = h => save.stoneHouses.includes(h.key);
-// 石屋外觀（v0.94，作者：升級要有感覺）：圓木牆變灰石牆、底下多一圈石基座、門口掛燈籠、整間大一點
-function tintWall(m) { m.traverse(o => { if (o.isMesh) { o.material = o.material.clone(); o.material.color.set(0x9aa6b4); } }); }
+// v1.02（作者：石屋只是換顏色，沒有石頭房子的感覺，模型要換）：整間換成石塊牆＋角落大石＋深灰石板斜屋頂＋石頭煙囪＋木門；
+// 木屋的圓木牆、屋頂藏起來。貼圖用程式畫（石塊＋灰縫、一片片石板），全部石屋共用同一張，手機不多花效能
+let STONE_MATS = null;
+function stoneMats() {
+  if (STONE_MATS) return STONE_MATS;
+  const tex = draw => { const cv = document.createElement('canvas'); cv.width = cv.height = 128; draw(cv.getContext('2d')); const t = new THREE.CanvasTexture(cv); t.wrapS = t.wrapT = THREE.RepeatWrapping; return t; };
+  let seed = 7; const rnd = () => (seed = seed * 16807 % 2147483647) / 2147483647; // 固定亂數：每次畫出來一樣
+  const stones = g => {                                           // 灰縫底色上一排排大小不一的石塊，上下排錯開
+    g.fillStyle = '#6f757d'; g.fillRect(0, 0, 128, 128);
+    for (let y = 0, row = 0; y < 128; y += 26, row++) for (let x = -(row % 2) * 18; x < 128;) {
+      const w = 26 + rnd() * 22, v = 150 + rnd() * 50 | 0; g.fillStyle = 'rgb(' + v + ',' + (v + 6) + ',' + (v + 14) + ')';
+      g.fillRect(x + 2, y + 2, w - 4, 22); g.fillStyle = 'rgba(255,255,255,.18)'; g.fillRect(x + 2, y + 2, w - 4, 4); x += w;
+    }
+  };
+  const slates = g => {                                           // 屋頂石板：深灰藍一片片，上下排錯開
+    g.fillStyle = '#2c323b'; g.fillRect(0, 0, 128, 128);
+    for (let y = 0, row = 0; y < 128; y += 16, row++) for (let x = -(row % 2) * 10; x < 128; x += 20) {
+      const v = 70 + rnd() * 25 | 0; g.fillStyle = 'rgb(' + v + ',' + (v + 8) + ',' + (v + 20) + ')'; g.fillRect(x + 1, y + 1, 18, 14);
+    }
+  };
+  const T = (t, hex = 0xffffff) => new THREE.MeshToonMaterial({ color: hex, map: t, gradientMap: TOON });
+  const st = tex(stones), sl = tex(slates);
+  return STONE_MATS = { wall: T(st), quoin: T(st, 0xd9dde2), slate: T(sl), win: M(0x26303c) };
+}
 function stoneLook(h) {
   const g = h.g; if (g.stone) return; g.stone = true;
-  g.walls.forEach(tintWall);
-  g.roofs.forEach(r => g.remove(r)); g.roofs.length = 0; g.roofSpec.forEach(s => putRoof(g, s));
-  const base = box(2.35, 0.3, 2.35, mats.stone); base.position.y = 0.15; g.add(base);
+  g.walls.forEach(w => w.visible = false); g.children[0].visible = false; // 木屋的牆、還沒載好時的舊方塊都藏起來
+  g.roofs.forEach(r => g.remove(r)); g.roofs.length = 0;
+  const S = stoneMats(), s = new THREE.Group(); g.add(s);
+  const part = (w, hh, d, mat, x, y, z, rz = 0) => { const m = box(w, hh, d, mat); m.position.set(x, y, z); m.rotation.z = rz; s.add(m); return m; };
+  part(2.5, 0.25, 2.3, mats.rock, 0, 0.12, 0);                    // 石基座
+  part(2.2, 1.5, 2.0, S.wall, 0, 1.0, 0);                          // 石塊牆
+  [[-1.1, -1], [1.1, -1], [-1.1, 1], [1.1, 1]].forEach(([x, z]) => part(0.34, 1.56, 0.34, S.quoin, x, 1.0, z)); // 四個角的大石塊
+  const tri = new THREE.Shape(); tri.moveTo(-1.1, 0); tri.lineTo(1.1, 0); tri.lineTo(0, 0.8); tri.closePath(); // 前後的三角山牆
+  const gab = new THREE.Mesh(new THREE.ExtrudeGeometry(tri, { depth: 2.0, bevelEnabled: false }), S.wall); gab.position.set(0, 1.75, -1.0); gab.castShadow = true; s.add(gab);
+  for (const k of [-1, 1]) part(1.5, 0.16, 2.5, S.slate, k * 0.6, 2.2, 0, -k * 0.62); // 兩片石板斜屋頂（屋脊沿前後）
+  part(0.44, 1.1, 0.44, S.wall, 0.55, 2.4, 0.45);                 // 石頭煙囪
+  part(0.56, 0.95, 0.08, mats.trunk, 0, 0.72, -1.03);             // 木門（朝營火）
+  part(0.8, 0.14, 0.14, S.quoin, 0, 1.24, -1.05);                 // 門楣大石
+  for (const k of [-1, 1]) { part(0.06, 0.44, 0.5, S.win, k * 1.11, 1.1, 0.25); part(0.1, 0.08, 0.62, S.quoin, k * 1.13, 0.86, 0.25); } // 兩側小窗＋窗台
   kit('lantern', g, 0.95, 0, -1.25);
   g.scale.setScalar(1.12);
 }
@@ -554,7 +598,7 @@ function updateFireLook(dt, pct) {
   sun.intensity += (0.75 * st.light - sun.intensity) * k;
   fireLight.intensity += (st.glow - fireLight.intensity) * k;
   skyCol.lerp(tmpCol.setHex(st.sky), k); scene.background.copy(skyCol); scene.fog.color.copy(skyCol);
-  $('frost').style.opacity = Math.max(st.frost, save.level >= 1 && coldWave.on > 0 ? 1 : 0);
+  $('frost').style.opacity = Math.max(st.frost, save.level >= 1 && (coldWave.on > 0 || blizzard.on > 0) ? 1 : 0);
 }
 
 let feedCd = 0;
@@ -720,8 +764,8 @@ function hitPile(p) {
 let shovelCd = 0;
 function updateSnow(dt) {
   if (save.level < 1) return;
-  snowT -= dt * (coldWave.on > 0 ? 3 : 1);                      // 寒潮時積雪快 3 倍
-  if (snowT <= 0) { snowT = CFG.snowEvery; if (piles.length < CFG.snowMax) spawnPile(); }
+  snowT -= dt * (blizzard.on > 0 ? CFG.blizSnow : coldWave.on > 0 ? 3 : 1); // 寒潮時積雪快 3 倍、大暴雪 5 倍
+  if (snowT <= 0) { snowT = CFG.snowEvery; if (piles.length < (blizzard.on > 0 ? CFG.blizMax : CFG.snowMax)) spawnPile(); }
   shovelCd -= dt;
   for (const p of piles) {
     p.grow = Math.min(1, p.grow + dt * 1.5);
@@ -742,8 +786,7 @@ const shovelers = [];
 function addShoveler() {
   const g = new THREE.Group();
   const b = box(0.6, 0.75, 0.45, M(0x4fb3e8)); b.position.y = 0.6; g.add(b);
-  const h = box(0.45, 0.42, 0.42, mats.skin); h.position.y = 1.2; g.add(h); dress(g, [b, h], 4); vest(g, 0x4fb3e8);   // 鏟雪工：淺藍背心＋白帽＋鏟子
-  const hat = box(0.5, 0.18, 0.5, M(0xffffff)); hat.position.y = 1.5; g.add(hat);
+  const h = box(0.45, 0.42, 0.42, mats.skin); h.position.y = 1.2; g.add(h); dress(g, [b, h], 4); vest(g, 0x4fb3e8);   // 鏟雪工：淺藍背心＋鏟子
   const sh = box(0.12, 0.12, 0.9, mats.axe); sh.position.set(0.35, 0.6, 0.35); g.add(sh);   // 鏟子
   g.position.set(LOT.shovel[0] - 1.4, 0, LOT.shovel[1] - 1.2); scene.add(g);
   shovelers.push({ g, cd: 0, walk: 0 });
@@ -769,6 +812,47 @@ function updateColdWave(dt) {
     else if (Math.ceil(c.t) === 15 && Math.ceil(c.t + dt) > 15) toast('❄️ 15 秒後寒潮來襲，先把火爐加滿柴！');
   }
   save.coldT = Math.max(0, Math.round(c.t));
+}
+
+// ===== v0.99 大暴雪（企劃 10.2，作者 10/24：大事件＝升級前的關卡）：居民快到下一級（9 成）時來襲，撐過（營火沒熄）才能升級 =====
+const blizzard = { warn: 0, on: 0, failed: false };
+const blizGate = () => save.level >= 1 && LEVELS[save.level + 1] && save.blizDone !== save.level; // 這一級還沒撐過大暴雪
+function updateBlizzard(dt) {
+  if (!blizGate() && blizzard.on <= 0) return;
+  const b = blizzard;
+  if (b.on > 0) {
+    b.on -= dt; if (furnace.out) b.failed = true;
+    if (b.on > 0) return;
+    if (!b.failed) { save.blizDone = save.level; save.cash += CFG.blizReward; sfx.unlock(); toast('撐過大暴雪了！獎金 +' + CFG.blizReward + ' 元，可以升級' + LEVELS[save.level + 1].name + '了'); writeSave(); }
+    else { b.warn = CFG.blizRetry; toast('營火熄了…大暴雪 ' + CFG.blizRetry + ' 秒後再來，先存柴、雇鏟雪工'); }
+  } else if (b.warn > 0) {
+    b.warn -= dt;
+    if (b.warn <= 0 && coldWave.on > 0) b.warn = 1;              // 寒潮還沒過，等寒潮結束再來
+    else if (b.warn <= 0) { b.on = CFG.blizLen; b.failed = false; toast('🌨️ 大暴雪來了！看不遠、雪堆得很快，撐住 ' + CFG.blizLen + ' 秒！'); beep(220, 0.8, 'triangle', 0.06, 0.5); }
+  } else if (population() >= LEVELS[save.level + 1].need * CFG.blizAt) { b.warn = CFG.blizWarn; toast('🌨️ 升級' + LEVELS[save.level + 1].name + '前的考驗：' + CFG.blizWarn + ' 秒後大暴雪！先把營火加滿、雇鏟雪工'); }
+}
+
+// ===== v1.01 🐾 獸潮（企劃 12.4 第 2 關的遷徙天災）：營地居民快到村莊（9 成）時，熊群連來 3 波、一波比一波多，最後一波熊王帶隊；
+// 3 波都打退才能升級村莊，撐過後跳劇情卡（族人決定之後要遷徙）。獸潮期間平常的熊群不另外來
+const horde = { warn: 0, wave: 0, gap: 0 };
+const hordeGate = () => save.level === 0 && !save.hordeDone;
+function updateHorde(dt) {
+  if (!hordeGate()) return;
+  const h = horde, fighting = bears.some(b => b.alive && b.aggro);
+  if (h.wave > 0) gate.raidT = Math.max(gate.raidT, 20);
+  if (h.warn > 0) {
+    h.warn -= dt;
+    if (h.warn <= 0) { h.wave = 1; startRaid(0, false, true); toast('🐾 獸潮第 1 波！守住北門！'); beep(200, 0.6, 'sawtooth', 0.07, 0.6); }
+  } else if (h.wave > 0) {
+    if (fighting) { h.gap = CFG.hordeGap; return; }
+    if (h.wave >= CFG.hordeWaves) {
+      h.wave = 0; save.hordeDone = true; save.cash += CFG.hordeReward; sfx.unlock(); writeSave();
+      story('🐾 撐過獸潮了！', ['獎金 +' + CFG.hordeReward + ' 元', '可是熊群一波比一波多，森林快養不活大家了。', '長老說：等村子站穩，就帶著火種往北邊的岩山遷徙。', '（第 3 關「岩山」製作中，先在這裡蓋成村莊吧）'], '好，先撐下去！');
+      return;
+    }
+    h.gap -= dt;
+    if (h.gap <= 0) { h.wave++; const last = h.wave === CFG.hordeWaves; startRaid(h.wave - 1, last, true); toast(last ? '👑 獸潮最後一波：熊王帶隊來了！' : '🐾 獸潮第 ' + h.wave + ' 波！熊更多了！'); beep(200, 0.6, 'sawtooth', 0.07, 0.6); }
+  } else if (population() >= LEVELS[1].need * CFG.blizAt) { h.warn = CFG.hordeWarn; toast('🐾 升級村莊前的考驗：' + CFG.hordeWarn + ' 秒後獸潮！先修好北門、多蓋弩砲塔'); }
 }
 
 // ===== 暖氣塔：把火爐的熱送到遠一點的地方（規劃模式蓋） =====
