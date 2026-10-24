@@ -6,6 +6,7 @@ function tintObj(m, hex) { m.traverse(o => { if (o.isMesh) { o.material = o.mate
 function cabinBody(g, o) {
   const P = Math.PI, w = o.w, d = o.d, cab = new THREE.Group(); cab.scale.setScalar(o.s || 1); g.add(cab); g.cab = cab; g.roofs = [];
   const ready = m => { o.old.forEach(x => x.visible = false); return m; };
+  if (o.kk) { g.kk = true; kit(o.kk, cab, 0, 0, 0, o.kkRy ?? 0, 1, m => ready(kkSoft(m))); return; }   // v1.13：整棟換成 KayKit 建築模型（載好前還是舊方塊，載不到就一直用舊的）
   const row = (n, kinds, ry, cx, cz, alongX, sign) => { for (let i = 0; i < n; i++) { const t = (i - (n - 1) / 2) * sign;
     kit(kinds[i] || 'cwall', cab, cx + (alongX ? t : 0), 0, cz + (alongX ? 0 : t), ry, 1, m => { ready(m); if (o.wallTint) tintObj(m, o.wallTint); }); } };
   row(w, o.front, 0, 0, d / 2 - 0.5, true, 1); row(w, o.back || [], P, 0, -d / 2 + 0.5, true, -1);
@@ -21,9 +22,9 @@ function makeMill(x, z, opt = {}) {
   const g = new THREE.Group();
   const base = box(3, 1.6, 2.4, mats.wood); base.position.y = 0.8; g.add(base);
   const roof = box(3.4, 0.3, 2.8, o.roof); roof.position.y = 1.75; g.add(roof);
-  cabinBody(g, Object.assign({ w: 3, d: 2, s: 1.1, old: [base, roof], front: ['cwin', 'cdoor', 'cwin'], side: ['cwall', 'cwin'], back: [] }, o.cab)); // v0.95
+  cabinBody(g, Object.assign({ w: 3, d: 2, s: 1.1, old: [base, roof], front: ['cwin', 'cdoor', 'cwin'], side: ['cwall', 'cwin'], back: [], kk: 'bLumber' }, o.cab)); // v0.95、v1.13 換 KayKit 伐木場
   const saw = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.6, 0.08, 16), mats.axe);
-  saw.rotation.x = Math.PI / 2; saw.position.set(0, 1.0, 1.25); g.add(saw);
+  saw.rotation.x = Math.PI / 2; saw.position.set(0, 1.0, 1.25); g.add(saw); if (g.kk) saw.visible = false;
   g.position.set(x, 0, z); scene.add(g);
   const inPad = makePad(o.inX ?? x - 2.6, o.inZ ?? z + 2.2, 1.8, 0xffffff, { meat: '🍖', coal: '⚫' }[o.accept] || '🪵');
   const outPad = makePad(o.outX ?? x + 2.6, o.outZ ?? z + 2.2, 1.8, 0x3fbf5a, '💵');
@@ -33,12 +34,12 @@ function makeMill(x, z, opt = {}) {
   return o;
 }
 const mills = [makeMill(LOT.mill[0], LOT.mill[1], { inX: LOT.mill[0] - 1.3, inZ: LOT.mill[1] + 2.7, outX: LOT.mill[0] + 1.3, outZ: LOT.mill[1] + 2.7 })];
-const GRILL = { name: '烤肉攤', accept: 'meat', value: CFG.meatValue, time: 0.8, roof: M(0xe07b22), customers: true, cab: { roofTint: 0xff9a3c, chim: true, front: ['cwall', 'cdoor', 'cwin'] } };
+const GRILL = { name: '烤肉攤', accept: 'meat', value: CFG.meatValue, time: 0.8, roof: M(0xe07b22), customers: true, cab: { roofTint: 0xff9a3c, chim: true, front: ['cwall', 'cdoor', 'cwin'], kk: 'bTavern' } };
 // v0.75（作者 10/18：不同類型的格子放台子不同邊）：櫃台在左邊（主路那側），揹肉格在右邊、收錢格在前面靠櫃台（村民在櫃台付錢）；北邊被攤子擋住看不到，不放
 mills.push(makeMill(LOT.bbq[0], LOT.bbq[1], Object.assign({ inX: LOT.bbq[0] + 2.4, inZ: LOT.bbq[1] - 0.6, outX: LOT.bbq[0] - 0.7, outZ: LOT.bbq[1] + 2.4 }, GRILL)));
 // 正式關：規劃模式蓋的加工建築，付款格在門口前；第二座烤肉攤烤好的肉一樣送到村民排隊的櫃台
 save.smithLv = save.smithLv || 0;
-const SMITH = { name: '鐵匠鋪', accept: 'coal', value: CFG.coalValue, time: 1.5, roof: M(0x4a4f5a), cab: { wallTint: 0x8d949e, roofTint: 0x555b66, chim: true, front: ['cwall', 'cdoor', 'cwall'] } }; // 工業區：煤打成工具賣錢
+const SMITH = { name: '鐵匠鋪', accept: 'coal', value: CFG.coalValue, time: 1.5, roof: M(0x4a4f5a), cab: { wallTint: 0x8d949e, roofTint: 0x555b66, chim: true, front: ['cwall', 'cdoor', 'cwall'], kk: 'bSmith' } }; // 工業區：煤打成工具賣錢
 function addProc(k, x, z) {
   const m = makeMill(x, z, Object.assign({ key: { mill: '第二台鋸木機', grill: '第二座烤肉攤', smith: '鐵匠鋪' }[k], inX: x - 1.3, inZ: z + 2.7, outX: x + 1.3, outZ: z + 2.7 }, k === 'grill' ? GRILL : k === 'smith' ? SMITH : {}));
   if (k === 'grill' || save.wh) m.outPad.visible = false; // 錢在櫃台收（或有倉庫錢直接入帳），這台不用綠框
@@ -46,7 +47,7 @@ function addProc(k, x, z) {
     const look = () => {                                          // 每升一級外觀也變：Lv2 加大＋煙囪、Lv3 掛燈籠、Lv4 屋頂變金色
       const lv = save.smithLv; m.value = Math.round(CFG.coalValue * (1 + 0.5 * lv)); m.time = 1.5 / (1 + 0.3 * lv);
       m.g.scale.setScalar(1 + 0.07 * lv);
-      if (lv >= 1 && !m.chim) { m.chim = box(0.4, 1.1, 0.4, M(0x555b66)); m.chim.position.set(-1, 2.2, -0.5); m.g.add(m.chim); }
+      if (lv >= 1 && !m.chim && !m.g.kk) { m.chim = box(0.4, 1.1, 0.4, M(0x555b66)); m.chim.position.set(-1, 2.2, -0.5); m.g.add(m.chim); }
       if (lv >= 2 && !m.lamp) { m.lamp = true; kit('lantern', m.g, 1.7, 0, 1.3); kit('lantern', m.g, -1.7, 0, 1.3); }
       if (lv >= 3) setRoofTint(m.g, 0xd9a520);
     };
@@ -310,7 +311,7 @@ const workers = [];
 function addWorker() {
   const g = new THREE.Group();
   const b = box(0.6, 0.75, 0.45, M(0xf08a24)); b.position.y = 0.6; g.add(b);
-  const h = box(0.45, 0.42, 0.42, mats.skin); h.position.y = 1.2; g.add(h); dress(g, [b, h], 0); vest(g, 0xf08a24); handTool(g, 'axe');   // 伐木工：橘背心＋斧頭（v1.02 作者：只有主角戴帽子，工人靠背心和工具分）
+  const h = box(0.45, 0.42, 0.42, mats.skin); h.position.y = 1.2; g.add(h); dressKK(g, [b, h], 'kkBarbarian', 'axe_1handed.gltf');   // 伐木工：橘背心＋斧頭（v1.02 作者：只有主角戴帽子，工人靠背心和工具分）
   const back = new THREE.Group(); back.position.set(0, 1.0, -0.4); g.add(back);
   g.position.set(3.5, 0, 3); scene.add(g);
   workers.push({ g, back, load: 0, tree: null, cd: 0, walk: 0 });
@@ -382,7 +383,7 @@ function buildWarehouse() {
   const base = box(2.6, 1.6, 2.2, mats.wood); base.position.y = 0.8; g.add(base);
   const roof = box(3, 0.3, 2.6, M(0x4f6f8f)); roof.position.y = 1.75; g.add(roof);
   const door = box(1.2, 1.1, 0.06, mats.trunk); door.position.set(0, 0.55, 1.12); g.add(door);
-  cabinBody(g, { w: 3, d: 2, s: 1.25, old: [base, roof, door], front: ['cwall', 'cdoor', 'cwall'], side: ['cwall', 'cwall'], back: ['cwin', 'cwall', 'cwin'], roofTint: 0x6f95bf, chim: true }); // v0.95 倉庫：大一點的藍屋頂木屋
+  cabinBody(g, { w: 3, d: 2, s: 1.25, old: [base, roof, door], front: ['cwall', 'cdoor', 'cwall'], side: ['cwall', 'cwall'], back: ['cwin', 'cwall', 'cwin'], roofTint: 0x6f95bf, chim: true, kk: 'bMarket' }); // v0.95 倉庫：大一點的藍屋頂木屋
   kit('barrel', g, -1.7, 0, 0.6); kit('barrel', g, -1.75, 0, -0.2, 1); kit('crate', g, -1.65, 0, -1, 0.3); kit('chest', g, 0.9, 0, 1.45); // 木桶、木箱（Kenney）
   g.position.set(x, 0, z); scene.add(g);
   wh.pad = makePad(x, z + 2.7, 1.8, 0xffffff, '📦');
@@ -430,6 +431,10 @@ function houseMesh(x, z) {
   const roof = new THREE.Mesh(new THREE.ConeGeometry(1.75, 1.1, 4), mats.roof); roof.position.y = 1.95; roof.rotation.y = Math.PI / 4; roof.castShadow = true; old.add(roof);
   const door = box(0.5, 0.8, 0.06, mats.trunk); door.position.set(0, 0.4, -1.02); old.add(door); // 門朝營地
   const P = Math.PI, hide = () => { old.visible = false; };
+  if (typeof KIT !== 'undefined' && KIT.bHomeA) {                       // v1.13：民房換 KayKit 小屋（門朝營火），石屋換成另一款
+    g.roofs = []; kit('bHomeA', g, 0, 0, 0, P, 1, m => { kkSoft(m); hide(); g.walls.push(m); g.kkHome = m; if (g.stone) m.visible = false; });
+    g.position.set(x, 0, z); g.rotation.y = Math.atan2(x - FX0, z - FZ0); scene.add(g); return g;
+  }
   const side = (ry, ox, oz, kinds) => kinds.forEach((k, i) => kit(k, g, ox + (i - 0.5) * Math.cos(ry), 0, oz - (i - 0.5) * Math.sin(ry), ry, 1, m => { hide(); g.walls.push(m); if (g.stone) { m.visible = false; g.children[0].visible = false; } }));
   side(0, 0, 0.5, ['cwall', 'cwall']); side(P, 0, -0.5, ['cwin', 'cdoor']); side(P / 2, 0.5, 0, ['cwin', 'cwall']); side(-P / 2, -0.5, 0, ['cwall', 'cwin']);
   g.roofs = []; g.roofSpec = [[-0.4, -0.7, 'roof', P], [-0.4, 0.7, 'roof', P], [0.4, -0.7, 'roofc', 0], [0.4, 0.7, 'roof', 0]];
@@ -466,6 +471,11 @@ function stoneMats() {
 }
 function stoneLook(h) {
   const g = h.g; if (g.stone) return; g.stone = true;
+  if (g.kkHome || KIT.bHomeB) {                                          // v1.13：KayKit 版石屋＝換成另一款小屋（比較大、兩層）
+    g.walls.forEach(w => w.visible = false); g.children[0].visible = false;
+    kit('bHomeB', g, 0, 0, 0, Math.PI, 1, m => { kkSoft(m); g.children[0].visible = false; });
+    g.scale.setScalar(1.05); return;
+  }
   g.walls.forEach(w => w.visible = false); g.children[0].visible = false; // 木屋的牆、還沒載好時的舊方塊都藏起來
   g.roofs.forEach(r => g.remove(r)); g.roofs.length = 0;
   const S = stoneMats(), s = new THREE.Group(); g.add(s);

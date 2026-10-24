@@ -1,0 +1,68 @@
+<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<body style="margin:0;background:#cfe3f2;font:600 15px sans-serif">
+<script src="../js/lib/three.min.js"></script>
+<script>
+// 羽絨大衣 Q 版角色預覽（v1.08）：全部用程式拼（球、橢圓球、圓柱），沒有外部模型；node tools/serve.js 後開 http://localhost:8080/tools/puffytest.html
+// A 圓滾滾連帽羽絨衣｜B 方正厚實羽絨外套＋護耳毛帽；都有大頭、分段飽飽的大衣、毛邊帽子，賽璐璐著色＋描邊
+const W = innerWidth, H = innerHeight, r = new THREE.WebGLRenderer({ antialias: true }); r.setSize(W, H); document.body.appendChild(r.domElement);
+const scene = new THREE.Scene(), cam = new THREE.PerspectiveCamera(30, W / H, .1, 100), narrow = W < H;
+cam.position.set(0, 2.4, narrow ? 11 : 7); cam.lookAt(0, 1.05, 0);
+const dl = new THREE.DirectionalLight(0xffffff, .8); dl.position.set(3, 6, 5); scene.add(new THREE.HemisphereLight(0xffffff, 0x99a, 1), dl);
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(40, 8), new THREE.MeshLambertMaterial({ color: 0xeef4fa })); ground.rotation.x = -Math.PI / 2; scene.add(ground);
+const c = document.createElement('canvas'); c.width = 3; c.height = 1; const g = c.getContext('2d'); ['#777', '#bbb', '#fff'].forEach((v, i) => { g.fillStyle = v; g.fillRect(i, 0, 1, 1); });
+const TOON = new THREE.CanvasTexture(c); TOON.minFilter = TOON.magFilter = THREE.NearestFilter;
+const M = col => new THREE.MeshToonMaterial({ color: col, gradientMap: TOON }), INK = new THREE.MeshBasicMaterial({ color: 0x27303d, side: THREE.BackSide });
+// 橢圓球（rx, ry, rz 是三個方向的半徑）＋一層深色背面殼當描邊
+function ell(mat, rx, ry, rz, x = 0, y = 0, z = 0, ink = 0.05) {
+  const grp = new THREE.Group(), geo = new THREE.SphereGeometry(1, 24, 16), m = new THREE.Mesh(geo, mat); m.scale.set(rx, ry, rz); grp.add(m);
+  const h = new THREE.Mesh(geo, INK); h.scale.set(rx + ink, ry + ink, rz + ink); grp.add(h); grp.position.set(x, y, z); return grp;
+}
+function cyl(mat, rt, rb, h, x = 0, y = 0, z = 0, ink = 0.05) {
+  const grp = new THREE.Group(), geo = new THREE.CylinderGeometry(rt, rb, h, 20), m = new THREE.Mesh(geo, mat); grp.add(m);
+  const hh = new THREE.Mesh(geo, INK); hh.scale.set(1 + ink / Math.max(rt, rb), 1 + ink / h, 1 + ink / Math.max(rt, rb)); grp.add(hh); grp.position.set(x, y, z); return grp;
+}
+const eye = (x, y, z) => { const e = ell(M(0x222222), .07, .1, .04, x, y, z, 0); return e; };
+// opts：coat 大衣色、fur 毛邊色、trim 袖口／下擺色、segs 大衣分幾段、round 圓（1）或方（0）
+function hero(o, x) {
+  const R = new THREE.Group(), body = new THREE.Group(), skin = M(0xffd9b8), coat = M(o.coat), fur = M(o.fur), dark = M(0x3b3f5c), boot = M(o.boot);
+  R.position.x = x;
+  // 大衣：幾顆橢圓球疊起來，每一節縫線處自然凹進去＝羽絨衣的分段
+  const bw = o.round ? 0.5 : 0.46, bd = o.round ? 0.42 : 0.4;
+  for (let i = 0; i < o.segs; i++) { const t = i / (o.segs - 1), y = 0.42 + t * 0.5; body.add(ell(coat, bw * (1 - 0.08 * t), 0.2, bd * (1 - 0.06 * t), 0, y, 0)); }
+  body.add(ell(M(o.trim), bw * 0.98, 0.07, bd * 0.98, 0, 0.27, 0.0));           // 下擺鬆緊帶
+  R.add(body);
+  // 手臂：兩節飽飽的袖子，從肩膀轉動；袖口有深色束口
+  const arms = [-1, 1].map(s => { const p = new THREE.Group(); p.position.set(s * (bw + 0.06), 0.88, 0); p.add(ell(coat, 0.17, 0.2, 0.17, s * 0.05, -0.12, 0), ell(coat, 0.16, 0.18, 0.16, s * 0.08, -0.34, 0.02), ell(M(o.trim), 0.13, 0.06, 0.13, s * 0.09, -0.5, 0.03), ell(M(0xf2f2f2), 0.11, 0.11, 0.11, s * 0.1, -0.6, 0.04)); p.rotation.z = -s * 0.12; R.add(p); return p; });
+  // 腿：深色褲子＋靴子，從髖關節轉動
+  const legs = [-1, 1].map(s => { const p = new THREE.Group(); p.position.set(s * 0.17, 0.26, 0); p.add(cyl(dark, 0.1, 0.1, 0.14, 0, -0.04, 0), ell(boot, 0.15, 0.1, 0.2, 0, -0.17, 0.05)); R.add(p); return p; });
+  // 頭：很大的圓頭（Q 版）＋眼睛、腮紅、小嘴
+  const head = new THREE.Group(); head.position.set(0, 1.5, 0);
+  head.add(ell(skin, o.round ? 0.58 : 0.56, 0.52, 0.52, 0, 0, 0));
+  head.add(eye(-0.2, -0.02, 0.5), eye(0.2, -0.02, 0.5));
+  [-1, 1].forEach(s => head.add(ell(M(0xff9a9a), 0.09, 0.05, 0.03, s * 0.34, -0.17, 0.46, 0)));
+  head.add(ell(M(0xc0524c), 0.05, 0.025, 0.02, 0, -0.2, 0.52, 0));
+  // 帽子（毛邊）
+  if (o.round) {                                                       // A：連帽，帽緣一圈白毛圍著臉，帽頂圓圓的
+    head.add(ell(coat, 0.62, 0.5, 0.5, 0, 0.14, -0.2));
+    const furRing = new THREE.Mesh(new THREE.TorusGeometry(0.5, 0.1, 12, 28), fur); furRing.position.set(0, 0.02, 0.28); furRing.scale.set(1.08, 1.02, 1);
+    const furInk = new THREE.Mesh(furRing.geometry, INK); furInk.scale.setScalar(1.12); furRing.add(furInk); head.add(furRing);
+    head.add(ell(coat, 0.2, 0.2, 0.2, 0, 0.55, -0.1));                 // 帽頂小球
+  } else {                                                             // B：毛帽，白色寬毛邊＋兩側護耳＋頂端毛球
+    head.add(ell(coat, 0.6, 0.38, 0.58, 0, 0.3, 0));
+    const rim = new THREE.Mesh(new THREE.TorusGeometry(0.54, 0.13, 12, 28), fur); rim.rotation.x = Math.PI / 2; rim.position.set(0, 0.17, 0); rim.scale.set(1.04, 1.04, 1.1);
+    const rimInk = new THREE.Mesh(rim.geometry, INK); rimInk.scale.setScalar(1.12); rim.add(rimInk); head.add(rim);
+    [-1, 1].forEach(s => head.add(ell(coat, 0.14, 0.26, 0.12, s * 0.62, -0.12, 0), ell(fur, 0.1, 0.12, 0.1, s * 0.62, -0.34, 0)));
+    head.add(ell(fur, 0.17, 0.17, 0.17, 0, 0.7, 0));
+  }
+  R.add(head);
+  // 圍巾（兩版都有）：脖子一圈
+  R.add(ell(M(o.scarf), 0.4, 0.09, 0.36, 0, 1.0, 0.02));
+  R.userData.tick = t => { const s = Math.sin(t * 7); arms[0].rotation.x = s * .6; arms[1].rotation.x = -s * .6; legs[0].rotation.x = -s * .55; legs[1].rotation.x = s * .55; R.position.y = Math.abs(s) * .04; head.rotation.z = s * .04; };
+  scene.add(R); return R;
+}
+const A = hero({ round: 1, segs: 4, coat: 0xe04a3a, fur: 0xfaf6ee, trim: 0x8c2a22, boot: 0x5a3b2a, scarf: 0xffd34d }, -1.4);
+const B = hero({ round: 0, segs: 3, coat: 0x3f9bd6, fur: 0xfaf6ee, trim: 0x245f8a, boot: 0x4a4a55, scarf: 0xff8a3d }, 1.4);
+[['A 圓滾滾連帽羽絨衣', 0], ['B 方正厚實外套＋護耳毛帽', 1]].forEach(([t, i]) => { const d = document.createElement('div'); d.textContent = t; d.style.cssText = 'position:fixed;top:10px;width:50%;left:' + i * 50 + '%;text-align:center;text-shadow:0 1px #fff'; document.body.appendChild(d); });
+const clock = new THREE.Clock();
+(function loop() { requestAnimationFrame(loop); const t = clock.getElapsedTime(); A.userData.tick(t); B.userData.tick(t); r.render(scene, cam); })();
+</script>

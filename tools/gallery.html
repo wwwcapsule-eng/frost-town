@@ -1,0 +1,37 @@
+<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<body style="margin:0;background:#cfe3f2;font:600 13px sans-serif">
+<div id="bar" style="position:fixed;top:0;left:0;right:0;z-index:2;background:#fffc;padding:6px;display:flex;flex-wrap:wrap;gap:6px"></div>
+<script src="../js/lib/three.min.js"></script><script src="../js/lib/GLTFLoader.js"></script>
+<script>
+// KayKit 素材圖鑑（v1.13）：把下載的 4 個包（中世紀六角、城市、太空基地、資源）的模型排成格子，每個下面標檔名，方便挑要用哪個
+// node tools/serve.js 後開 http://localhost:8080/tools/gallery.html （要有 assets/kaykit_* 與 node 掃出來的 tools/gallery-manifest.json）
+const W = innerWidth, H = innerHeight, r = new THREE.WebGLRenderer({ antialias: true }); r.setSize(W, H); document.body.appendChild(r.domElement);
+const scene = new THREE.Scene(), cam = new THREE.PerspectiveCamera(30, W / H, .1, 200);
+scene.add(new THREE.HemisphereLight(0xffffff, 0x99a, 1.1)); const dl = new THREE.DirectionalLight(0xffffff, .8); dl.position.set(3, 6, 5); scene.add(dl);
+const c = document.createElement('canvas'); c.width = 3; c.height = 1; const g = c.getContext('2d'); ['#777', '#bbb', '#fff'].forEach((v, i) => { g.fillStyle = v; g.fillRect(i, 0, 1, 1); });
+const TOON = new THREE.CanvasTexture(c); TOON.minFilter = TOON.magFilter = THREE.NearestFilter;
+const ld = new THREE.GLTFLoader(); let cur = null, labels = [], models = [], token = 0;
+const bar = document.getElementById('bar');
+fetch('gallery-manifest.json').then(r => r.json()).then(man => {
+  const tabs = []; for (const [k, groups] of Object.entries(man)) groups.forEach(gp => tabs.push({ label: k + ' / ' + gp.name + '（' + gp.files.length + '）', gp }));
+  tabs.forEach((t, i) => { const b = document.createElement('button'); b.textContent = t.label; b.onclick = () => show(t.gp); bar.appendChild(b); if (!i) show(t.gp); });
+});
+function show(gp) {
+  const my = ++token; models.forEach(m => scene.remove(m)); labels.forEach(l => l.remove()); models = []; labels = [];
+  const cols = Math.min(8, Math.ceil(Math.sqrt(gp.files.length * W / H))), rows = Math.ceil(gp.files.length / cols), cell = 2.6;
+  cam.position.set(0, rows * cell * 0.9 + 4, rows * cell * 1.0 + 6); cam.lookAt(0, 0, 0);
+  gp.files.forEach((f, i) => {
+    const x = (i % cols - (cols - 1) / 2) * cell, z = (Math.floor(i / cols) - (rows - 1) / 2) * cell;
+    ld.load('../' + gp.dir + '/' + f, gl => {
+      if (my !== token) return; const o = gl.scene;
+      o.traverse(m => { if (m.isMesh) m.material = new THREE.MeshToonMaterial({ map: m.material.map, color: m.material.color, gradientMap: TOON }); });
+      const b = new THREE.Box3().setFromObject(o), s = b.getSize(new THREE.Vector3()), k = 2.0 / Math.max(s.x, s.y, s.z), ctr = b.getCenter(new THREE.Vector3());
+      const grp = new THREE.Group(); o.position.set(-ctr.x, -b.min.y, -ctr.z); grp.add(o); grp.scale.setScalar(k); grp.position.set(x, 0, z); grp.rotation.y = -0.6; scene.add(grp); models.push(grp);
+      const p = new THREE.Vector3(x, 0, z + 1.1).project(cam), d = document.createElement('div'); d.textContent = f.replace('.gltf', '').replace('building_', '');
+      d.style.cssText = 'position:fixed;font-size:11px;transform:translateX(-50%);text-align:center;text-shadow:0 1px #fff;left:' + (p.x * .5 + .5) * W + 'px;top:' + (-p.y * .5 + .5) * H + 'px'; document.body.appendChild(d); labels.push(d);
+    });
+  });
+}
+addEventListener('resize', () => { r.setSize(innerWidth, innerHeight); cam.aspect = innerWidth / innerHeight; cam.updateProjectionMatrix(); });
+(function loop() { requestAnimationFrame(loop); r.render(scene, cam); })();
+</script>

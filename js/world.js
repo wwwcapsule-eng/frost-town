@@ -54,6 +54,10 @@ const KIT = {
   anvil: ['survival/workbench-anvil.glb', 0.9],
   ...Object.fromEntries(['male-a', 'female-a', 'male-b', 'female-b', 'male-c', 'female-c', 'male-d', 'female-d', 'male-e', 'female-e', 'male-f', 'female-f'].map((n, i) => ['mc' + i, ['mini/character-' + n + '.glb', 1.45]])), // v0.96 Kenney mini-characters 12 個人物
   sign: ['survival/signpost.glb', 1.6], lantern: ['holiday/lantern.glb', 0.6],
+  // v1.13 房屋換 KayKit Medieval Hexagon（淡藍色那組）：高度＝原始高度×放大倍率
+  bLumber: ['kaykit/bld/building_lumbermill_blue.gltf', 3.0], bTavern: ['kaykit/bld/building_tavern_blue.gltf', 3.2], bSmith: ['kaykit/bld/building_blacksmith_blue.gltf', 2.4],
+  bMarket: ['kaykit/bld/building_market_blue.gltf', 2.3], bHomeA: ['kaykit/bld/building_home_A_blue.gltf', 2.3], bHomeB: ['kaykit/bld/building_home_B_blue.gltf', 3.0], bMine: ['kaykit/bld/building_mine_blue.gltf', 2.6],
+  kkBarbarian: ['kaykit/Barbarian.glb', 1.6], kkRanger: ['kaykit/Ranger.glb', 1.6], kkKnight: ['kaykit/Knight.glb', 2.0], // v1.06 KayKit Adventurers（CC0）
   rockA: ['survival/rock-a.glb', 1.2], rockB: ['survival/rock-b.glb', 0.9], rockC: ['survival/rock-c.glb', 1.5],
 };
 const kitWait = {};
@@ -505,6 +509,58 @@ function dress(g, olds, n, s = 1, cb) {
     mixers.push({ g, mixer, walk, idle, x: g.position.x, z: g.position.z });
     if (cb) cb(m);
   });
+}
+// ===== KayKit Adventurers 人物（v1.06，作者選的工種造型）：角色檔不含動畫，走路／待機在另一個檔（骨架同名可直接套）；武器是獨立模型，掛在右手骨頭上 =====
+let kkClips = null; const kkWait = [];
+function withKKClips(cb) {
+  if (kkClips) return cb(kkClips);
+  kkWait.push(cb); if (kkWait.length > 1 || !gltf) return;
+  const got = {}, done = () => { if (got.walk && got.idle) { kkClips = got; kkWait.forEach(f => f(kkClips)); } };
+  gltf.load('assets/models/kaykit/Rig_Medium_MovementBasic.glb', r => { got.walk = r.animations.find(a => a.name === 'Walking_A'); done(); });
+  gltf.load('assets/models/kaykit/Rig_Medium_General.glb', r => { got.idle = r.animations.find(a => a.name === 'Idle_A'); done(); });
+}
+const kkTool = {};
+function kkHold(m, file) {                                    // file：武器檔名（assets/models/kaykit/ 底下）
+  let hand = null; m.traverse(o => { if (/^handslot.?r$/.test(o.name)) hand = o; }); if (!hand || !gltf) return; // three 載入時會把骨頭名字的「.」拿掉
+  const put = o => { const c = o.clone(); hand.add(c); };
+  if (kkTool[file]) return put(kkTool[file]);
+  gltf.load('assets/models/kaykit/' + file, r => {
+    r.scene.traverse(o => { if (o.isMesh) o.material = new THREE.MeshToonMaterial({ map: o.material.map, color: o.material.color, gradientMap: TOON }); });
+    kkTool[file] = r.scene; put(r.scene);
+  });
+}
+// 頭髮（v1.11）：一顆壓扁的橢圓球蓋在頭頂和後腦，掛在頭的骨頭下面跟著動；大小用「人物高度／2.0」換算，再扣掉骨頭自己的縮放
+function kkHair(m, color) {
+  let head = null; m.traverse(o => { if (/^head$/.test(o.name)) head = o; }); if (!head) return;
+  m.updateWorldMatrix(true, true);
+  const hu = new THREE.Box3().setFromObject(m).getSize(new THREE.Vector3()).y / 2.0, ws = head.getWorldScale(new THREE.Vector3());
+  const hair = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 12), M(color));
+  hair.scale.set(0.3 * hu / ws.x, 0.2 * hu / ws.y, 0.3 * hu / ws.z); hair.position.set(0, 0.4 * hu / ws.y, -0.03 * hu / ws.z); head.add(hair);
+}
+// 建築調淡（v1.13，作者：想要淡藍色、不要太顯眼）：每個 KayKit 建築的材質複製一份，加一點自發光讓暗部變亮、顏色變淡
+function kkSoft(m) { m.traverse(o => { if (o.isMesh) { o.material = o.material.clone(); o.material.emissive.setHex(0x34465c); } }); return m; }
+// 造型微調（v1.10，作者：野蠻人不要戴帽子、騎士不要穿盔甲）：hide＝依零件名稱藏起來（頭盔、披風、熊皮帽是獨立零件）；tint＝把這些零件的貼圖換成單色（盔甲是畫在貼圖上的，只能改成素色衣服）
+const KKLOOK = {
+  kkBarbarian: { hide: /BearHat/, tint: [[/Body|Arm/, 0xb5472b], [/Leg/, 0x4a3d33]], hair: 0x4a2f1c },   // v1.11 伐木工：格子衣（紅褐）、深色褲、棕色頭髮
+  kkKnight: { hide: /Helmet|Cape/, tint: [[/Body|Arm/, 0x3f6fa8], [/Leg/, 0x4a4a55]] },
+};
+function kkLook(m, key) {
+  const lk = KKLOOK[key]; if (!lk) return;
+  if (lk.hair) kkHair(m, lk.hair);
+  m.traverse(o => {
+    if (!o.isMesh) return;
+    if (lk.hide && lk.hide.test(o.name)) o.visible = false;
+    (lk.tint || []).forEach(([re, col]) => { if (re.test(o.name)) { o.material = o.material.clone(); o.material.map = null; o.material.color.setHex(col); } });
+  });
+}
+function dressKK(g, olds, key, weapon, cb) {                     // 載不到就保留舊的方塊小人
+  withKKClips(clips => kit(key, g, 0, 0, 0, 0, 1, m => {
+    olds.forEach(o => o.visible = false); kkLook(m, key);
+    const mixer = new THREE.AnimationMixer(m), walk = mixer.clipAction(clips.walk), idle = mixer.clipAction(clips.idle); walk.play(); idle.play();
+    mixers.push({ g, mixer, walk, idle, x: g.position.x, z: g.position.z });
+    if (weapon) kkHold(m, weapon);
+    if (cb) cb(m);
+  }));
 }
 function updateMixers(dt) {
   for (let i = mixers.length - 1; i >= 0; i--) {

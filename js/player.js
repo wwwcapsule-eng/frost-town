@@ -1,29 +1,56 @@
 'use strict';
 // ===== 主角 =====
 const player = new THREE.Group();
-// v1.04（作者選 C）：自製 Q 版方塊人——大方頭、短身體、毛帽跟頭一體、紅圍巾；沒有人物模型，靠 player.tick 擺手腳
-const hSkin = M(0xffcf9e), hBlue = M(0x2f8fd8), hRed = M(0xd8453a), hDark = M(0x24486b), hWhite = M(0xffffff);
-const body = box(0.62, 0.55, 0.45, hBlue); body.position.y = 0.55; player.add(body);
-const legL = box(0.22, 0.28, 0.25, hDark), legR = legL.clone(); legL.position.set(-0.15, 0.14, 0); legR.position.set(0.15, 0.14, 0);
-const armL = box(0.16, 0.4, 0.2, hBlue), armR = armL.clone(); armL.position.set(-0.4, 0.58, 0); armR.position.set(0.4, 0.58, 0);
-const head = box(0.95, 0.85, 0.85, hSkin); head.position.y = 1.4;
-const cap = box(1.0, 0.36, 0.9, hBlue); cap.position.y = 1.7;
-const capRim = box(1.04, 0.14, 0.94, hWhite); capRim.position.y = 1.56;
-const pom = new THREE.Mesh(new THREE.SphereGeometry(0.15, 10, 8), hWhite); pom.position.y = 1.97;
-const eyeL = box(0.1, 0.16, 0.05, M(0x222222)), eyeR = eyeL.clone(); eyeL.position.set(-0.2, 1.38, 0.43); eyeR.position.set(0.2, 1.38, 0.43);
-const cheekL = box(0.14, 0.08, 0.04, M(0xff9a9a)), cheekR = cheekL.clone(); cheekL.position.set(-0.32, 1.25, 0.43); cheekR.position.set(0.32, 1.25, 0.43);
-const scarf = box(0.7, 0.14, 0.52, hRed); scarf.position.y = 0.88;
-player.add(legL, legR, armL, armR, head, cap, capRim, pom, eyeL, eyeR, cheekL, cheekR, scarf);
-player.flash = [hSkin, hBlue, hRed, hDark];          // 受傷時閃紅的材質（main.js）
-player.tick = (walk, moving) => {                     // 走路時手腳前後擺、身體輕輕彈
+// v1.08（作者選 B）：自己用程式拼的 Q 版羽絨大衣主角——大頭、三節飽飽的藍色大衣、白毛邊護耳毛帽；預覽在 tools/puffytest.html
+// 全部是橢圓球／圓環／圓柱，描邊由 inkAll 自動加；沒有外部模型，所以不用等載入，也是作者原創
+const puff = new THREE.Group(); puff.scale.setScalar(0.88); player.add(puff);
+player.flash = [];                                      // 受傷時閃紅的材質（main.js）
+const pM = c => { const m = M(c); player.flash.push(m); return m; };
+const pEll = (mat, rx, ry, rz, x = 0, y = 0, z = 0, par = puff) => { const m = new THREE.Mesh(new THREE.SphereGeometry(1, 20, 14), mat); m.scale.set(rx, ry, rz); m.position.set(x, y, z); par.add(m); return m; };
+{
+  const skin = pM(0xffd9b8), coat = pM(0x3f9bd6), fur = pM(0xfaf6ee), trim = pM(0x245f8a), dark = pM(0x3b3f5c), boot = pM(0x4a4a55), scarf = pM(0xff8a3d), eye = pM(0x222222), cheek = pM(0xff9a9a);
+  for (let i = 0; i < 3; i++) pEll(coat, 0.46 * (1 - 0.08 * i / 2), 0.2, 0.4 * (1 - 0.06 * i / 2), 0, 0.42 + i * 0.25, 0);   // 大衣三節
+  pEll(trim, 0.45, 0.07, 0.39, 0, 0.27, 0);                                                                         // 下擺鬆緊帶
+  pEll(scarf, 0.4, 0.09, 0.36, 0, 1.0, 0.02);
+  var pArms = [-1, 1].map(s => {                                                                                    // 袖子：兩節＋束口＋白手套，從肩膀轉
+    const g = new THREE.Group(); g.position.set(s * 0.52, 0.88, 0); g.rotation.z = -s * 0.12; puff.add(g);
+    pEll(coat, 0.17, 0.2, 0.17, s * 0.05, -0.12, 0, g); pEll(coat, 0.16, 0.18, 0.16, s * 0.08, -0.34, 0.02, g); pEll(trim, 0.13, 0.06, 0.13, s * 0.09, -0.5, 0.03, g); pEll(fur, 0.11, 0.11, 0.11, s * 0.1, -0.6, 0.04, g); return g;
+  });
+  var pLegs = [-1, 1].map(s => {                                                                                    // 腿：褲子＋靴子，從髖關節轉
+    const g = new THREE.Group(); g.position.set(s * 0.17, 0.26, 0); puff.add(g);
+    const c = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.14, 14), dark); c.position.y = -0.04; g.add(c); pEll(boot, 0.15, 0.1, 0.2, 0, -0.17, 0.05, g); return g;
+  });
+  var pHead = new THREE.Group(); pHead.position.set(0, 1.5, 0); puff.add(pHead);
+  pEll(skin, 0.56, 0.52, 0.52, 0, 0, 0, pHead);
+  [-1, 1].forEach(s => { pEll(eye, 0.07, 0.1, 0.04, s * 0.2, -0.02, 0.5, pHead); pEll(cheek, 0.09, 0.05, 0.03, s * 0.34, -0.17, 0.46, pHead); pEll(coat, 0.14, 0.26, 0.12, s * 0.62, -0.12, 0, pHead); pEll(fur, 0.1, 0.12, 0.1, s * 0.62, -0.34, 0, pHead); }); // 眼睛、腮紅、護耳
+  pEll(pM(0xc0524c), 0.05, 0.025, 0.02, 0, -0.2, 0.52, pHead);                                                      // 小嘴
+  pEll(coat, 0.6, 0.38, 0.58, 0, 0.3, 0, pHead);                                                                    // 毛帽
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(0.54, 0.13, 10, 24), fur); rim.rotation.x = Math.PI / 2; rim.position.set(0, 0.17, 0); rim.scale.set(1.04, 1.04, 1.1); pHead.add(rim);
+  pEll(fur, 0.17, 0.17, 0.17, 0, 0.7, 0, pHead);                                                                    // 頂端毛球
+}
+player.tick = (walk, moving) => {                       // 走路時手腳前後擺、頭輕輕歪、身體輕輕彈
+  if (player.kk) return;                                // 換上 KayKit 騎士後，走路交給動畫
   const s = moving ? Math.sin(walk * 0.65) : 0;
-  legL.rotation.x = armR.rotation.x = s * 0.6; legR.rotation.x = armL.rotation.x = -s * 0.6;
-  player.position.y = Math.abs(s) * 0.05;
+  pArms[0].rotation.x = pLegs[1].rotation.x = s * 0.6; pArms[1].rotation.x = pLegs[0].rotation.x = -s * 0.6;
+  pHead.rotation.z = s * 0.04; player.position.y = Math.abs(s) * 0.05;
 };
+// v1.09（作者想試試騎士當主角）：騎士載好就把羽絨大衣藏起來；要換回羽絨大衣，把下面這段刪掉就好
+dressKK(player, [puff], 'kkKnight', null, m => {
+  player.kk = true; player.flash = [];
+  m.traverse(o => { if (o.isMesh) { o.material = o.material.clone(); player.flash.push(o.material); } });
+  // v1.12（作者：羽絨服不要遮手、不要像輪胎，風格跟下載的模組一致）：改成一件順順的長大衣——低面數的錐形外套（跟 KayKit 一樣是稜稜的），白毛領、腰帶、下擺一圈白毛；比身體窄，手臂不被蓋住
+  const vest = new THREE.Group(), vc = M(0xb8403a), vf = M(0xf4efe6), vt = M(0x4a2f24); player.flash.push(vc, vf, vt);
+  const part = (geo, mat, y, sz = 1) => { const o = new THREE.Mesh(geo, mat); o.position.y = y; o.scale.z = sz; vest.add(o); return o; };
+  part(new THREE.CylinderGeometry(0.27, 0.35, 0.72, 8), vc, 0.66, 0.8);            // 大衣本體（上窄下寬）
+  part(new THREE.CylinderGeometry(0.295, 0.295, 0.07, 8), vt, 0.64, 0.8);           // 腰帶
+  const col = part(new THREE.TorusGeometry(0.22, 0.075, 6, 10), vf, 1.0, 0.85); col.rotation.x = Math.PI / 2;   // 毛領
+  const hem = part(new THREE.TorusGeometry(0.34, 0.04, 5, 10), vf, 0.31, 0.8); hem.rotation.x = Math.PI / 2;     // 下擺毛邊
+  player.add(vest);
+});
 // v1.02（作者：最重要的是認得出主角）：腳下一圈亮藍光圈
 const heroRing = new THREE.Mesh(new THREE.RingGeometry(0.8, 1.02, 32), new THREE.MeshBasicMaterial({ color: 0x4fc3ff, transparent: true, opacity: 0.9, depthWrite: false }));
 heroRing.rotation.x = -Math.PI / 2; heroRing.position.y = 0.06; player.add(heroRing);
-const stackRoot = new THREE.Group(); stackRoot.position.set(0, 1.3, -0.55); player.add(stackRoot);
+const stackRoot = new THREE.Group(); stackRoot.position.set(0, 1.05, -0.72); player.add(stackRoot);
 scene.add(player);
 // 旋轉斧頭：木柄＋大斧刃，外圍一圈藍色刀光；斧刃顏色隨等級變化
 const axe = new THREE.Group(); axe.visible = false; axe.scale.setScalar(1.6); scene.add(axe);
@@ -32,12 +59,23 @@ const axeArm = new THREE.Group(); axe.add(axeArm);
 const onTop = c => new THREE.MeshLambertMaterial({ color: c, depthTest: false });
 function topBox(w, h, d, mat) { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.renderOrder = 21; return m; }
 const handle = topBox(0.16, 0.16, 1.5, onTop(0x7a4a2a)); handle.position.z = 0.75; axeArm.add(handle);
-const axeHeadMat = onTop(0x5d6b7c);
+let axeHeadMat = onTop(0x5d6b7c), axeKK = false;   // axeKK：換成 KayKit 斧頭模型之後，等級顏色改成「染色」
 const axeHead = topBox(0.9, 0.16, 0.6, axeHeadMat); axeHead.position.set(0.25, 0, 1.45); axeArm.add(axeHead);
 const axeEdge = topBox(0.14, 0.18, 0.75, onTop(0xc9d4e0)); axeEdge.position.set(0.72, 0, 1.45); axeArm.add(axeEdge);
 const axeArms = [axeArm]; // v0.89（作者：後期看不出斧頭升級）：斧頭每升 1 級多一把一起轉（最多 4 把）
 for (let i = 1; i < 4; i++) { const a = axeArm.clone(); axe.add(a); axeArms.push(a); }
+const AXE_TINT = [0xffffff, 0x6fb8ff, 0xffd34d, 0xff8a5c];   // KayKit 斧頭有貼圖，用淺色乘上去才看得出原本的造型
 const AXE_COLORS = [0x5d6b7c, 0x1f86d6, 0xe8a800, 0xff4f1f]; // 鐵灰→藍→金→橘（深一點，在雪地上才看得清楚）
+// v1.11（作者：主角的斧頭也要改形象）：旋轉斧頭換成 KayKit 的單手斧模型（木柄＋斧刃，貼圖在 assets/models/kaykit/）；載好就藏起方塊斧，載不到就維持方塊斧
+if (typeof gltf !== 'undefined' && gltf) gltf.load('assets/models/kaykit/axe_1handed.gltf', r => {
+  const mat = new THREE.MeshToonMaterial({ map: null, gradientMap: TOON, depthTest: false });
+  r.scene.traverse(o => { if (o.isMesh) { mat.map = o.material.map; o.material = mat; o.renderOrder = 21; } });
+  const k = 1.35, mod = new THREE.Group(); mod.add(r.scene); mod.matrixAutoUpdate = false;
+  mod.matrix.set(-k, 0, 0, 0,  0, 0, k, 0.27 * k * 0,  0, k, 0, 0.27 * k,  0, 0, 0, 1);   // 模型的 y（柄）轉成 z、刀刃從 -x 轉到 +x；柄底對齊轉軸
+  axeArms.forEach(a => a.add(mod.clone()));
+  [handle, axeHead, axeEdge].forEach(o => o.visible = false);
+  axeHeadMat = mat; axeKK = true;
+});
 const swooshMat = new THREE.MeshBasicMaterial({ color: 0x5fc0ff, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false, depthTest: false });
 const swoosh = new THREE.Mesh(new THREE.RingGeometry(0.7, 1.9, 32, 1, 0, 2.4), swooshMat);
 swoosh.rotation.x = -Math.PI / 2; swoosh.renderOrder = 20;

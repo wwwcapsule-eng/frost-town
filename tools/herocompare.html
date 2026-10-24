@@ -1,0 +1,37 @@
+<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<body style="margin:0;background:#cfe3f2;font:600 14px sans-serif">
+<script src="../js/lib/three.min.js"></script><script src="../js/lib/GLTFLoader.js"></script>
+<script>
+// 主角候選對照（v1.07）：六個 KayKit 角色都拿斧頭、背三根木頭走路，看哪個最適合當主角
+// node tools/serve.js 後開 http://localhost:8080/tools/herocompare.html（要有 assets/kaykit_adventurers/）
+const W = innerWidth, H = innerHeight, r = new THREE.WebGLRenderer({ antialias: true }); r.setSize(W, H); document.body.appendChild(r.domElement);
+const scene = new THREE.Scene(), cam = new THREE.PerspectiveCamera(32, W / H, .1, 100), narrow = W < H;
+cam.position.set(1.5, narrow ? 4 : 3, narrow ? 20 : 12.5); cam.lookAt(0, 1, 0);
+const dl = new THREE.DirectionalLight(0xffffff, .8); dl.position.set(3, 6, 5); scene.add(new THREE.HemisphereLight(0xffffff, 0x99a, 1), dl);
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(40, 8), new THREE.MeshLambertMaterial({ color: 0xeef4fa })); ground.rotation.x = -Math.PI / 2; scene.add(ground);
+const c = document.createElement('canvas'); c.width = 3; c.height = 1; const g = c.getContext('2d'); ['#777', '#bbb', '#fff'].forEach((v, i) => { g.fillStyle = v; g.fillRect(i, 0, 1, 1); });
+const TOON = new THREE.CanvasTexture(c); TOON.minFilter = TOON.magFilter = THREE.NearestFilter;
+const toon = o => o.traverse(m => { if (m.isMesh) { m.material = new THREE.MeshToonMaterial({ map: m.material.map, color: m.material.color, gradientMap: TOON, skinning: !!m.isSkinnedMesh }); m.frustumCulled = false; } });
+const ld = new THREE.GLTFLoader(), mixers = [], B = '../assets/kaykit_adventurers/';
+const names = ['Knight', 'Barbarian', 'Mage', 'Ranger', 'Rogue', 'Rogue_Hooded'], zh = ['騎士', '野蠻人', '法師', '遊俠', '盜賊', '兜帽盜賊'], span = narrow ? 1.3 : 1.85;
+const logMat = new THREE.MeshToonMaterial({ color: 0xb06a35, gradientMap: TOON });
+ld.load(B + 'Animations/gltf/Rig_Medium/Rig_Medium_MovementBasic.glb', an => ld.load(B + 'Assets/gltf/axe_1handed.gltf', ax => {
+  toon(ax.scene); const clip = an.animations.find(a => a.name === 'Walking_A');
+  names.forEach((n, i) => {
+    const d = document.createElement('div'); d.textContent = zh[i];
+    d.style.cssText = 'position:fixed;top:8px;width:' + 100 / 6 + '%;left:' + i * 100 / 6 + '%;text-align:center;text-shadow:0 1px #fff'; document.body.appendChild(d);
+    ld.load(B + 'Characters/gltf/' + n + '.glb', gl => {
+      const o = gl.scene; toon(o);
+      const s = new THREE.Box3().setFromObject(o).getSize(new THREE.Vector3()); o.scale.setScalar(2.0 / s.y);
+      const mx = new THREE.AnimationMixer(o); mx.clipAction(clip).play(); mixers.push(mx);
+      let hand = null; o.traverse(b => { if (/^handslot\.?r$/.test(b.name)) hand = b; }); if (hand) hand.add(ax.scene.clone());
+      const root = new THREE.Group(); root.position.x = (i - 2.5) * span; root.add(o);
+      // 背上的木頭：跟遊戲一樣在身後（stackRoot 位置），三根往上疊
+      for (let k = 0; k < 3; k++) { const log = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.7, 8), logMat); log.rotation.z = Math.PI / 2; log.position.set(0, 1.3 + k * 0.24, -0.55); root.add(log); }
+      scene.add(root);
+    });
+  });
+}));
+const clock = new THREE.Clock();
+(function loop() { requestAnimationFrame(loop); const dt = clock.getDelta(); mixers.forEach(m => m.update(dt)); r.render(scene, cam); })();
+</script>

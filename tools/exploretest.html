@@ -1,0 +1,69 @@
+<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<body style="margin:0;background:#cfe3f2;font:600 14px sans-serif">
+<script src="../js/lib/three.min.js"></script><script src="../js/lib/GLTFLoader.js"></script>
+<script>
+// 寒地探險家主角預覽（v1.09）：三種 CC0 素人當底（KayKit 盜賊、KayKit 遊俠、Kenney 小人），加上飛行護目鏡＋毛領大衣；
+// 配件是程式拼的，每一格從頭／胸的骨頭抓位置跟著動；node tools/serve.js 後開 http://localhost:8080/tools/exploretest.html（要有 assets/kaykit_adventurers/）
+const W = innerWidth, H = innerHeight, r = new THREE.WebGLRenderer({ antialias: true }); r.setSize(W, H); document.body.appendChild(r.domElement);
+const scene = new THREE.Scene(), cam = new THREE.PerspectiveCamera(30, W / H, .1, 100), narrow = W < H;
+cam.position.set(0, 2.0, narrow ? 12 : 8.5); cam.lookAt(0, 1.0, 0);
+const dl = new THREE.DirectionalLight(0xffffff, .8); dl.position.set(3, 6, 5); scene.add(new THREE.HemisphereLight(0xffffff, 0x99a, 1), dl);
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(40, 8), new THREE.MeshLambertMaterial({ color: 0xeef4fa })); ground.rotation.x = -Math.PI / 2; scene.add(ground);
+const c = document.createElement('canvas'); c.width = 3; c.height = 1; const g = c.getContext('2d'); ['#777', '#bbb', '#fff'].forEach((v, i) => { g.fillStyle = v; g.fillRect(i, 0, 1, 1); });
+const TOON = new THREE.CanvasTexture(c); TOON.minFilter = TOON.magFilter = THREE.NearestFilter;
+const M = col => new THREE.MeshToonMaterial({ color: col, gradientMap: TOON }), INK = new THREE.MeshBasicMaterial({ color: 0x27303d, side: THREE.BackSide });
+const toon = o => o.traverse(m => { if (m.isMesh) { m.material = new THREE.MeshToonMaterial({ map: m.material.map, color: m.material.color, gradientMap: TOON, skinning: !!m.isSkinnedMesh }); m.frustumCulled = false; } });
+function ell(mat, rx, ry, rz, x, y, z, par, ink = 0.025) {
+  const geo = new THREE.SphereGeometry(1, 18, 12), m = new THREE.Mesh(geo, mat); m.scale.set(rx, ry, rz); m.position.set(x, y, z); par.add(m);
+  const h = new THREE.Mesh(geo, INK); h.scale.set(rx + ink, ry + ink, rz + ink); h.position.copy(m.position); par.add(h); return m;
+}
+// 飛行護目鏡（推到額頭上）：皮帶一圈＋兩個大圓鏡片（金屬框＋淺藍鏡面）；s＝頭的大小倍率
+function goggles(s) {
+  const G = new THREE.Group(), metal = M(0x8a6a3a), lens = M(0x8fd3f4), strap = M(0x4a3426);
+  const band = new THREE.Mesh(new THREE.TorusGeometry(0.5 * s, 0.045 * s, 8, 24), strap); band.rotation.x = Math.PI / 2; band.scale.set(1, 1.08, 1); G.add(band);
+  [-1, 1].forEach(k => {
+    const f = new THREE.Mesh(new THREE.TorusGeometry(0.15 * s, 0.05 * s, 10, 20), metal); f.position.set(k * 0.24 * s, 0.02 * s, 0.46 * s); f.rotation.x = -0.25; G.add(f);
+    const l = new THREE.Mesh(new THREE.CircleGeometry(0.15 * s, 20), lens); l.position.set(k * 0.24 * s, 0.02 * s, 0.465 * s); l.rotation.x = -0.25; G.add(l);
+  }); return G;
+}
+// 毛領：脖子一圈白毛（幾顆橢圓球圍成一圈）＋前面開襟；大衣：胸口罩一層深色飽飽的外套殼
+function collar(s, coatCol) {
+  const G = new THREE.Group(), fur = M(0xf4efe6), coat = M(coatCol);
+  for (let i = 0; i < 12; i++) { const a = i / 12 * Math.PI * 2; ell(fur, 0.17 * s, 0.14 * s, 0.17 * s, Math.sin(a) * 0.34 * s, 0, Math.cos(a) * 0.3 * s, G); }
+  ell(coat, 0.46 * s, 0.4 * s, 0.34 * s, 0, -0.34 * s, 0, G);                 // 胸口外套
+  ell(coat, 0.5 * s, 0.22 * s, 0.38 * s, 0, -0.68 * s, 0, G);                 // 腰到下擺
+  [-1, 1].forEach(k => ell(fur, 0.12 * s, 0.12 * s, 0.12 * s, k * 0.5 * s, -0.5 * s, 0.02 * s, G)); // 袖口毛
+  return G;
+}
+const ld = new THREE.GLTFLoader(), mixers = [], follow = [], B = '../assets/kaykit_adventurers/';
+// 三種底：file 模型檔、bone 名稱（head／胸）、h 目標身高、head／chest 配件相對骨頭位置（世界單位）、s 配件大小倍率
+const BASES = [
+  { zh: 'A 盜賊（KayKit）', file: B + 'Characters/gltf/Rogue.glb', anim: 'k', head: 'head', chest: 'chest', h: 2.0, hy: 0.5, cy: 0.05, s: 0.9, coat: 0x3a6f9a },
+  { zh: 'B 遊俠（KayKit）', file: B + 'Characters/gltf/Ranger.glb', anim: 'k', head: 'head', chest: 'chest', h: 2.0, hy: 0.5, cy: 0.05, s: 0.9, coat: 0x8a3b2f },
+  { zh: 'C Kenney 素人', file: '../assets/models/mini/character-male-a.glb', anim: 'n', head: 'head', chest: 'torso', h: 1.8, hy: 0.62, cy: 0.1, s: 0.9, coat: 0x4f7f5a },
+];
+const find = (o, name) => { let f = null; o.traverse(b => { if (b.name === name || b.name === name.replace('.', '')) f = b; }); return f; };
+ld.load(B + 'Animations/gltf/Rig_Medium/Rig_Medium_MovementBasic.glb', an => {
+  BASES.forEach((b, i) => {
+    const d = document.createElement('div'); d.textContent = b.zh;
+    d.style.cssText = 'position:fixed;top:8px;width:33.3%;left:' + i * 33.3 + '%;text-align:center;text-shadow:0 1px #fff'; document.body.appendChild(d);
+    ld.load(b.file, gl => {
+      const o = gl.scene; toon(o);
+      const sz = new THREE.Box3().setFromObject(o).getSize(new THREE.Vector3()); o.scale.setScalar(b.h / sz.y);
+      const root = new THREE.Group(); root.position.x = (i - 1) * 1.9; root.add(o); scene.add(root);
+      const mx = new THREE.AnimationMixer(o);
+      const clip = b.anim === 'k' ? an.animations.find(a => a.name === 'Walking_A') : gl.animations.find(a => a.name === 'walk'); mx.clipAction(clip).play(); mixers.push(mx);
+      const hb = find(o, b.head), cb = find(o, b.chest);
+      const gg = goggles(b.s), co = collar(b.s, b.coat); scene.add(gg, co);
+      follow.push(() => {
+        const v = new THREE.Vector3(); hb.getWorldPosition(v); gg.position.set(v.x, v.y + b.hy, v.z - 0.02); gg.position.x += 0;
+        const w = new THREE.Vector3(); cb.getWorldPosition(w); co.position.set(w.x, w.y + b.cy + 0.1 * b.s, w.z);
+      });
+      console.log(b.zh, 'head', hb && hb.getWorldPosition(new THREE.Vector3()).toArray().map(v => +v.toFixed(2)), 'chest', cb && cb.getWorldPosition(new THREE.Vector3()).toArray().map(v => +v.toFixed(2)));
+    });
+  });
+});
+addEventListener('resize', () => { r.setSize(innerWidth, innerHeight); cam.aspect = innerWidth / innerHeight; cam.updateProjectionMatrix(); });
+const clock = new THREE.Clock();
+(function loop() { requestAnimationFrame(loop); const dt = clock.getDelta(); mixers.forEach(m => m.update(dt)); follow.forEach(f => f()); r.render(scene, cam); })();
+</script>

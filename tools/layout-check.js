@@ -11,7 +11,7 @@
     { name: '開場' },
     { name: '倉庫＋東邊', wh: true, tower: true, tower2: true, territory: 1, east: true, buys: 5, cash: 500, res: 12, tents: 4 },
     { name: '村莊＋煤礦', wh: true, tower: true, tower2: true, territory: 2, east: true, buys: 9, cash: 900, level: 1, res: 40, tents: 4, houses: 6, mine: true, shovel: true },
-    { name: '小鎮＋石爐', wh: true, tower: true, tower2: true, territory: 2, east: true, buys: 15, cash: 2000, level: 2, res: 90, tents: 4, houses: 14, mine: true, shovel: true, stove: 1, quarry: true },
+    { name: '小鎮＋石爐', wh: true, tower: true, tower2: true, workers: 2, hunters: 1, territory: 2, east: true, buys: 15, cash: 2000, level: 2, res: 90, tents: 4, houses: 14, mine: true, shovel: true, stove: 1, quarry: true },
     { name: '小鎮＋圍欄外鐵匠鋪＋石屋', wh: true, territory: 2, east: true, buys: 18, cash: 2000, level: 2, res: 90, tents: 4, houses: 14, mine: true, shovel: true, stove: 1, quarry: true, porters: 3, coalers: 1, plan: [{ k: 'smith', x: -24, z: -5 }], stoneHouses: ['民房0', '民房1', '民房2'] }, // v1.02 作者回報的情況
   ];
   const inkCache = new Map();
