@@ -205,6 +205,7 @@ function introStep(dt) {
   camera.position.lerp(tmp.copy(k.look).add(camOffset).multiplyScalar(1.15), 1 - Math.exp(-dt * 2)); camera.lookAt(k.look);
   if (t > k.end) { k.items.forEach(o => o.g.scale.setScalar(o.s)); k.el.remove(); intro = null; }
 }
+const HIDE_PLAN_BTN = true;
 let inkT = 0;
 function step(dt) {
   if (gameOver || paused) return;
@@ -441,7 +442,7 @@ function loop() {
   const dt = Math.min(clock.getDelta(), 0.05);
   if (plan.on) planCamera(dt); else step(dt);
   const s1 = typeof stage1 !== 'undefined' && stage1.on;
-  document.getElementById('planBtn').style.display = (save.level >= 1 || PRO) && !plan.on && !camMode.on && !gameOver && !s1 ? 'block' : 'none';
+  document.getElementById('planBtn').style.display = HIDE_PLAN_BTN && !plan.on ? 'none' : (save.level >= 1 || PRO) && !plan.on && !camMode.on && !gameOver && !s1 ? 'block' : 'none';   // v1.33（作者：規劃先隱藏）
   document.getElementById('camBtn').style.display = !plan.on && !gameOver && !(s1 && stage1.state.dis === 3) ? 'block' : 'none';
   renderer.render(scene, camera);
 }
