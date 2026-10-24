@@ -49,34 +49,34 @@ const GOALS = PRO ? [ // 正式關：建築要自己用規劃模式選位置，�
   { t: () => '升級任意 3 個項目（' + Math.min(save.buys, 3) + '/3）', done: () => save.buys >= 3 },
   { t: () => '升級營火，擴大領地', done: () => save.territory >= 1 },
   { t: () => '開拓東邊，打開新場地', done: () => !!save.east },
-  { t: () => '用🏗️規劃在綠色民房區蓋民房，人口到 20（' + population() + '/20）', done: () => save.level >= 1 },
+  { t: () => '用🏗️規劃在綠色民房區蓋民房，人口到 ' + LEVELS[1].need + '（' + population() + '/' + LEVELS[1].need + '）', done: () => save.level >= 1 },
   { t: () => '用🏗️規劃在橘色加工區蓋🪵鋸木機', done: () => planned('mill') },
   { t: () => '開採煤礦，煤很耐燒', done: () => !!save.mine },
   { t: () => '在紫色工業區蓋🔨鐵匠鋪，揹煤去賣', done: () => planned('smith') },
   { t: () => '在加工區蓋第二座🍖烤肉攤', done: () => planned('grill') },
   { t: () => '營火升級 Lv2，領地再擴大', done: () => save.territory >= 2 },
-  { t: () => '蓋更多民房，人口到 80（' + population() + '/80）', done: () => save.level >= 2 },
+  { t: () => '蓋更多民房，人口到 ' + LEVELS[2].need + '（' + population() + '/' + LEVELS[2].need + '）', done: () => save.level >= 2 },
   { t: () => '把營火進化成石爐（營火 Lv4）', done: () => save.stove >= 1 },
   { t: () => '把🔨鐵匠鋪升級到 Lv2（要🪨石材，煤賣更貴、伐木工更快）', done: () => save.smithLv >= 1 || !mills.some(m => m.upU) },
   { t: () => '把📦倉庫升到 Lv3（每樣能存 450、多雇搬運工）', done: () => (save.whLv || 0) >= 2 },
-  { t: () => '再蓋 🪨 石屋，居民到 300 升城市（' + population() + '/300）', done: () => save.level >= 3 },
+  { t: () => '再蓋 🪨 石屋，居民到 ' + LEVELS[3].need + ' 升城市（' + population() + '/' + LEVELS[3].need + '）', done: () => save.level >= 3 },
   { t: () => '城市的新玩法（大暴雪、市集）製作中，繼續擴張吧！', done: () => false },
 ] : [
   { t: () => '升級任意 3 個項目（' + Math.min(save.buys, 3) + '/3）', done: () => save.buys >= 3 },
   { t: () => '揹 ' + CFG.whLogs + ' 根木頭蓋📦倉庫（建築要用倉庫的🪵木頭蓋）', done: () => !!save.wh },
   { t: () => '升級營火，擴大領地', done: () => save.territory >= 1 },
   { t: () => '開拓東邊，打開新場地', done: () => !!save.east },
-  { t: () => '蓋民房、給流民烤肉留人，居民到 20（' + population() + '/20）', done: () => save.level >= 1 },
+  { t: () => '蓋民房、給流民烤肉留人，居民到 ' + LEVELS[1].need + '（' + population() + '/' + LEVELS[1].need + '）', done: () => save.level >= 1 },
   { t: () => '開採煤礦，煤很耐燒', done: () => !!save.mine },
-  { t: () => '用🏗️規劃蓋🔨鐵匠鋪，揹煤去賣', done: () => planned('smith') },
+  { t: () => '營火升級後，地上會出現 🔨 鐵匠鋪的格子，走過去用木頭蓋，揹煤去賣', done: () => planned('smith') },
   { t: () => '雇用⛏️煤礦工，煤自動送進倉庫', done: () => !!save.coalers },
   { t: () => '營火升級 Lv2，領地再擴大', done: () => save.territory >= 2 },
-  { t: () => '蓋民房、留住流民，居民到 80（' + population() + '/80）', done: () => save.level >= 2 },
+  { t: () => '蓋民房、留住流民，居民到 ' + LEVELS[2].need + '（' + population() + '/' + LEVELS[2].need + '）', done: () => save.level >= 2 },
   { t: () => '把營火進化成石爐（營火 Lv4）', done: () => save.stove >= 1 },
   { t: () => '開採石場，揹🪨石材回倉庫', done: () => !!save.quarry },
   { t: () => '把🔨鐵匠鋪升級到 Lv2（要🪨石材，煤賣更貴、伐木工更快）', done: () => save.smithLv >= 1 || !mills.some(m => m.upU) },
   { t: () => '把📦倉庫升到 Lv3（每樣能存 450、多雇搬運工）', done: () => (save.whLv || 0) >= 2 },
-  { t: () => '再蓋 🪨 石屋，居民到 300 升城市（' + population() + '/300）', done: () => save.level >= 3 },
+  { t: () => '再蓋 🪨 石屋，居民到 ' + LEVELS[3].need + ' 升城市（' + population() + '/' + LEVELS[3].need + '）', done: () => save.level >= 3 },
   { t: () => '城市的新玩法（大暴雪、市集）製作中，繼續擴張吧！', done: () => false },
 ];
 save.goal = Math.min(save.goal || 0, GOALS.length - 1); // 匯入的存檔碼可能不對，不要超出範圍
@@ -213,7 +213,7 @@ function step(dt) {
   if (save.arrive && !intro) startIntro();
   if (intro) { introStep(dt); return; }
   undeclutter();
-  if ((spreadT -= dt) <= 0) { spreadT = 1; spreadPads(); }                       // v1.14 格子保持間距
+  if ((spreadT -= dt) <= 0) { spreadT = 1; spreadPads(); lotUnlocks(); }                       // v1.14 格子保持間距
   if ((inkT -= dt) <= 0) { inkT = 0.5; inkAll(scene); }          // 新出現的建築、人物、模型補上描邊
   // 移動
   let ix = joy.x, iy = joy.y;

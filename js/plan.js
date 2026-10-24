@@ -348,7 +348,26 @@ function toStore(k, mill) {
 let paused = false, coalerUnlock = null, quarrierUnlock = null, stoveUnlock = null, terrUnlock = null, eastUnlock = null;
 // 營火升級＝擴大領地：Lv1 升級任意 3 個項目後出現；Lv2 要村莊等級＋已開拓東邊
 function terrReady() { return save.territory === 0 ? save.buys >= CFG.terrNeedBuys : save.territory === 1 && save.level >= 1 && save.east; }
+// v1.34（作者：升級營火會自動出現鐵匠舖的圖標在地上，過去花錢就能蓋；新建築要花錢買，升級照舊；所有階段的建築地點都固定）：
+// 鐵匠鋪、暖氣塔、弩砲塔不用再進規劃模式選位置——每種有固定的幾塊地，條件到了地上就出現買地格，走過去用倉庫的🪵木頭蓋；蓋好換下一塊
+const LOTS = { smith: [[-9.5, -8]], heater: [[16, -3], [-12, 4], [11.5, 14.5], [-8, 9.5], [3, -15]], tower: [[-13], [13], [-19], [19]] };
+const lotSpot = (k, i) => k === 'tower' ? [LOTS.tower[i][0], towerZ()] : LOTS[k][i], lotUsed = k => save.plan.filter(q => q.k === k).length, lotU = {};
+function lotUnlocks() {
+  for (const [k, icon, name, ok] of [['smith', '🔨', '蓋鐵匠鋪', save.territory >= 1 && !planned('smith')], ['heater', '🔥', '蓋暖氣塔', planLimit('heater')], ['tower', '🏹', '加蓋弩砲塔', save.tower && save.tower2 && planLimit('tower')]]) {
+    if (lotU[k] && lotU[k].done) lotU[k] = null;
+    if (lotU[k]) { if (k === 'tower') { const [x, z] = lotSpot(k, lotUsed(k)); const u = lotU[k]; u.x = x; u.z = z; u.pad.position.set(x, 0.03, z); u.label.position.set(x, 1.9, z); } continue; }
+    if (!ok || lotUsed(k) >= LOTS[k].length) continue;
+    const [x, z] = lotSpot(k, lotUsed(k));
+    lotU[k] = makeUnlock({ x, z, icon, name: () => name, mat: 'plank', price: () => (k === 'smith' ? save.territory >= 1 && !planned('smith') : planLimit(k)) && lotUsed(k) < LOTS[k].length ? planCost(k) : null,
+      buy: () => {
+        const [bx, bz] = lotSpot(k, lotUsed(k)); save.plan.push({ k, x: bx, z: bz }); buildPlanned(save.plan[save.plan.length - 1], save.plan.length - 1); sparkle(bx, bz);
+        toast(k === 'smith' ? '🔨 鐵匠鋪蓋好了！揹煤過去賣' : k === 'heater' ? '🔥 暖氣塔蓋好了，暖氣範圍變大！' : '🏹 弩砲塔蓋好了！');
+        const u = lotU[k]; if (lotUsed(k) < LOTS[k].length && (k !== 'smith')) { const [nx, nz] = lotSpot(k, lotUsed(k)); u.x = nx; u.z = nz; u.pad.position.set(nx, 0.03, nz); u.label.position.set(nx, 1.9, nz); }
+      } });
+  }
+}
 function levelUnlocks() {
+  lotUnlocks();
   // v0.82（作者：自動運輸看不出錢有沒有增加）：拿掉🚚自動運輸，改成看得到的⛏️煤礦工；舊存檔買過運輸的照常運作
   if (!quarrierUnlock && save.quarry) quarrierUnlock = makeUnlock({ x: LOT.quarrier[0], z: LOT.quarrier[1], icon: '⛏️', name: () => '雇用採石工', need: () => needHand(),
     price: () => CFG.quarrierPrice[save.quarriers] ?? null, buy: () => { save.quarriers++; addCoaler('stone'); toast('⛏️ 採石工會敲石頭送進倉庫，石材夠了，多的直接賣錢！'); } });
