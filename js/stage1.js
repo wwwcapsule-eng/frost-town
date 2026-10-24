@@ -15,7 +15,7 @@ const stage1 = (() => {
   const RC = { x0: -12, x1: 12, z0: -3, z1: 18 };                           // 圍欄矩形
   const GATE_W = 1.8, GATE_Z = 7.5;                                         // 門寬的一半；東西門的 z
   const FIRE = [0, 7], PAD = [4.2, 10.4], AXEPAD = [0, 0], STALL = [-3.4, 12.8], RAWPAD = [-5.6, 8.6], LAKE = [0, -13, 7.5];
-  const SLOTS = [[-8.4, 1.0], [8.4, 1.0], [-8.4, 14.0], [8.4, 14.0]];
+  const SLOTS = [[-8.4, 1.0], [8.4, 1.0], [-8.8, 15.0], [8.8, 15.0]];
   const BANKS = [];       // v1.20（作者：不能鏟的雪從營區拿掉、能鏟的集中成一座大雪堆）：南門外一座大雪堆，十幾個雪堆擠在一起
   const HILL = [0, 31];
   for (let j = -2; j <= 2; j++) for (let x = -7.4 + (j & 1 ? 1.35 : 0); x <= 7.5; x += 2.7) { if ((x / 7.8) ** 2 + (j * 2.5 / 5.6) ** 2 <= 1) BANKS.push([+(HILL[0] + x).toFixed(1), +(HILL[1] + j * 2.5).toFixed(1)]); }
@@ -103,47 +103,58 @@ const stage1 = (() => {
   const mkPad = (p, color, icon, size = 2.6) => { const g = makePad(p[0], p[1], size, color, icon, true); root.add(g); g.userData.paid = 0; const l = makeLabel(320, 180); l.scale.set(3.2, 1.8, 1); l.position.set(p[0], 1.9, p[1]); root.add(l); return [g, l]; };
   const [pad, padLabel] = mkPad(PAD, 0xffd34d, '🧊'), [axePad, axeLabel] = mkPad(AXEPAD, 0x35d36a, '🪓'), [stallPad, stallLabel] = mkPad(STALL, 0xffd34d, '🍢'), [rawPad, rawLabel] = mkPad(RAWPAD, 0x4fb3e8, '🐟', 2.4);
   const price = () => CFG1.igloo + st.igloos;
-  // 鏟子：跟斧頭一樣，挖雪時繞著主角旋轉（v1.20，作者：攻擊方式要一致）
-  const digG = new THREE.Group(); digG.visible = false; digG.scale.setScalar(1.6); root.add(digG);
-  const digArm = new THREE.Group(); digG.add(digArm);
-  { const h = topBox(0.16, 0.16, 1.5, onTop(0x7a4a2a)); h.position.z = 0.75; digArm.add(h); const b = topBox(0.7, 0.12, 0.8, onTop(0xaab6c2)); b.position.set(0, 0, 1.75); digArm.add(b); const e = topBox(0.7, 0.14, 0.14, onTop(0xe3ecf3)); e.position.set(0, 0, 2.15); digArm.add(e); }
-  const digSwooshMat = new THREE.MeshBasicMaterial({ color: 0xcfefff, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false, depthTest: false });
-  const digSwoosh = new THREE.Mesh(new THREE.RingGeometry(0.7, 1.9, 32, 1, 0, 2.4), digSwooshMat); digSwoosh.rotation.x = -Math.PI / 2; digSwoosh.renderOrder = 20;
-  const digSwooshG = new THREE.Group(); digSwooshG.add(digSwoosh); digG.add(digSwooshG);
-  let digSpin = 0, tFish = 0; const tipV = new THREE.Vector3();
+  let tFish = 0; const tipV = new THREE.Vector3();
 
   // 冰屋（v1.18 放大：圓頂半徑 2.4、高 2.2，門洞 1.1 寬 1.5 高，主角站得進去）
-  const IG = { rx: 2.4, ry: 2.2, hit: 2.6 };
+  const IG = { rx: 2.4, ry: 2.1, hit: 3.0 };
   function buildIgloo(i, pop = true) {
+    // v1.21（作者給了一張參考圖）：柔軟的大冰磚圓頂（6 圈、每圈錯開半塊、白裡帶一點冰藍）、頂上一層雪帽、冒煙的小煙囪、
+    // 前面一個覆雪的入口＋木框拱門＋藍色木門＋圓窗＋燈串、側面暖光小窗、磚縫下的冰柱、圓形雪座、小松樹和石頭
     const [x, z] = SLOTS[i], g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = Math.atan2(FIRE[0] - x, FIRE[1] - z); root.add(g);
-    // v1.20（作者：冰屋要一塊一塊冰磚、像網路上的冰屋）：圓頂用幾圈半透明冰藍色磚塊疊成（InstancedMesh：一間冰屋一次畫完），
-    // 每圈磚比上一圈錯開半塊、顏色深淺不一；門口留洞、接一條磚砌的短隧道；裡面一顆深藍內核透出來
-    ell(mat(0x3f86b8), IG.rx * 0.9, IG.ry * 0.9, IG.rx * 0.9, 0, 0, 0, g);
-    const ROWS = 9, bricks = [];
+    const snow = mat(0xd9e8f3), wood = mat(0xb9824a), glow = new THREE.MeshBasicMaterial({ color: 0xffd98a }), gold = mat(0xd9a441);
+    ell(snow, 3.5, 0.3, 3.5, 0, 0.05, 0.4, g);                                          // 雪座
+    ell(mat(0x5c8db4), IG.rx * 0.97, IG.ry * 0.97, IG.rx * 0.97, 0, 0, 0, g);            // 內核：磚縫的藍色影子
+    const ROWS = 6, list = [];
     for (let r = 0; r < ROWS; r++) {
-      const phi = (r + 0.5) / ROWS * (Math.PI / 2), R = IG.rx * Math.cos(phi), n = Math.max(5, Math.round(2 * Math.PI * R / 1.0)), h = IG.ry * (Math.PI / 2 / ROWS) * 1.18;
+      const phi = (r + 0.5) / ROWS * (Math.PI / 2) * 0.93, R = IG.rx * Math.cos(phi), n = Math.max(5, Math.round(2 * Math.PI * R / 1.5)), hh = IG.ry * (Math.PI / 2 / ROWS) * 0.93 * 1.12;
       for (let k = 0; k < n; k++) {
-        const th = (k + (r % 2) * 0.5) / n * Math.PI * 2;
-        if (Math.abs(Math.atan2(Math.sin(th), Math.cos(th)) - 0) < 0.42 && IG.ry * Math.sin(phi) < 1.5) continue;     // 門口（+z 方向）留洞
-        bricks.push([IG.rx * Math.cos(phi) * Math.sin(th), IG.ry * Math.sin(phi), IG.rx * Math.cos(phi) * Math.cos(th), 2 * Math.PI * R / n * 0.97, h, 0.55, phi, th]);
+        const th = (k + (r % 2) * 0.5) / n * Math.PI * 2, dth = Math.atan2(Math.sin(th), Math.cos(th));
+        if (Math.abs(dth) < 0.55 && IG.ry * Math.sin(phi) < 1.9) continue;               // 入口那側的磚被覆雪入口蓋住
+        list.push([IG.rx * Math.cos(phi) * Math.sin(th), IG.ry * Math.sin(phi), IG.rx * Math.cos(phi) * Math.cos(th), 2 * Math.PI * R / n * 0.56, hh * 0.54]);
       }
     }
-    const tn = 5, tr = 0.95;                                                    // 隧道：5 圈、每圈 8 塊，往 +z 伸出去
-    for (let r = 0; r < tn; r++) for (let k = 0; k < 8; k++) {
-      const th = k / 8 * Math.PI + (r % 2) * Math.PI / 16, y = 0.3 + Math.sin(th) * 0.95, xx = Math.cos(th) * tr;
-      if (Math.sin(th) < 0.0 && false) continue;
-      bricks.push([xx, y, 2.3 + r * 0.42, 0.62, 0.55, 0.42, 'tn', th]);
-    }
-    const geo = new THREE.BoxGeometry(1, 1, 1), im = new THREE.InstancedMesh(geo, new THREE.MeshToonMaterial({ color: 0xffffff, gradientMap: TOON, transparent: true, opacity: 0.84, depthWrite: false }), bricks.length), d = new THREE.Object3D(), c = new THREE.Color();
-    bricks.forEach((br, i) => {
-      d.position.set(br[0], br[1], br[2]);
-      if (br[6] === 'tn') d.rotation.set(0, 0, br[7] - Math.PI / 2); else { d.lookAt(d.position.x * 2, d.position.y * 1.2 + 0.2, d.position.z * 2); }
-      d.scale.set(br[3], br[4], br[5]); d.updateMatrix(); im.setMatrixAt(i, d.matrix);
-      c.setHex(0x9bd1ee).offsetHSL(0, (i * 7 % 5) * 0.012, ((i * 13) % 7 - 3) * 0.018); im.setColorAt(i, c);
+    const im = new THREE.InstancedMesh(new THREE.SphereGeometry(1, 10, 8), new THREE.MeshToonMaterial({ color: 0xffffff, gradientMap: TOON }), list.length), d = new THREE.Object3D(), c = new THREE.Color(), nv = new THREE.Vector3();
+    list.forEach((b, k) => {
+      d.position.set(b[0], b[1], b[2]); nv.set(b[0] / (IG.rx * IG.rx), b[1] / (IG.ry * IG.ry), b[2] / (IG.rx * IG.rx)).normalize(); d.lookAt(d.position.x + nv.x, d.position.y + nv.y, d.position.z + nv.z);
+      d.scale.set(b[3], b[4], 0.42); d.updateMatrix(); im.setMatrixAt(k, d.matrix);
+      c.setHex(0x6c9fc6).offsetHSL(((k * 5) % 3 - 1) * 0.006, 0, ((k * 13) % 7 - 3) * 0.02); im.setColorAt(k, c);
     });
     im.userData.noInk = true; g.add(im);
-    const door = new THREE.Mesh(new THREE.CircleGeometry(0.7, 16), mat(0x23364a)); door.position.set(0, 0.5, 2.15); g.add(door);
-    igloos.push({ g, x, z });
+    ell(snow, 1.35, 0.5, 1.35, 0, IG.ry * 0.9, 0, g); ell(snow, 0.55, 0.38, 0.55, 1.55, IG.ry * 0.66, 0.5, g); ell(snow, 0.45, 0.3, 0.45, -1.2, IG.ry * 0.7, 1.1, g);   // 雪帽
+    for (const th of [0.9, 1.5, 2.3, 3.4, 4.2, 5.0, -0.95]) { const R = IG.rx * 0.9, ic = new THREE.Mesh(new THREE.ConeGeometry(0.075, 0.42, 5), mat(0xc3e0f0)); ic.rotation.x = Math.PI; ic.position.set(Math.sin(th) * R, 1.08, Math.cos(th) * R); g.add(ic); }   // 冰柱
+    const chim = new THREE.Group(); chim.position.set(1.05, IG.ry * 0.82, -0.75); g.add(chim);                           // 煙囪＋冒煙
+    { const bx = box(0.55, 0.95, 0.55, mat(0xb8c6d2)); bx.position.y = 0.3; chim.add(bx); ell(snow, 0.42, 0.18, 0.42, 0, 0.82, 0, chim); }
+    const smokeP = []; for (let k = 0; k < 4; k++) smokeP.push(ell(new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5, depthWrite: false }), 0.25, 0.25, 0.25, 0, 1.0, 0, chim));
+    // 入口：覆雪的小隧道＋木框拱門＋藍色木門＋圓窗＋燈串
+    ell(snow, 1.55, 1.4, 1.5, 0, 0.2, 2.05, g);
+    const door = new THREE.Group(); door.position.set(0, 0, 3.42); g.add(door);
+    { const pb = box(1.16, 1.0, 0.08, mat(0x7fa8cf)); pb.position.y = 0.5; door.add(pb);
+      const top = new THREE.Mesh(new THREE.CircleGeometry(0.58, 16, 0, Math.PI), mat(0x7fa8cf)); top.position.set(0, 1.0, 0.04); door.add(top);
+      const arch = new THREE.Mesh(new THREE.TorusGeometry(0.62, 0.08, 6, 14, Math.PI), wood); arch.position.set(0, 1.0, 0.05); door.add(arch);
+      [-0.62, 0.62].forEach(px => { const p = box(0.16, 1.0, 0.12, wood); p.position.set(px, 0.5, 0.05); door.add(p); });
+      const wr = new THREE.Mesh(new THREE.TorusGeometry(0.17, 0.04, 6, 14), gold); wr.position.set(0, 1.0, 0.1); door.add(wr);
+      const wg = new THREE.Mesh(new THREE.CircleGeometry(0.17, 14), mat(0xcfe6f5)); wg.position.set(0, 1.0, 0.07); door.add(wg);
+      ell(gold, 0.05, 0.05, 0.05, 0.4, 0.5, 0.1, door);
+      const bulbs = []; for (let k = 0; k < 9; k++) { const a = 0.08 * Math.PI + k / 8 * 0.84 * Math.PI, bl = new THREE.Mesh(new THREE.SphereGeometry(0.055, 6, 5), new THREE.MeshBasicMaterial({ color: 0xffe9a0 })); bl.position.set(Math.cos(a) * 0.86, 1.0 + Math.sin(a) * 0.86, 0.14); door.add(bl); bulbs.push(bl.position.clone()); }
+      door.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(bulbs), new THREE.LineBasicMaterial({ color: 0x4a4a55 }))); }
+    // 側面暖光小窗（木框、十字窗格、雪窗台）
+    { const th = -1.0, phi = 0.36, wx = IG.rx * Math.cos(phi) * Math.sin(th), wy = IG.ry * Math.sin(phi), wz = IG.rx * Math.cos(phi) * Math.cos(th), wg2 = new THREE.Group(); wg2.position.set(wx, wy, wz); wg2.rotation.y = th; g.add(wg2);
+      const fr = box(0.8, 0.86, 0.12, wood); fr.position.z = 0.06; wg2.add(fr); const gl = new THREE.Mesh(new THREE.PlaneGeometry(0.58, 0.64), glow); gl.position.z = 0.13; wg2.add(gl);
+      [[0.04, 0.64], [0.58, 0.04]].forEach(([w, h]) => { const bar = box(w, h, 0.03, wood); bar.position.z = 0.15; wg2.add(bar); }); ell(snow, 0.5, 0.1, 0.18, 0, -0.46, 0.12, wg2); }
+    // 小松樹、石頭
+    { const tr = new THREE.Group(); tr.userData.noInk = true; treeLook(tr, 'fir'); tr.scale.setScalar(0.62); tr.position.set(-3.0, 0, 2.0); g.add(tr);
+      ell(mat(0xc9c2b4), 0.45, 0.3, 0.4, 2.7, 0.15, 2.1, g); ell(snow, 0.4, 0.13, 0.36, 2.7, 0.33, 2.1, g); ell(mat(0xb9b2a4), 0.3, 0.2, 0.28, 3.15, 0.1, 1.6, g); }
+    igloos.push({ g, x, z, smoke: smokeP });
     if (pop) { sfx.unlock(); sparkleAt(x, z); }
   }
   function sparkleAt(x, z) { for (let i = 0; i < 6; i++) floatText('✨', x + (i - 2.5) * 0.4, z + (i % 2) * 0.6, '#ffe066'); }
@@ -220,19 +231,19 @@ const stage1 = (() => {
     if (st.dis === 1) g = '🧊 冰湖傳來碎裂聲！' + Math.ceil(st.disT) + ' 秒後崩裂，備好木頭、守住火堆！';
     else if (st.dis === 2) g = '🧊 冰湖崩裂中！再撐 ' + Math.ceil(st.disT) + ' 秒，別讓火堆熄了（🪵 撿枯枝、木頭丟火堆）';
     else if (st.fuel <= 0) g = '🔥 火堆熄了！快去森林撿 🪵 枯枝丟進火堆';
-    else if (st.igloos === 0) g = brickCount() > 0 ? '🧊 把冰磚揹到黃色格「蓋冰屋」（' + brickCount() + '/' + price() + '）' : '⛏️ 走到南邊大雪堆旁，鏟子會自動旋轉挖出冰磚（蓋冰屋要 ' + price() + ' 塊）';
+    else if (st.igloos === 0) g = brickCount() > 0 ? '🧊 把冰磚揹到黃色格「蓋冰屋」（' + brickCount() + '/' + price() + '）' : '⛏️ 走到南邊大雪堆旁，會自動用手挖出冰磚（蓋冰屋要 ' + price() + ' 塊）';
     else if (!st.stall) g = '🍢 蓋烤魚攤（🪵 ' + CFG1.stallWood + '＋🧊 ' + CFG1.stallBrick + '）才能烤魚；烤魚的香味才吸引得了流民。火堆光是取暖';
     else if (st.cooked === 0 && st.raw === 0 && !bag.some(b => b.type === 'fish') && st.pop < 1) g = '🎣 去北邊湖中間的大冰洞，靠近就自動釣魚；揹回營區的藍色「送魚格」，烤好流民才會來';
     else if (st.pop < beds() && queue.length) g = '🍢 流民排隊吃烤魚了：有空床就留下，沒床要付 💵' + CFG1.pay + ' 才走';
     else if (st.pop >= beds() && st.igloos < CFG1.maxIgloo) g = '🏠 床滿了（' + st.pop + '/' + beds() + '），再蓋冰屋流民才留得住（' + st.igloos + '/' + CFG1.maxIgloo + '）';
-    else if (!st.axe && st.pop >= 2) g = '🪓 北邊綠色格可以做斧頭（' + CFG1.axePrice + ' 🪵），之後自動砍樹，木頭比枯枝耐燒';
+    else if (!st.axe && st.pop >= 2) g = '🪓 北邊綠色格可以用 ' + CFG1.axePrice + ' 🪵 升級斧頭，之後自動砍樹，木頭比枯枝耐燒';
     else if (!selfSufficient()) g = '📋 自給自足：🍢 烤魚攤 ' + (st.stall ? '✔' : '✘') + '　🏠 冰屋 ' + st.igloos + '/' + CFG1.need.igloos + '　👥 ' + st.pop + '/' + CFG1.need.pop + '　🔥 ' + f + '/' + CFG1.need.fuel;
     else g = '✅ 自給自足了！';
     goalEl.textContent = g; hudEl.style.top = (goalEl.offsetHeight + 20) + 'px';   // 目標列變成 2～3 行時，下面的小標籤跟著往下，不要互蓋
     padLabel.visible = st.igloos < CFG1.maxIgloo && st.dis === 0;
     if (padLabel.visible) padLabel.set(['🧊 蓋冰屋 +' + CFG1.bedPer + ' 床', '🧊 ' + Math.min(price(), pad.userData.paid + brickCount()) + '/' + price()], '#ffe066', [36, 68]);
     axeLabel.visible = !st.axe && st.pop >= 2 && st.dis === 0;
-    if (axeLabel.visible) axeLabel.set(['🪓 做斧頭', '🪵 ' + Math.min(CFG1.axePrice, axePad.userData.paid + woodInBag()) + '/' + CFG1.axePrice], '#9fe870', [36, 68]);
+    if (axeLabel.visible) axeLabel.set(['🪓 升級斧頭', '🪵 ' + Math.min(CFG1.axePrice, axePad.userData.paid + woodInBag()) + '/' + CFG1.axePrice], '#9fe870', [36, 68]);
     stallLabel.visible = !st.stall && st.igloos >= 1 && st.dis === 0;
     if (stallLabel.visible) stallLabel.set(['🍢 蓋烤魚攤', '🪵 ' + Math.min(CFG1.stallWood, stallPaid.w + woodInBag()) + '/' + CFG1.stallWood + '　🧊 ' + Math.min(CFG1.stallBrick, stallPaid.b + brickCount()) + '/' + CFG1.stallBrick], '#ffe066', [36, 52]);
     rawLabel.visible = st.stall && st.dis === 0;
@@ -258,6 +269,7 @@ const stage1 = (() => {
       nx = Math.max(-30, Math.min(30, nx)); nz = Math.max(-17, Math.min(44, nz));
       if (onFence(nx, nz)) { if (!onFence(nx, pz)) nz = pz; else if (!onFence(px, nz)) nx = px; else { nx = px; nz = pz; } }
       for (const o of igloos) { const d = Math.hypot(nx - o.x, nz - o.z); if (d < IG.hit && d > 0) { nx = o.x + (nx - o.x) / d * IG.hit; nz = o.z + (nz - o.z) / d * IG.hit; } }
+      for (const b of banks) if (b.alive) { const d = Math.hypot(nx - b.x, nz - b.z); if (d < 1.4 && d > 0) { nx = b.x + (nx - b.x) / d * 1.4; nz = b.z + (nz - b.z) / d * 1.4; } }   // 雪堆是一堵雪牆，人進不去，站在旁邊用手挖
       if (st.stall) { const sx = Math.abs(nx - STALL[0]), sz = Math.abs(nz - STALL[1]); if (sx < 1.7 && sz < 1.1) { nx = px; nz = pz; } }   // 烤魚攤本體不能穿
       const df = Math.hypot(nx - FIRE[0], nz - FIRE[1]); if (df < 0.9 && df > 0) { nx = FIRE[0] + (nx - FIRE[0]) / df * 0.9; nz = FIRE[1] + (nz - FIRE[1]) / df * 0.9; }
       for (const t of forest) if (t.alive) { const d = Math.hypot(nx - t.x, nz - t.z); if (d < 0.7 && d > 0) { nx = t.x + (nx - t.x) / d * 0.7; nz = t.z + (nz - t.z) / d * 0.7; } }
@@ -273,7 +285,7 @@ const stage1 = (() => {
     warm.scale.setScalar(st.fuel > 0 ? 3.2 + fp * 4 : 0.001);
 
     // 鏟子自動挖雪堆：近處最近的雪堆，每 0.6 秒一下，4 下掉 2 塊冰磚（跟第 2 關自動砍樹一樣）
-    let target = null, best = 2.2;
+    let target = null, best = 2.45;
     for (const b of banks) {
       if (!b.alive) { if ((b.t -= dt) <= 0) { b.alive = true; b.hp = CFG1.bankHp; b.g.visible = true; b.g.scale.set(1, 1, 1); } continue; }
       const d = dist(b, X, Z); if (d < best) { best = d; target = b; }
@@ -291,7 +303,7 @@ const stage1 = (() => {
         }
       }
     } else digT = Math.min(digT, 0.2);
-    digG.visible = shovelOn; if (shovelOn) { digSpin += dt * 12; digG.position.set(X, 1.2, Z); digArm.rotation.y = digSpin; digSwooshG.rotation.y = digSpin - Math.PI / 2 - 2.4; digSwooshMat.opacity = 0.4; } else digSwooshMat.opacity = 0;
+    if (shovelOn) { shovT += dt; player.position.y = Math.abs(Math.sin(shovT * 14)) * 0.12; }   // 用手挖：蹲下去又起來、雪屑噴出來（不拿工具）
     // 枯枝（森林邊）
     for (const t of twigs) {
       if (!t.alive) { if ((t.t -= dt) <= 0) { t.alive = true; t.g.visible = true; } continue; }
@@ -367,6 +379,7 @@ const stage1 = (() => {
     if (st.stall && st.raw > 0 && st.cooked < CFG1.counterMax) { if ((grillT += dt) >= CFG1.grillT) { grillT = 0; st.raw--; st.cooked++; sfx.coin(); } } else grillT = 0;
     counterFish.forEach((f, i) => f.visible = st.stall && i < st.cooked);
     stallG.children.forEach(c => { if (c.userData.hang != null) c.visible = c.userData.hang < Math.min(4, st.raw + 1) && st.raw > 0; });
+    igloos.forEach(o => o.smoke.forEach((p, k) => { const t = (smokeT * 0.5 + k / 4) % 1; p.position.set(Math.sin(t * 5 + k) * 0.15, 1.0 + t * 1.8, 0); p.scale.setScalar(0.2 + t * 0.35); p.material.opacity = 0.5 * (1 - t); }));
     smokeT += dt; smoke.forEach((s, i) => { const k = (smokeT * 0.6 + i / 3) % 1; s.position.y = 2 + k * 1.4; s.scale.setScalar(0.25 + k * 0.4); s.material.opacity = (st.raw > 0 ? 0.5 : 0) * (1 - k); });
 
     // 流民：有烤魚、火沒熄，每 12 秒從南門走來一位排隊（寒潮時之後版本會加快）
