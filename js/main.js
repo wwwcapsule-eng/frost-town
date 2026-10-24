@@ -97,9 +97,11 @@ let shownAlert = '';
 function updateAlert() {
   let t = '', cls = '';
   if (gate.raiding) { t = '🐻 熊群來襲！守住北門'; }
+  else if (blizzard.on > 0) { t = '🌨️ 大暴雪 ' + Math.ceil(blizzard.on) + ' 秒，鏟雪、顧好營火'; cls = 'cold'; }
   else if (save.level >= 1 && coldWave.on > 0) { t = '❄️ 寒潮中 ' + Math.ceil(coldWave.on) + ' 秒，顧好營火'; cls = 'cold'; }
   else if (hero.over > 0 && hero.hp < 60) { t = '🥶 好冷！回營火旁取暖'; cls = 'cold'; }
   else if (gate.raidT <= 15) { t = '🐻 ' + raidCount() + ' 隻熊' + (wolvesCome() ? '＋🐺 狼群' : '') + (kingNext() ? '＋👑 熊王' : '') + ' ' + Math.ceil(gate.raidT) + ' 秒後來襲'; cls = 'warn'; }
+  else if (blizzard.warn > 0) { t = '🌨️ 大暴雪 ' + Math.ceil(blizzard.warn) + ' 秒後來，先加柴'; cls = 'cold'; }
   else if (save.level >= 1 && coldWave.t <= 15) { t = '❄️ 寒潮 ' + Math.ceil(coldWave.t) + ' 秒後來，先加柴'; cls = 'cold'; }
   const key = t + cls; if (key === shownAlert) return; shownAlert = key;
   $('alert').textContent = t; $('alert').className = cls; $('alert').style.display = t ? 'block' : 'none';
@@ -151,7 +153,7 @@ function step(dt) {
   const moving = Math.hypot(mx, mz) > 0.05;
   if (moving) {
     if (hintOn) { hintOn = false; $('hint').style.display = 'none'; }
-    const sp = CFG.speed * slowAt(player.position.x, player.position.z) * dt; // 踩到雪堆走很慢
+    const sp = CFG.speed * slowAt(player.position.x, player.position.z) * (blizzard.on > 0 ? CFG.blizSlow : 1) * dt; // 踩到雪堆走很慢；大暴雪頂風也慢
     let nx = player.position.x + mx * sp, nz = player.position.z + mz * sp;
     if (!save.east && nx > 16 * TS - 0.8) nx = 16 * TS - 0.8;           // 冰牆擋住
     nx = Math.max(-40 * TS, Math.min(40 * TS, nx)); nz = Math.max(-40 * TS, Math.min(40 * TS, nz));
@@ -317,6 +319,8 @@ function step(dt) {
   updateWorkers(dt); updateHunters(dt); updateCoalers(dt); updateMixers(dt);
   updateGate(dt);
   updateColdWave(dt);
+  updateBlizzard(dt);
+  updateFog(dt);
   updateSnow(dt);
   if (roadsDirty) rebuildRoads();
   updateFurnace(dt);
@@ -337,7 +341,7 @@ function step(dt) {
 
   // 下雪
   for (let i = 0; i < snowN; i++) {
-    snowPos[i * 3 + 1] -= dt * (coldWave.on > 0 ? 5 : 1.5); // 寒潮時雪下得又快又急
+    snowPos[i * 3 + 1] -= dt * (blizzard.on > 0 ? 8 : coldWave.on > 0 ? 5 : 1.5); // 寒潮時雪下得又快又急，大暴雪更急
     if (snowPos[i * 3 + 1] < 0) {
       snowPos[i * 3 + 1] = 18;
       snowPos[i * 3] = player.position.x + rand(-25, 25); snowPos[i * 3 + 2] = player.position.z + rand(-25, 25);
@@ -389,4 +393,4 @@ if (firstRun) {
   if (old) { try { localStorage.setItem(MODE_KEY, 'tutorial'); } catch (e) {} }
   else { resetting = true; showMenu(true); }
 }
-window.__game = { hunters, tentGs, camera, coldOver, fireStage: () => fireStage, raidCount, plan, setPlan, planPointer, canBuild, heaters, piles, shovelers, spawnPile, seam, mine, coldWave, hero, save, furnace, houses, player, carried, mills, unlocks, trees, bears, gate, buildings, towers, step, render: () => renderer.render(scene, camera) }; // 測試用
+window.__game = { blizzard, hunters, tentGs, camera, coldOver, fireStage: () => fireStage, raidCount, plan, setPlan, planPointer, canBuild, heaters, piles, shovelers, spawnPile, seam, mine, coldWave, hero, save, furnace, houses, player, carried, mills, unlocks, trees, bears, gate, buildings, towers, step, render: () => renderer.render(scene, camera) }; // 測試用

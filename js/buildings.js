@@ -554,7 +554,7 @@ function updateFireLook(dt, pct) {
   sun.intensity += (0.75 * st.light - sun.intensity) * k;
   fireLight.intensity += (st.glow - fireLight.intensity) * k;
   skyCol.lerp(tmpCol.setHex(st.sky), k); scene.background.copy(skyCol); scene.fog.color.copy(skyCol);
-  $('frost').style.opacity = Math.max(st.frost, save.level >= 1 && coldWave.on > 0 ? 1 : 0);
+  $('frost').style.opacity = Math.max(st.frost, save.level >= 1 && (coldWave.on > 0 || blizzard.on > 0) ? 1 : 0);
 }
 
 let feedCd = 0;
@@ -720,8 +720,8 @@ function hitPile(p) {
 let shovelCd = 0;
 function updateSnow(dt) {
   if (save.level < 1) return;
-  snowT -= dt * (coldWave.on > 0 ? 3 : 1);                      // 寒潮時積雪快 3 倍
-  if (snowT <= 0) { snowT = CFG.snowEvery; if (piles.length < CFG.snowMax) spawnPile(); }
+  snowT -= dt * (blizzard.on > 0 ? CFG.blizSnow : coldWave.on > 0 ? 3 : 1); // 寒潮時積雪快 3 倍、大暴雪 5 倍
+  if (snowT <= 0) { snowT = CFG.snowEvery; if (piles.length < (blizzard.on > 0 ? CFG.blizMax : CFG.snowMax)) spawnPile(); }
   shovelCd -= dt;
   for (const p of piles) {
     p.grow = Math.min(1, p.grow + dt * 1.5);
@@ -769,6 +769,26 @@ function updateColdWave(dt) {
     else if (Math.ceil(c.t) === 15 && Math.ceil(c.t + dt) > 15) toast('❄️ 15 秒後寒潮來襲，先把火爐加滿柴！');
   }
   save.coldT = Math.max(0, Math.round(c.t));
+}
+
+// ===== v0.99 大暴雪（企劃 10.2）：每升級 5 次，預告 30 秒後來 60 秒；看不遠、積雪 5 倍快、主角走路變慢；火沒熄就有獎金 =====
+const blizzard = { warn: 0, on: 0, failed: false };
+function updateBlizzard(dt) {
+  if (save.level < 1) return;
+  if (save.blizNext == null) save.blizNext = save.buys + CFG.blizEvery; // 舊存檔：從現在起算 5 次
+  const b = blizzard;
+  if (b.on > 0) {
+    b.on -= dt; if (furnace.out) b.failed = true;
+    if (b.on <= 0) {
+      save.blizNext = save.buys + CFG.blizEvery;
+      if (!b.failed) { save.cash += CFG.blizReward; sfx.unlock(); toast('撐過大暴雪了！獎金 +' + CFG.blizReward + ' 元'); }
+      else toast('大暴雪過去了…下次先存柴、雇鏟雪工');
+    }
+  } else if (b.warn > 0) {
+    b.warn -= dt;
+    if (b.warn <= 0 && coldWave.on > 0) b.warn = 1;              // 寒潮還沒過，等寒潮結束再來
+    else if (b.warn <= 0) { b.on = CFG.blizLen; b.failed = false; toast('🌨️ 大暴雪來了！看不遠、雪堆得很快，撐住 ' + CFG.blizLen + ' 秒！'); beep(220, 0.8, 'triangle', 0.06, 0.5); }
+  } else if (save.buys >= save.blizNext) { b.warn = CFG.blizWarn; toast('🌨️ ' + CFG.blizWarn + ' 秒後大暴雪！先把營火加滿、雇鏟雪工'); }
 }
 
 // ===== 暖氣塔：把火爐的熱送到遠一點的地方（規劃模式蓋） =====

@@ -186,6 +186,11 @@ const camBase = new THREE.Vector3(7, 15, 11), camOffset = camBase.clone();
 const camSph = new THREE.Spherical().setFromVector3(camBase), camRef = camBase.length() * 1.5; // camRef：標籤放大的基準距離（剛開始的手機鏡頭）
 const cam = { yaw: 0, pitch: 0 };                                // v0.88 視角模式：轉的角度
 const fwd = new THREE.Vector2(), right = new THREE.Vector2();
+let fogR = 30, fogK = 0;
+function updateFog(dt) { // v0.99 大暴雪：霧慢慢收近，只看得清主角附近
+  fogK += ((blizzard.on > 0 ? 1 : 0) - fogK) * Math.min(1, dt * 0.8);
+  scene.fog.near = fogR + 10 - fogK * (fogR * 0.55 + 10); scene.fog.far = fogR + 55 - fogK * 40;
+}
 function resize() {
   const w = innerWidth, h = innerHeight;
   renderer.setSize(w, h); camera.aspect = w / h;
@@ -194,7 +199,7 @@ function resize() {
   camOffset.setFromSphericalCoords(r, Math.max(0.25, Math.min(1.25, camSph.phi + cam.pitch)), camSph.theta + cam.yaw);
   fwd.set(-camOffset.x, -camOffset.z).normalize(); right.set(-fwd.y, fwd.x); // 搖桿方向跟著鏡頭轉
   const k = Math.max(1, r / camRef); labelK.set(k, k, 1); player.scale.setScalar(Math.min(1.6, Math.sqrt(k))); // v0.88（作者：營地越大人物越小）：拉遠時標籤、主角跟著放大
-  scene.fog.near = r + 10; scene.fog.far = r + 55; // v0.71：霧跟著鏡頭距離走，鏡頭拉遠時整片地不會被霧蓋白
+  fogR = r; updateFog(0); // v0.71：霧跟著鏡頭距離走，鏡頭拉遠時整片地不會被霧蓋白
   camera.updateProjectionMatrix();
 }
 addEventListener('resize', resize);
