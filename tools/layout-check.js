@@ -9,9 +9,9 @@
 (function () {
   const PRESETS = [
     { name: '開場' },
-    { name: '倉庫＋東邊', wh: true, territory: 1, east: true, buys: 5, cash: 500, res: 12, tents: 4 },
-    { name: '村莊＋煤礦', wh: true, territory: 2, east: true, buys: 9, cash: 900, level: 1, res: 40, tents: 4, houses: 6, mine: true, shovel: true },
-    { name: '小鎮＋石爐', wh: true, territory: 2, east: true, buys: 15, cash: 2000, level: 2, res: 90, tents: 4, houses: 14, mine: true, shovel: true, stove: 1, quarry: true },
+    { name: '倉庫＋東邊', wh: true, tower: true, tower2: true, territory: 1, east: true, buys: 5, cash: 500, res: 12, tents: 4 },
+    { name: '村莊＋煤礦', wh: true, tower: true, tower2: true, territory: 2, east: true, buys: 9, cash: 900, level: 1, res: 40, tents: 4, houses: 6, mine: true, shovel: true },
+    { name: '小鎮＋石爐', wh: true, tower: true, tower2: true, territory: 2, east: true, buys: 15, cash: 2000, level: 2, res: 90, tents: 4, houses: 14, mine: true, shovel: true, stove: 1, quarry: true },
     { name: '小鎮＋圍欄外鐵匠鋪＋石屋', wh: true, territory: 2, east: true, buys: 18, cash: 2000, level: 2, res: 90, tents: 4, houses: 14, mine: true, shovel: true, stove: 1, quarry: true, porters: 3, coalers: 1, plan: [{ k: 'smith', x: -24, z: -5 }], stoneHouses: ['民房0', '民房1', '民房2'] }, // v1.02 作者回報的情況
   ];
   const inkCache = new Map();
@@ -71,6 +71,11 @@
       if (a.owner && Math.hypot(a.x - a.owner.x, a.z - a.owner.z) > a.owner.r + 3.4) found.add('格子離自己的建築太遠：' + a.name() + ' 離 ' + a.owner.key + ' ' + Math.hypot(a.x - a.owner.x, a.z - a.owner.z).toFixed(1) + ' 格');
     }
   }
+  function checkTowers(found) {                      // ⑨自己蓋的弩砲塔要能排在原本那一排（v1.03：被分區、格線擋住只能蓋別處）
+    const g = __game; if (!g.towers.length) return;
+    let ok = 0; for (let x = -FENCE_R - 6; x <= FENCE_R + 6; x += CFG.cell) if (g.canBuild(x, towerZ(), 'tower')) ok++;
+    if (!ok) found.add('弩砲塔：原本那一排（z=' + towerZ().toFixed(1) + '）沒有任何位置能再蓋塔');
+  }
   function checkHud(found) {                         // ⑥介面互蓋：上方說明列用最長的句子強制顯示一次，跟按鈕、目標、背包列比
     const al = document.getElementById('alert'), keep = [al.textContent, al.style.display];
     al.textContent = '🐻 3 隻熊＋🐺 狼群＋👑 熊王 15 秒後來襲'; al.style.display = 'block';
@@ -95,6 +100,7 @@
       g.render(); checkHere('(' + x.toFixed(1) + ',' + z.toFixed(1) + ')', found);
     }
     checkPads(found);
+    checkTowers(found);
     checkHud(found);
     g.player.position.copy(p0);
     const list = [...found];
