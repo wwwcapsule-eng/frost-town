@@ -38,11 +38,13 @@ player.tick = (walk, moving) => {                       // 走路時手腳前後
 dressKK(player, [puff], 'kkKnight', null, m => {
   player.kk = true; player.flash = [];
   m.traverse(o => { if (o.isMesh) { o.material = o.material.clone(); player.flash.push(o.material); } });
-  // v1.11（作者：主角加一點羽絨服）：胸口罩一件飽飽的紅色羽絨背心＋一圈白毛領＋腰間一圈下擺，位置抓騎士身體的高度（程式拼的，不跟手腳擺動）
-  const vest = new THREE.Group(), vc = M(0xd9543c), vf = M(0xf4efe6), vt = M(0x8c2a22); player.flash.push(vc, vf, vt);
-  [[0.42, 0.13, 0.33, 0.78], [0.44, 0.13, 0.35, 0.64], [0.45, 0.11, 0.35, 0.51]].forEach(([rx, ry, rz, y]) => pEll(vc, rx, ry, rz, 0, y, 0, vest)); // 三節背心
-  pEll(vt, 0.43, 0.04, 0.34, 0, 0.42, 0, vest);                                                                     // 下擺束口
-  for (let i = 0; i < 12; i++) { const a = i / 12 * Math.PI * 2; pEll(vf, 0.13, 0.1, 0.13, Math.sin(a) * 0.27, 0.93, Math.cos(a) * 0.23, vest); }   // 毛領
+  // v1.12（作者：羽絨服不要遮手、不要像輪胎，風格跟下載的模組一致）：改成一件順順的長大衣——低面數的錐形外套（跟 KayKit 一樣是稜稜的），白毛領、腰帶、下擺一圈白毛；比身體窄，手臂不被蓋住
+  const vest = new THREE.Group(), vc = M(0xb8403a), vf = M(0xf4efe6), vt = M(0x4a2f24); player.flash.push(vc, vf, vt);
+  const part = (geo, mat, y, sz = 1) => { const o = new THREE.Mesh(geo, mat); o.position.y = y; o.scale.z = sz; vest.add(o); return o; };
+  part(new THREE.CylinderGeometry(0.27, 0.35, 0.72, 8), vc, 0.66, 0.8);            // 大衣本體（上窄下寬）
+  part(new THREE.CylinderGeometry(0.295, 0.295, 0.07, 8), vt, 0.64, 0.8);           // 腰帶
+  const col = part(new THREE.TorusGeometry(0.22, 0.075, 6, 10), vf, 1.0, 0.85); col.rotation.x = Math.PI / 2;   // 毛領
+  const hem = part(new THREE.TorusGeometry(0.34, 0.04, 5, 10), vf, 0.31, 0.8); hem.rotation.x = Math.PI / 2;     // 下擺毛邊
   player.add(vest);
 });
 // v1.02（作者：最重要的是認得出主角）：腳下一圈亮藍光圈
