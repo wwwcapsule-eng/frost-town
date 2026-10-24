@@ -28,7 +28,7 @@ function updateHero(dt) {
     hero.hp -= dps * dt; if (hero.hp <= 0) hero.cause = 'cold';
   }
   if (hero.hit > 0) hero.hit -= dt;
-  [body.material, ...player.skin].forEach(mt => mt.emissive?.setHex(hero.hit > 0 ? 0x661111 : 0));
+  player.flash.forEach(mt => mt.emissive?.setHex(hero.hit > 0 ? 0x661111 : 0));
   if (hero.hp <= 0) {
     const lose = carried.splice(Math.ceil(carried.length / 2));  // 掉一半背包
     lose.forEach(m => stackRoot.remove(m)); restack();
@@ -210,7 +210,7 @@ function step(dt) {
     player.rotation.y = Math.atan2(mx, mz);
     walk += dt * 12;
   }
-  player.position.y = moving && !player.skin.length ? Math.abs(Math.sin(walk)) * 0.12 : 0; // 有人物模型就用走路動畫，不再上下彈跳
+  player.tick(walk, moving);
   // 背上的木頭會跟著晃
   carried.forEach((m, i) => { m.position.x = Math.sin(walk * 0.5) * i * 0.012; });
 

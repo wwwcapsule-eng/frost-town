@@ -1,16 +1,28 @@
 'use strict';
 // ===== 主角 =====
 const player = new THREE.Group();
-const body = box(0.8, 1.0, 0.6, mats.player); body.position.y = 0.75; player.add(body);
-const head = box(0.6, 0.55, 0.55, mats.skin); head.position.y = 1.55; player.add(head);
-const hat = box(0.7, 0.25, 0.65, mats.player); hat.position.y = 1.9; player.add(hat);
-const legs = box(0.7, 0.3, 0.5, M(0x24486b)); legs.position.y = 0.15; player.add(legs);
-// v1.02（作者：最重要的是認得出主角）：只有主角戴帽子，腳下再一圈亮藍光圈
+// v1.04（作者選 C）：自製 Q 版方塊人——大方頭、短身體、毛帽跟頭一體、紅圍巾；沒有人物模型，靠 player.tick 擺手腳
+const hSkin = M(0xffcf9e), hBlue = M(0x2f8fd8), hRed = M(0xd8453a), hDark = M(0x24486b), hWhite = M(0xffffff);
+const body = box(0.62, 0.55, 0.45, hBlue); body.position.y = 0.55; player.add(body);
+const legL = box(0.22, 0.28, 0.25, hDark), legR = legL.clone(); legL.position.set(-0.15, 0.14, 0); legR.position.set(0.15, 0.14, 0);
+const armL = box(0.16, 0.4, 0.2, hBlue), armR = armL.clone(); armL.position.set(-0.4, 0.58, 0); armR.position.set(0.4, 0.58, 0);
+const head = box(0.95, 0.85, 0.85, hSkin); head.position.y = 1.4;
+const cap = box(1.0, 0.36, 0.9, hBlue); cap.position.y = 1.7;
+const capRim = box(1.04, 0.14, 0.94, hWhite); capRim.position.y = 1.56;
+const pom = new THREE.Mesh(new THREE.SphereGeometry(0.15, 10, 8), hWhite); pom.position.y = 1.97;
+const eyeL = box(0.1, 0.16, 0.05, M(0x222222)), eyeR = eyeL.clone(); eyeL.position.set(-0.2, 1.38, 0.43); eyeR.position.set(0.2, 1.38, 0.43);
+const cheekL = box(0.14, 0.08, 0.04, M(0xff9a9a)), cheekR = cheekL.clone(); cheekL.position.set(-0.32, 1.25, 0.43); cheekR.position.set(0.32, 1.25, 0.43);
+const scarf = box(0.7, 0.14, 0.52, hRed); scarf.position.y = 0.88;
+player.add(legL, legR, armL, armR, head, cap, capRim, pom, eyeL, eyeR, cheekL, cheekR, scarf);
+player.flash = [hSkin, hBlue, hRed, hDark];          // 受傷時閃紅的材質（main.js）
+player.tick = (walk, moving) => {                     // 走路時手腳前後擺、身體輕輕彈
+  const s = moving ? Math.sin(walk * 0.65) : 0;
+  legL.rotation.x = armR.rotation.x = s * 0.6; legR.rotation.x = armL.rotation.x = -s * 0.6;
+  player.position.y = Math.abs(s) * 0.05;
+};
+// v1.02（作者：最重要的是認得出主角）：腳下一圈亮藍光圈
 const heroRing = new THREE.Mesh(new THREE.RingGeometry(0.8, 1.02, 32), new THREE.MeshBasicMaterial({ color: 0x4fc3ff, transparent: true, opacity: 0.9, depthWrite: false }));
 heroRing.rotation.x = -Math.PI / 2; heroRing.position.y = 0.06; player.add(heroRing);
-// v0.97 主角換成 Kenney 人物（比工人高大一點）；方塊身體、頭、腿藏起來，帽子留著；受傷閃紅改成改人物材質的 emissive
-player.skin = [];
-dress(player, [body, head, legs], 4, 1.25, m => m.traverse(o => { if (o.isMesh) { o.material = o.material.clone(); player.skin.push(o.material); } }));
 const stackRoot = new THREE.Group(); stackRoot.position.set(0, 1.3, -0.55); player.add(stackRoot);
 scene.add(player);
 // 旋轉斧頭：木柄＋大斧刃，外圍一圈藍色刀光；斧刃顏色隨等級變化
