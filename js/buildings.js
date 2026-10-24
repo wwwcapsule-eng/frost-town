@@ -771,24 +771,22 @@ function updateColdWave(dt) {
   save.coldT = Math.max(0, Math.round(c.t));
 }
 
-// ===== v0.99 大暴雪（企劃 10.2）：每升級 5 次，預告 30 秒後來 60 秒；看不遠、積雪 5 倍快、主角走路變慢；火沒熄就有獎金 =====
+// ===== v0.99 大暴雪（企劃 10.2，作者 10/24：大事件＝升級前的關卡）：居民快到下一級（9 成）時來襲，撐過（營火沒熄）才能升級 =====
 const blizzard = { warn: 0, on: 0, failed: false };
+const blizGate = () => save.level >= 1 && LEVELS[save.level + 1] && save.blizDone !== save.level; // 這一級還沒撐過大暴雪
 function updateBlizzard(dt) {
-  if (save.level < 1) return;
-  if (save.blizNext == null) save.blizNext = save.buys + CFG.blizEvery; // 舊存檔：從現在起算 5 次
+  if (!blizGate() && blizzard.on <= 0) return;
   const b = blizzard;
   if (b.on > 0) {
     b.on -= dt; if (furnace.out) b.failed = true;
-    if (b.on <= 0) {
-      save.blizNext = save.buys + CFG.blizEvery;
-      if (!b.failed) { save.cash += CFG.blizReward; sfx.unlock(); toast('撐過大暴雪了！獎金 +' + CFG.blizReward + ' 元'); }
-      else toast('大暴雪過去了…下次先存柴、雇鏟雪工');
-    }
+    if (b.on > 0) return;
+    if (!b.failed) { save.blizDone = save.level; save.cash += CFG.blizReward; sfx.unlock(); toast('撐過大暴雪了！獎金 +' + CFG.blizReward + ' 元，可以升級' + LEVELS[save.level + 1].name + '了'); writeSave(); }
+    else { b.warn = CFG.blizRetry; toast('營火熄了…大暴雪 ' + CFG.blizRetry + ' 秒後再來，先存柴、雇鏟雪工'); }
   } else if (b.warn > 0) {
     b.warn -= dt;
     if (b.warn <= 0 && coldWave.on > 0) b.warn = 1;              // 寒潮還沒過，等寒潮結束再來
     else if (b.warn <= 0) { b.on = CFG.blizLen; b.failed = false; toast('🌨️ 大暴雪來了！看不遠、雪堆得很快，撐住 ' + CFG.blizLen + ' 秒！'); beep(220, 0.8, 'triangle', 0.06, 0.5); }
-  } else if (save.buys >= save.blizNext) { b.warn = CFG.blizWarn; toast('🌨️ ' + CFG.blizWarn + ' 秒後大暴雪！先把營火加滿、雇鏟雪工'); }
+  } else if (population() >= LEVELS[save.level + 1].need * CFG.blizAt) { b.warn = CFG.blizWarn; toast('🌨️ 升級' + LEVELS[save.level + 1].name + '前的考驗：' + CFG.blizWarn + ' 秒後大暴雪！先把營火加滿、雇鏟雪工'); }
 }
 
 // ===== 暖氣塔：把火爐的熱送到遠一點的地方（規劃模式蓋） =====

@@ -434,7 +434,7 @@ levelUnlocks();
 if (save.shovel) addShoveler();
 function checkLevel() {
   const next = LEVELS[save.level + 1];
-  if (!next || population() < next.need) return;
+  if (!next || population() < next.need || blizGate()) return; // v0.99：要先撐過大暴雪
   save.level++; writeSave(); levelUnlocks(); resize();
   $('lvTitle').textContent = '🎉 升級為' + next.name + '！';
   $('lvList').innerHTML = '新解鎖：<br>' + next.unlock.join('<br>');

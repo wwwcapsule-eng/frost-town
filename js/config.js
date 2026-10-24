@@ -48,14 +48,14 @@ const CFG = {
   whLogs: 10, plankRate: 0.3, fuelKeep: 20, whFood: 10, eatEvery: 60, // 倉庫（第 2 時代）：揹幾根木頭蓋；建築價錢換成🪵木頭的比例（原本的錢 ×0.3）；倉庫留幾根木頭當柴（多的送鋸木廠）；蓋好送幾份食物；居民幾秒吃一餐
   cartPrice: 120, cartEvery: 4, cartLoad: 3, binMax: 20, // 雇礦工＋木軌礦車：價錢（換成木頭）、幾秒推出來一車、一車幾塊煤、煤堆最多幾塊
   gatePrice: 30, gateW: 3.6, gateMax: 4, // 自己開的圍欄門：價錢（換成木頭 ×0.3）、門寬、最多幾個
-  blizEvery: 5, blizWarn: 30, blizLen: 60, blizSnow: 5, blizMax: 20, blizSlow: 0.75, blizReward: 50, // v0.99 大暴雪（村莊開始）：每升級 5 次來一次、預告幾秒、持續幾秒、積雪幾倍快、雪堆上限、主角走路剩幾成、撐過去的獎金
+  blizAt: 0.9, blizRetry: 60, blizWarn: 30, blizLen: 60, blizSnow: 5, blizMax: 20, blizSlow: 0.75, blizReward: 50, // v0.99 大暴雪（村莊開始）：居民到下一級的幾成時來、失敗後幾秒再來、預告幾秒、持續幾秒、積雪幾倍快、雪堆上限、主角走路剩幾成、撐過去的獎金
   coldFirst: 120, coldEvery: 150, coldLen: 30, coldBurn: 3, coldShrink: 0.75, coldReward: 30, // 寒潮（村莊開始）：第一次幾秒後、之後每幾秒、持續幾秒、火爐燒幾倍快、暖氣圈縮成幾成、撐過去的獎金 // 火爐升級（村莊解鎖）：暖氣圈最大半徑 +7
 };
 // 城市等級：人口到門檻就升級（藍圖見 docs/企劃評估.md 第 8 節）；houses＝這一級最多能蓋幾間民房
 // cam＝鏡頭拉遠倍數；unlock＝升級卡片上列的新東西
 const LEVELS = [
   { name: '營地', icon: '🏕️', need: 0, houses: 4, heaters: 0, cam: 1 },
-  { name: '村莊', icon: '🏘️', need: 20, houses: 20, heaters: 1, cam: 1.25, unlock: ['🏠 民房上限 4 → 20 間', '🔥 營火升級 Lv2：領地再擴大（要先開拓東邊）', '🏗️ 規劃模式：民房、暖氣塔自己決定蓋在哪', '⛏️ 煤礦、🧹 鏟雪工、❄️ 寒潮'] },
+  { name: '村莊', icon: '🏘️', need: 20, houses: 20, heaters: 1, cam: 1.25, unlock: ['🏠 民房上限 4 → 20 間', '🔥 營火升級 Lv2：領地再擴大（要先開拓東邊）', '🏗️ 規劃模式：民房、暖氣塔自己決定蓋在哪', '⛏️ 煤礦、🧹 鏟雪工、❄️ 寒潮', '🌨️ 大暴雪：每次要升級前來襲，撐過才能升級'] },
   { name: '小鎮', icon: '🏙️', need: 80, houses: 40, heaters: 4, cam: 1.45, unlock: ['🏠 民房上限 20 → 40 間', '🔥 暖氣塔最多 4 座'] },
   { name: '城市', icon: '🌆', need: 300, houses: 40, heaters: 4, cam: 1.6, unlock: ['🚧 城市的新玩法製作中，敬請期待'] },
 ];

@@ -102,6 +102,7 @@ function updateAlert() {
   else if (hero.over > 0 && hero.hp < 60) { t = '🥶 好冷！回營火旁取暖'; cls = 'cold'; }
   else if (gate.raidT <= 15) { t = '🐻 ' + raidCount() + ' 隻熊' + (wolvesCome() ? '＋🐺 狼群' : '') + (kingNext() ? '＋👑 熊王' : '') + ' ' + Math.ceil(gate.raidT) + ' 秒後來襲'; cls = 'warn'; }
   else if (blizzard.warn > 0) { t = '🌨️ 大暴雪 ' + Math.ceil(blizzard.warn) + ' 秒後來，先加柴'; cls = 'cold'; }
+  else if (blizGate() && population() >= LEVELS[save.level + 1].need) { t = '🌨️ 撐過大暴雪才能升級'; cls = 'cold'; }
   else if (save.level >= 1 && coldWave.t <= 15) { t = '❄️ 寒潮 ' + Math.ceil(coldWave.t) + ' 秒後來，先加柴'; cls = 'cold'; }
   const key = t + cls; if (key === shownAlert) return; shownAlert = key;
   $('alert').textContent = t; $('alert').className = cls; $('alert').style.display = t ? 'block' : 'none';
