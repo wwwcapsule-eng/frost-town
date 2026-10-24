@@ -140,12 +140,6 @@ const stage1 = (() => {
         bricks.push([IG.rx * Math.cos(phi) * Math.sin(th), IG.ry * Math.sin(phi), IG.rx * Math.cos(phi) * Math.cos(th), 2 * Math.PI * R / n * 0.97, h, 0.55, phi, th]);
       }
     }
-    const tn = 5, tr = 0.95;                                                    // 隧道：5 圈、每圈 8 塊，往 +z 伸出去
-    for (let r = 0; r < tn; r++) for (let k = 0; k < 8; k++) {
-      const th = k / 8 * Math.PI + (r % 2) * Math.PI / 16, y = 0.3 + Math.sin(th) * 0.95, xx = Math.cos(th) * tr;
-      if (Math.sin(th) < 0.0 && false) continue;
-      bricks.push([xx, y, 2.3 + r * 0.42, 0.62, 0.55, 0.42, 'tn', th]);
-    }
     const geo = new THREE.BoxGeometry(1, 1, 1), im = new THREE.InstancedMesh(geo, new THREE.MeshToonMaterial({ color: 0xffffff, gradientMap: TOON, transparent: true, opacity: 0.84, depthWrite: false }), bricks.length), d = new THREE.Object3D(), c = new THREE.Color();
     bricks.forEach((br, i) => {
       d.position.set(br[0], br[1], br[2]);
@@ -154,7 +148,11 @@ const stage1 = (() => {
       c.setHex(0x9bd1ee).offsetHSL(0, (i * 7 % 5) * 0.012, ((i * 13) % 7 - 3) * 0.018); im.setColorAt(i, c);
     });
     im.userData.noInk = true; g.add(im);
-    const door = new THREE.Mesh(new THREE.CircleGeometry(0.7, 16), mat(0x23364a)); door.position.set(0, 0.5, 2.15); g.add(door);
+    // v1.32（作者：冰屋不要前面的小通道，用門）：圓頂開一個門洞，貼上木框拱門——兩根門柱、橫樑、深色門洞，前面什麼都不突出
+    { const hole = box(1.3, 1.45, 0.12, mat(0x1d2a38)); hole.position.set(0, 0.72, 1.98); g.add(hole);
+      const fr = mats.trunk, dz = 2.22;
+      [-0.74, 0.74].forEach(x => { const p = box(0.2, 1.45, 0.55, fr); p.position.set(x, 0.72, 2.0); g.add(p); });   // 門柱、橫樑做得深一點，一直埋進圓頂裡，不會浮在外面
+      const lin = box(1.68, 0.16, 0.7, fr); lin.position.set(0, 1.42, 1.98); g.add(lin); }
     igloos.push({ g, x, z, smoke: [] });
     if (pop) { sfx.unlock(); sparkleAt(x, z); }
   }
