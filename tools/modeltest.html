@@ -1,0 +1,18 @@
+<!doctype html><meta charset="utf-8"><body style="margin:0;background:#cfe3f2">
+<script src="../js/lib/three.min.js"></script><script src="../js/lib/GLTFLoader.js"></script>
+<script>
+// 模型預覽：node tools/serve.js 後開 http://localhost:8080/tools/modeltest.html；用來試拼 Kenney 零件，不屬於遊戲本體
+const r = new THREE.WebGLRenderer({ antialias: true }); r.setSize(innerWidth, innerHeight); document.body.appendChild(r.domElement);
+const scene = new THREE.Scene(), cam = new THREE.PerspectiveCamera(40, innerWidth / innerHeight, .1, 100);
+cam.position.set(4, 5, -7); cam.lookAt(0, 0.8, 0);
+const dl = new THREE.DirectionalLight(0xffffff, .8); dl.position.set(3, 6, -4); scene.add(new THREE.HemisphereLight(0xffffff, 0x889, 1), dl);
+const ld = new THREE.GLTFLoader(), C = {};
+const names = ['cabin-wall', 'cabin-doorway', 'cabin-window-a', 'cabin-corner', 'cabin-roof-snow', 'cabin-roof-snow-chimney', 'cabin-roof', 'cabin-roof-snow-corner', 'cabin-roof-snow-point', 'cabin-wall-roof'];
+let n = 0;
+names.forEach(k => ld.load('../assets/models/holiday/' + k + '.glb', g => { C[k] = g.scene; if (++n == names.length) go(); }));
+const put = (k, x, y, z, ry = 0, p = scene) => { const m = C[k].clone(); m.position.set(x, y, z); m.rotation.y = ry; p.add(m); return m; };
+function go() {
+  window.C = C; window.put = put; window.scene = scene; window.cam = cam; window.render = () => r.render(scene, cam);
+  if (window.build) build(); r.render(scene, cam);
+}
+</script>

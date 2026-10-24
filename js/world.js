@@ -50,12 +50,13 @@ function loadModel(key, url, height, onLoad) {                    // height：�
 const KIT = {
   logs: ['nature/log_stackLarge.glb', 0.9], bench: ['survival/workbench.glb', 0.9], planks: ['survival/resource-planks.glb', 0.35], wood: ['survival/resource-wood.glb', 0.5],
   rack: ['survival/campfire-stand.glb', 1.4], barrel: ['survival/barrel.glb', 0.9], crate: ['survival/box-large.glb', 0.8], chest: ['survival/chest.glb', 0.6],
+  cwall: ['holiday/cabin-wall.glb', 1], cdoor: ['holiday/cabin-doorway.glb', 1], cwin: ['holiday/cabin-window-a.glb', 1], croof: ['holiday/cabin-roof-snow.glb', 1.48], croofc: ['holiday/cabin-roof-snow-chimney.glb', 1.48], sroof: ['holiday/cabin-roof.glb', 1.42], sroofc: ['holiday/cabin-roof-chimney.glb', 1.42], // v0.94 木屋零件（Kenney 假日組）
   sign: ['survival/signpost.glb', 1.6], lantern: ['holiday/lantern.glb', 0.6],
   rockA: ['survival/rock-a.glb', 1.2], rockB: ['survival/rock-b.glb', 0.9], rockC: ['survival/rock-c.glb', 1.5],
 };
 const kitWait = {};
-function kit(key, parent, x, y, z, ry = 0, s = 1) {
-  const put = () => { const m = MODELS[key].clone(); m.position.set(x, y, z); m.rotation.y = ry; m.scale.multiplyScalar(s); parent.add(m); };
+function kit(key, parent, x, y, z, ry = 0, s = 1, cb) {
+  const put = () => { const m = MODELS[key].clone(); m.position.set(x, y, z); m.rotation.y = ry; m.scale.multiplyScalar(s); parent.add(m); if (cb) cb(m); };
   if (MODELS[key]) return put();
   if (!kitWait[key]) { kitWait[key] = []; loadModel(key, 'assets/models/' + KIT[key][0], KIT[key][1], () => kitWait[key].forEach(f => f())); }
   kitWait[key].push(put);
