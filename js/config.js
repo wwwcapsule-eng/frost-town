@@ -109,7 +109,12 @@ if (save.plan && !save.scaled) {                                // v0.60 前的�
   for (const k in save.moved || {}) save.moved[k] = save.moved[k].map(v => v * TS);
 }
 save.scaled = TS;
-if (save.stage == null) save.stage = hadSave ? 2 : 1;   // v1.16：新玩家從第 1 關冰湖營地開始；舊存檔當第 2 關（森林營地）
+if (save.stage == null) save.stage = hadSave ? 2 : 1;
+// v1.35（作者 10/28）：第 2 關只玩到村莊（居民 12＋撐過獸潮）就遷徙；已經玩過第 2 關後半（村莊以上）的舊存檔直接當第 3 關開頭，錢和居民（折半、最多 5）、倉庫 2 成材料帶過去
+if (save.stage === 2 && save.level >= 1 && !/check/.test(location.search)) {
+  const old = save.store || {}, res = save.res != null ? save.res : 10;
+  save.stage = 3; save.arrive = true; save.s3 = save.s3 || { pop: Math.max(3, Math.min(5, Math.floor(res / 2))), store: { plank: 12 + Math.floor((old.plank || 0) * 0.2), stone: Math.floor((old.stone || 0) * 0.2), coal: 10 + Math.floor((old.coal || 0) * 0.2), smoked: 0 } };
+}   // v1.16：新玩家從第 1 關冰湖營地開始；舊存檔當第 2 關（森林營地）
 if (save.territory == null) save.territory = save.furnace ? (save.east ? 2 : 1) : 0;          // 舊進度：火爐升級過就當作領地擴大過
 if (save.buys == null) save.buys = (save.bag || 0) + (save.axe || 0) + (save.tower ? 1 : 0) + (save.tower2 ? 1 : 0) + (save.workers || 0) + (save.east ? 1 : 0) + (save.mill2 ? 1 : 0);
 let resetting = false; // 重新開始時不要再把舊進度寫回去

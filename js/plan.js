@@ -464,6 +464,10 @@ if (save.shovel) addShoveler();
 function checkLevel() {
   const next = LEVELS[save.level + 1];
   if (!next || paused || population() < next.need || blizGate() || hordeGate()) return; // v0.99：要先撐過大暴雪；v1.01：營地要先撐過獸潮
+  if (!PRO && save.level === 0 && !/check/.test(location.search)) {                     // v1.35（作者 10/28）：第 2 關到村莊就遷徙，後半的煤礦、採石場、石爐、燻肉、石屋全搬到第 3 關
+    paused = true; story('🎉 村莊站穩了！', ['熊群一波比一波多，森林快養不活大家了。', '長老捧起火種說：「北邊的岩山有石頭，熊爬不上來。」', '帶著火種和族人，往北遷徙吧！'], '出發！');
+    $('lvOk').addEventListener('click', startMigrate3, { once: true }); return;
+  }
   save.level++; writeSave(); levelUnlocks(); resize();
   story('🎉 升級為' + next.name + '！', ['新解鎖：', ...next.unlock], '太好了！');
   sfx.unlock(); sparkle(player.position.x, player.position.z);

@@ -205,12 +205,30 @@ function introStep(dt) {
   camera.position.lerp(tmp.copy(k.look).add(camOffset).multiplyScalar(1.15), 1 - Math.exp(-dt * 2)); camera.lookAt(k.look);
   if (t > k.end) { k.items.forEach(o => o.g.scale.setScalar(o.s)); k.el.remove(); intro = null; }
 }
+// v1.35 第 2 → 3 關遷徙動畫（約 8 秒）：上下黑邊、字幕、房子一間間沉進雪裡、全村往北走、畫面轉白、進第 3 關（開場會先生起石爐再把營地蓋起來）
+let cine2 = null;
+function startMigrate3() {
+  const el = document.createElement('div'); el.style.cssText = 'position:fixed;inset:0;z-index:99;pointer-events:none';
+  el.innerHTML = '<div style="position:absolute;left:0;right:0;top:0;height:0;background:#000"></div><div style="position:absolute;left:0;right:0;bottom:0;height:0;background:#000"></div><div style="position:absolute;left:0;right:0;bottom:4%;text-align:center;color:#fff;font:700 19px sans-serif;text-shadow:0 2px 6px #000;padding:0 16px"></div><div style="position:absolute;inset:0;background:#fff;opacity:0"></div>';
+  document.body.appendChild(el); cine2 = { t: 0, el, top: el.children[0], bot: el.children[1], txt: el.children[2], fade: el.children[3] };
+}
+function cine2Step(dt) {
+  const k = cine2; k.t += dt; const t = k.t; k.top.style.height = k.bot.style.height = Math.min(1, t / 1) * 14 + '%';
+  k.txt.textContent = t < 2.8 ? '熊群一波比一波多，森林養不活大家了……' : t < 5.2 ? '房子一間一間沉進了雪裡。' : '長老捧著火種：「往北，岩山有石頭，熊爬不上來。」';
+  buildings.forEach((b, i) => { const sink = Math.max(0, t - 1 - i * 0.12); b.g.position.y = -Math.min(sink * 0.8, 3); });
+  if (t > 4.5) { player.rotation.y = Math.PI; player.position.z -= 2.6 * dt; player.position.y = Math.abs(Math.sin(t * 9)) * 0.06; }
+  camera.position.lerp(tmp.copy(player.position).add(camOffset).multiplyScalar(1.1), 1 - Math.exp(-dt * 2)); camera.lookAt(player.position.x, 0.8, player.position.z);
+  if (t > 7) k.fade.style.opacity = Math.min(1, t - 7);
+  if (t > 8.2) { const old = save.store || {}; save.stage = 3; save.arrive = true; save.s3 = { pop: Math.max(3, Math.min(5, Math.floor(population() / 2))), store: { plank: 12 + Math.floor((old.plank || 0) * 0.2), stone: 0, coal: 10, smoked: 0 } }; writeSave(); resetting = true; try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) {} location.reload(); k.t = -1e9; }
+}
 const HIDE_PLAN_BTN = true;
 let inkT = 0;
 function step(dt) {
   if (gameOver || paused) return;
   if (typeof stage1 !== 'undefined' && stage1.on) { stage1.step(dt); return; }   // v1.16 第 1 關冰湖營地
-  if (save.arrive && !intro) startIntro();
+  if (typeof stage3 !== 'undefined' && stage3.on) { stage3.step(dt); return; }   // v1.35 第 3 關石器村莊
+  if (cine2) { cine2Step(dt); return; }
+  if (save.arrive && save.stage === 2 && !intro) startIntro();
   if (intro) { introStep(dt); return; }
   undeclutter();
   if ((spreadT -= dt) <= 0) { spreadT = 1; spreadPads(); lotUnlocks(); }                       // v1.14 格子保持間距

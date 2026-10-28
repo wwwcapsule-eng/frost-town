@@ -15,6 +15,8 @@
     { name: '小鎮＋圍欄外鐵匠鋪＋石屋', wh: true, territory: 2, east: true, buys: 18, cash: 2000, level: 2, res: 90, tents: 4, houses: 14, mine: true, shovel: true, stove: 1, quarry: true, porters: 3, coalers: 1, plan: [{ k: 'smith', x: -24, z: -5 }], stoneHouses: ['民房0', '民房1', '民房2'] }, // v1.02 作者回報的情況
     { name: '第1關冰湖營地（齊全）', stage: 1, s1: { igloos: 4, pop: 6, fuel: 70, stall: true, cooked: 3, raw: 1, axe: true, wh: true, logs: 20, bricks: 6, goal: 8, up: { wh: 1, stall: 1, axe: 0, rod: 0 } } },
     { name: '第1關開場（要蓋冰窖）', stage: 1, s1: { igloos: 2, pop: 3, fuel: 60, stall: true, cooked: 2, raw: 1, axe: true, goal: 3 } },
+    { name: '第3關開場（只有石爐）', stage: 3, s3: {} },
+    { name: '第3關齊全（全部蓋滿、升級過）', stage: 3, s3: { pop: 30, fuel: 80, goal: 11, store: { plank: 120, stone: 90, coal: 60, smoked: 30 }, tw: 4, b: { quarry: 1, mine: 1, wh: 1, grill: 1, smoke: 1, sled: 1, houses: 6 }, up: { stove: 1, quarry: 1, mine: 1, wh: 1, grill: 1, smoke: 1, sled: 1, t0: 1, t1: 1, t2: 0, t3: 0 }, hire: { quarry: 1, mine: 1, hunter: 1, sled: 1 }, cooked: 4, raw: 2, waveT: 9999, retryT: 9999 } },
   ];
   const inkCache = new Map();
   function ink(sp) {                                   // 標籤圖上真的有字的範圍（0～1）
@@ -101,15 +103,15 @@
   }
   function all() {
     const g = __game, found = new Set(), p0 = g.player.position.clone();
-    const s1 = g.stage1 && g.stage1.on;                  // v1.16 第 1 關冰湖營地：只檢查第 1 關自己的東西
-    const spots = s1 ? g.stage1.spots : [[0, 2], ...g.unlocks.filter(u => !u.done && u.pad.parent).map(u => [u.x, u.z]), ...g.buildings.filter(b => !b.dead).map(b => [b.x, b.z + b.r + 1.2])];
+    const s1 = g.stage1 && g.stage1.on ? g.stage1 : g.stage3 && g.stage3.on ? g.stage3 : null;   // 第 1 關、第 3 關是自己的世界：只檢查那一關自己的東西
+    const spots = s1 ? s1.spots : [[0, 2], ...g.unlocks.filter(u => !u.done && u.pad.parent).map(u => [u.x, u.z]), ...g.buildings.filter(b => !b.dead).map(b => [b.x, b.z + b.r + 1.2])];
     for (const [x, z] of spots) {                      // 主角站到每個付款格、每棟建築門口看一次
       g.player.position.set(x, 0, z);
       g.camera.position.copy(g.player.position).add(camOffset); g.camera.lookAt(x, 0.8, z); g.camera.updateMatrixWorld(); // 鏡頭先就位，遊戲裡的避讓才算得準
       for (let i = 0; i < 3; i++) g.step(1 / 30);
       g.render(); checkHere('(' + x.toFixed(1) + ',' + z.toFixed(1) + ')', found);
     }
-    if (s1) g.stage1.check().forEach(m => found.add(m)); else { checkPads(found); checkTowers(found); checkSpacing(found); }
+    if (s1) s1.check().forEach(m => found.add(m)); else { checkPads(found); checkTowers(found); checkSpacing(found); }
     checkHud(found);
     g.player.position.copy(p0);
     const list = [...found];
