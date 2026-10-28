@@ -17,6 +17,7 @@
   #bl{position:fixed;left:10px;bottom:calc(14px + env(safe-area-inset-bottom));max-width:calc(100vw - 130px);display:flex;flex-direction:column;align-items:flex-start;gap:6px;pointer-events:none} /* v1.01（畫面檢查抓到：第 4 格被規劃按鈕蓋住）：左下整組不超過按鈕，放不下就往上換行，倉庫列跟著往上推 */
   #bag{display:flex;flex-wrap:wrap-reverse;gap:6px}
   #bag .pill{min-width:0;padding:3px 9px 3px 6px}
+  #pStore.tight{font-size:14px;padding:3px 8px 3px 6px} #pStore.tight b{font-size:16px}
   #pStore{white-space:nowrap} /* 倉庫存量：在 #bl 裡、背包上面一排；不換行（v1.02：字被擠成兩行） */
   @media (max-width:500px){#pStore{font-size:13px;padding:3px 8px 3px 6px} #pStore b{font-size:15px}}
   .pill{background:rgba(30,40,60,.72);color:#fff;border-radius:16px;padding:4px 12px 4px 8px;font-weight:700;font-size:18px;
@@ -157,6 +158,7 @@
 <script src="js/player.js"></script>
 <script src="js/main.js"></script>
 <script src="js/stage1.js"></script>
+<script src="js/stage3.js"></script>
 <script>if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js');</script>
 </body>
 </html>
