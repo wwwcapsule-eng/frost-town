@@ -6,7 +6,7 @@
 const stage3 = (() => {
   const S = { on: false };
   const CF = {
-    cap: 6, burn: 0.26, coalFuel: 30, plankFuel: 12, arrive: 14, pay: 6, queueMax: 3, baseBeds: 6, houseBeds: 6, rockT: 0.6, mineT: 0.6, treeHp: 3, treeLogs: 3, treeRe: 40, hareRe: 25,
+    cap: 10, burn: 0.26, coalFuel: 30, plankFuel: 12, arrive: 14, pay: 6, queueMax: 3, baseBeds: 6, houseBeds: 6, rockT: 0.6, mineT: 0.6, treeHp: 3, treeLogs: 3, treeRe: 40, hareRe: 25,
     storeCap: [80, 160, 240], grillMax: [6, 10, 14], grillT: [0.9, 0.6, 0.4], smokeT: [4, 2.8, 1.8], sledLoad: [3, 5, 8], mul: [1, 1.5, 2], towerGap: [1.4, 1.0, 0.7], towerRange: [11, 12.5, 14.5],
     wolfHp: 12, wolfDmg: 5, kingHp: 160, kingDmg: 16, waveGap: 80, warn: 20, avaWaves: 3, avaT: 12, retry: 30, bldHp: 100,
     need: { houses: 5, pop: 30, towers: 4, ups: 8, fuel: 50, smoked: 20, stone: 60, coal: 30 },
@@ -19,18 +19,18 @@ const stage3 = (() => {
 
   // v1.40（作者 10/29）：每關過了可以選 3 樣帶到下一關（錢、背包／斧頭升級、倉庫、弩砲塔、民房…）；起點的帳篷、石爐、2 座塔是基本建築，每關都有
   if (st.carry && !st.carried) { st.carried = true; const c = st.carry; if (c.includes('house')) st.b.houses = Math.max(st.b.houses, 1); if (c.includes('tower')) st.tw = Math.max(st.tw, 3); if (c.includes('wh')) st.b.wh = 1; if (c.includes('grill')) st.b.grill = 1; }
-  const capN = () => CF.cap + 2 * (st.bagLv || 0);
+  const capN = () => CF.cap + 3 * (st.bagLv || 0);
   // ---- 版面（固定地點；以格為單位）：營區 36×32，圍欄 x∈[-18,18]、z∈[-6,26]；北門、南門。
   // 格子以建築為基準：兩個格子左右對稱放兩側，一個格子放正前方；蓋新建築的黃格放在建築自己的位置（驗算見 S.check）
   const RC = { x0: -18, x1: 18, z0: -6, z1: 26 }, GATE_W = 1.8;
   const FIRE = [0, 10];
-  const BLD = { quarry: [-12, -1.5, 2.6], mine: [12, -1.5, 2.6], wh: [-8, 7.5, 1.9], smoke: [8, 7.5, 1.5], sled: [-8, 19, 1.6], grill: [0, 17, 1.8], tent: [6, 13.4, 1.3] };
+  const BLD = { quarry: [-13, -13, 2.6], mine: [13, -13, 2.6], wh: [-8, 7.5, 1.9], smoke: [8, 7.5, 1.5], sled: [-8, 19, 1.6], grill: [0, 17, 1.8], tent: [6, 13.4, 1.3] };
   const HOUSES = [[11, 13.5], [11, 20], [16, 16.7], [-15, 14], [-15, 20], [16, 6], [-16, 6]];
   const TOWERS = [[-4.2, -4.8], [4.2, -4.8], [-16.5, 11], [16.5, 11]];
-  const PADP = { quarryL: [-16.3, -1.5], quarryR: [-7.7, -1.5], mineL: [7.7, -1.5], mineR: [16.3, -1.5], whF: [-4.4, 7.5], smokeF: [4.7, 7.5], stoveF: [0, 13.2],
+  const PADP = { quarryL: [-17.3, -13], quarryR: [-8.7, -13], mineL: [8.7, -13], mineR: [17.3, -13], whF: [-4.4, 7.5], smokeF: [4.7, 7.5], stoveF: [0, 13.2],
     sledN: [-8, 15.6], sledS: [-8, 22.4], grillL: [-3.5, 17], grillR: [3.5, 17], t0: [-4.2, -1.6], t1: [4.2, -1.6], t2: [-13.8, 11], t3: [13.8, 11] };
   const QUEUE = [[0, 20.2], [0, 21.6], [0, 23]];
-  const STAND = { quarry: [-12, 1.6], mine: [12, 1.6] };           // 親手敲石、挖煤站的位置（建築正前方）
+  const STAND = { quarry: [-13, -9.9], mine: [13, -9.9] };           // 親手敲石、挖煤站的位置（建築正前方）
   const mat = c => M(c);
   const root = new THREE.Group();
   const bag = [], pads = [], ents = [], workers = [], wolves = [], hares = [], forest = [], queue = [], folks = [], shots = [], circles = [];
@@ -69,7 +69,7 @@ const stage3 = (() => {
   }
   // 北邊山腳草地的雪兔（親手或獵人打獵得肉）
   const hareMesh = () => { const g = new THREE.Group(); ell(mat(0xf4f7fa), 0.32, 0.26, 0.45, 0, 0.28, 0, g); ell(mat(0xf4f7fa), 0.2, 0.2, 0.2, 0, 0.5, 0.38, g); [-0.08, 0.08].forEach(x => ell(mat(0xe3e9ef), 0.05, 0.22, 0.05, x, 0.78, 0.36, g)); ell(mat(0x23303d), 0.04, 0.04, 0.04, 0.12, 0.55, 0.52, g); return g; };
-  for (let i = 0; i < 6; i++) { const g = hareMesh(); g.userData.noInk = true; root.add(g); const h = { g, x: -14 + i * 5.6, z: -10 - (i % 3) * 3, tx: 0, tz: 0, alive: true, t: Math.random() * 3 }; g.position.set(h.x, 0, h.z); h.tx = h.x; h.tz = h.z; hares.push(h); }
+  for (let i = 0; i < 6; i++) { const g = hareMesh(); g.userData.noInk = true; root.add(g); const h = { g, x: -6 + i * 2.4, z: -9 - (i % 3) * 2.2, tx: 0, tz: 0, alive: true, t: Math.random() * 3 }; g.position.set(h.x, 0, h.z); h.tx = h.x; h.tz = h.z; hares.push(h); }
 
   // ---- 石爐（中央火源，Lv1～3）----
   const stoveG = grp(FIRE[0], FIRE[1]);
@@ -277,7 +277,7 @@ const stage3 = (() => {
         if (routeTo(g, w.home[0], w.home[1], dt)) { g.rotation.y = 0; g.position.y = on ? Math.abs(Math.sin(performance.now() / 160)) * 0.12 : 0; w.tool.rotation.z = -0.4 + (on ? Math.sin(performance.now() / 120) * 0.7 : 0); }
         if (on) { w.prog = (w.prog || 0) + dt * mul[st.up[w.k]] / 4; if (w.prog >= 1) { w.prog = 0; const key = w.k === 'quarry' ? 'stone' : 'coal'; if (store[key] < storeCap()) { store[key]++; if (Math.random() < 0.3) floatText('+' + TYPES[key], w.home[0], w.home[1], '#cfe6ff'); } } }
       } else if (w.k === 'hunter') {
-        if (w.state === 'idle') { if (alive() && st.b.grill && w.t <= 0) { w.state = 'out'; w.target = [6 + w.i * 3, -9.5]; } else routeTo(g, w.home[0], w.home[1], dt); }
+        if (w.state === 'idle') { if (alive() && st.b.grill && w.t <= 0) { w.state = 'out'; w.target = [-3 + w.i * 6, -10]; } else routeTo(g, w.home[0], w.home[1], dt); }
         else if (w.state === 'out') { if (routeTo(g, w.target[0], w.target[1], dt, 2.8)) { w.state = 'aim'; w.t = 3; } }
         else if (w.state === 'aim') { g.rotation.y = 3.14; if (w.t <= 0) { const h = hares.find(hh => hh.alive); if (h) { killHare(h); w.got = true; } else w.got = false; w.state = 'back'; } }
         else if (w.state === 'back') { if (routeTo(g, BLD.grill[0] + 0.5, BLD.grill[1] + 2.4, dt, 2.8)) { if (w.got) { st.raw++; floatText('+🍖', BLD.grill[0], BLD.grill[1], '#ffb09c'); } w.state = 'idle'; w.t = 3 + Math.random() * 3; } }
@@ -292,8 +292,8 @@ const stage3 = (() => {
   function killHare(h) { h.alive = false; h.g.visible = false; h.t = CF.hareRe; }
   function updateHares(dt) {
     for (const h of hares) {
-      if (!h.alive) { if ((h.t -= dt) <= 0) { h.alive = true; h.g.visible = true; h.x = -14 + Math.random() * 28; h.z = -9 - Math.random() * 6; h.g.position.set(h.x, 0, h.z); h.tx = h.x; h.tz = h.z; } continue; }
-      h.t -= dt; if (h.t <= 0) { h.t = 1.5 + Math.random() * 2.5; h.tx = Math.max(-15, Math.min(15, h.x + (Math.random() - 0.5) * 6)); h.tz = Math.max(-16, Math.min(-8, h.z + (Math.random() - 0.5) * 5)); }
+      if (!h.alive) { if ((h.t -= dt) <= 0) { h.alive = true; h.g.visible = true; h.x = -6 + Math.random() * 12; h.z = -9 - Math.random() * 5; h.g.position.set(h.x, 0, h.z); h.tx = h.x; h.tz = h.z; } continue; }
+      h.t -= dt; if (h.t <= 0) { h.t = 1.5 + Math.random() * 2.5; h.tx = Math.max(-6, Math.min(6, h.x + (Math.random() - 0.5) * 4)); h.tz = Math.max(-15, Math.min(-8, h.z + (Math.random() - 0.5) * 4)); }
       const dx = h.tx - h.x, dz = h.tz - h.z, d = Math.hypot(dx, dz); if (d > 0.1) { h.x += dx / d * 2.2 * dt; h.z += dz / d * 2.2 * dt; h.g.rotation.y = Math.atan2(dx, dz); } h.g.position.set(h.x, d > 0.1 ? Math.abs(Math.sin(performance.now() / 110)) * 0.25 : 0, h.z);
     }
   }
@@ -376,7 +376,7 @@ const stage3 = (() => {
   // ---- 目標列（11 步，完成給 10×步數 的獎金）、自給自足條件 ----
   const N = CF.need;
   const GOALS = [
-    [() => '🪨 去北邊岩壁前敲石頭、揹木板，用 🪵20 蓋採石場（缺木板可用錢補）', () => st.b.quarry],
+    [() => '🪨 走出北門到山腳，用 🪵20 蓋採石場（缺木板可用錢補），站在岩壁前就會自動敲石頭', () => st.b.quarry],
     [() => '🏠 揹石材蓋第 1 間石屋（🪨 10），居民才住得下', () => st.b.houses >= 1],
     [() => '🍖 蓋烤肉攤（🪵 25）；去北邊山腳打雪兔，肉揹到攤子前，居民到 8（' + st.pop + '/8）', () => st.b.grill && st.pop >= 8],
     [() => '⛏️ 蓋煤礦（🪵 30），挖煤丟進石爐，比木頭耐燒', () => st.b.mine],
@@ -428,7 +428,7 @@ const stage3 = (() => {
     for (const p of pads) {
       p.l.visible = p.vis; if (!p.vis) continue; const c = p.cost(); if (!c) { p.l.visible = false; continue; } const parts = Object.keys(c).map(k => TYPES[k] + ' ' + Math.min(c[k], (p.paid[k] || 0) + have(k) + (RATE[k] ? Math.floor(save.cash / RATE[k]) : 0)) + '/' + c[k]).join('　');
       if (p === nearest) { p.l.set([p.icon + ' ' + p.name(), parts, (p.fx ? p.fx() : '') + (Object.keys(c).some(k => RATE[k]) ? '（缺的用錢補）' : '')], '#ffe066', [34, 40, 24]); p.l.scale.set(3.2, 1.8, 1); p.l.position.y = 1.9; }
-      else { p.l.set([Object.keys(c).map(k => TYPES[k] + c[k]).join(' ')], '#ffe066', [56]); p.l.scale.set(1.9, 1.05, 1); p.l.position.y = 0.9; }
+      else { p.l.set([p.icon + ' ' + p.name(), Object.keys(c).map(k => TYPES[k] + c[k]).join(' ')], '#ffe066', [30, 40]); p.l.scale.set(2.4, 1.3, 1); p.l.position.y = 0.9; }
     }
     tentLabel.set(['🏕️ 營地庫存', '站近自動存入（含生肉）'], '#d9efff', [30, 34]); tentLabel.visible = !intro;
     fireLabel.set([st.fuel <= 0 ? '🔥 石爐熄了' : '🔥 石爐 Lv' + (st.up.stove + 1) + '　' + f + '%', '丟煤、木板加火'], st.fuel > 40 ? '#ffd34d' : '#ff8a5c', [32, 40]);
@@ -505,7 +505,7 @@ const stage3 = (() => {
     else if (st.dis === 1) { shake = Math.max(shake, 0.04); if ((st.disT -= dt) <= 0) { st.dis = 2; st.avaI = 1; st.avaT = CF.avaT; st.avaN = 0; st.avaNext = 0; toast('🏔️ 雪崩第 1 波！看地上的紅圈'); } }
     else if (st.dis === 2) {
       st.avaT -= dt; st.avaNext -= dt;
-      if (st.avaN < 6 && st.avaNext <= 0) { st.avaNext = 1.4; st.avaN++; const zc = -3 + (st.avaI - 1) * 6.5 + Math.random() * 7, m = new THREE.Mesh(new THREE.CircleGeometry(3.4, 28), circleMat); m.rotation.x = -Math.PI / 2; m.position.set((Math.random() * 2 - 1) * 15, 0.1, zc); root.add(m); circles.push({ m, t: 2.2, x: m.position.x, z: zc }); }
+      if (st.avaN < 6 && st.avaNext <= 0) { st.avaNext = 1.4; st.avaN++; const zc = -15 + (st.avaI - 1) * 9 + Math.random() * 8, m = new THREE.Mesh(new THREE.CircleGeometry(3.4, 28), circleMat); m.rotation.x = -Math.PI / 2; m.position.set((Math.random() * 2 - 1) * 15, 0.1, zc); root.add(m); circles.push({ m, t: 2.2, x: m.position.x, z: zc }); }
       if (st.avaT <= 0 && !circles.length) {
         if (st.avaI >= CF.avaWaves) { st.dis = 3; st.disT = 4; st.buried_quarry = !!st.b.quarry; st.buried_mine = !!st.b.mine; applyLooks(); beep(110, 1.0, 'sawtooth', 0.08, 0.5); toast('🏔️ 雪埋住了採石場和煤礦！'); }
         else { st.avaI++; st.avaT = CF.avaT; st.avaN = 0; st.avaNext = 1; toast('🏔️ 雪崩第 ' + st.avaI + ' 波！'); if (st.avaI === 2) { spawnWave(0, true); toast('🐻 熊王從東邊來了！'); } }
@@ -567,7 +567,7 @@ const stage3 = (() => {
       nx = Math.max(-30, Math.min(30, nx)); nz = Math.max(-20, Math.min(52, nz));
       if (onFence(nx, nz)) { if (!onFence(nx, pz)) nz = pz; else if (!onFence(px, nz)) nx = px; else { nx = px; nz = pz; } }
       for (const e of ents) if (e.g.visible && e.key !== '採石場' && e.key !== '煤礦') { const d = Math.hypot(nx - e.x, nz - e.z), rr = e.r + 0.4; if (d < rr && d > 0) { nx = e.x + (nx - e.x) / d * rr; nz = e.z + (nz - e.z) / d * rr; } }
-      for (const [k, b] of [['quarry', BLD.quarry], ['mine', BLD.mine]]) if (st.b[k] && !st['buried_' + k]) { if (Math.abs(nx - b[0]) < 4.6 && nz < b[1] + 1.8) { nz = Math.max(nz, b[1] + 1.8); } }   // 山壁：只能站在岩壁前
+      for (const [k, b] of [['quarry', BLD.quarry], ['mine', BLD.mine]]) if (st.b[k] && !st['buried_' + k]) { if (Math.abs(nx - b[0]) < 3.6 && nz < b[1] + 1.4) { nz = Math.max(nz, b[1] + 1.4); } }   // 山壁：只能站在岩壁前
       if (st.b.grill) { if (Math.abs(nx - BLD.grill[0]) < 1.9 && Math.abs(nz - BLD.grill[1]) < 1.2) { nx = px; nz = pz; } }
       if (Math.hypot(nx - BLD.tent[0], nz - BLD.tent[1]) < 1.7) { const d = Math.hypot(nx - BLD.tent[0], nz - BLD.tent[1]); nx = BLD.tent[0] + (nx - BLD.tent[0]) / d * 1.7; nz = BLD.tent[1] + (nz - BLD.tent[1]) / d * 1.7; }
       const df = Math.hypot(nx - FIRE[0], nz - FIRE[1]); if (df < 1.6 && df > 0) { nx = FIRE[0] + (nx - FIRE[0]) / df * 1.6; nz = FIRE[1] + (nz - FIRE[1]) / df * 1.6; }
@@ -619,8 +619,8 @@ const stage3 = (() => {
     P.forEach(p => { if (Math.abs(p.x) < GATE_W && p.z > RC.z0 && p.z < 9) out.push('第3關格子擋北門路：' + p.n); });
     return out;
   };
-  S.spots = [[0, 12], [-8, 3.9], [8, 11], [-12, 1.8], [12, 1.8], [-16.3, -1.5], [16.3, -1.5], [0, 13.2], [-3.5, 17], [3.5, 17], [-8, 15.6], [-8, 22.4], [4.7, 7.5], [-4.4, 7.5], [-4.2, -1.6], [4.2, -1.6], [-13.8, 11], [13.8, 11], [11, 13.5], [16, 6], [-15, 14], [0, 21.6]];
-  S.state = st; S.step = step; S.pads = pads; S.ents = ents; S.bag = bag; S.wolves = wolves; S.workers = workers; S.store = store; S.GOALS = GOALS; S.CF = CF; S.beds = beds; S.upN = upN; S.hudText = hudText; S.lacks = lacks; S.spawnWave = spawnWave; S.applyLooks = applyLooks; S.addWorkers = addWorkers; S.addBag = addBag; S.selfSufficient = selfSufficient; S.addCustomer = addCustomer; S.syncFolks = syncFolks; S.finish = finish; S.queue = queue; S.circles = circles; S.hares = hares;
+  S.spots = [[0, 12], [-8, 3.9], [8, 11], [-13, -9.9], [13, -9.9], [-17.3, -13], [17.3, -13], [-8.7, -13], [8.7, -13], [0, -9], [0, 13.2], [-3.5, 17], [3.5, 17], [-8, 15.6], [-8, 22.4], [4.7, 7.5], [-4.4, 7.5], [-4.2, -1.6], [4.2, -1.6], [-13.8, 11], [13.8, 11], [11, 13.5], [16, 6], [-15, 14], [0, 21.6]];
+  S.STAND = STAND; S.BLD = BLD; S.state = st; S.step = step; S.pads = pads; S.ents = ents; S.bag = bag; S.wolves = wolves; S.workers = workers; S.store = store; S.GOALS = GOALS; S.CF = CF; S.beds = beds; S.upN = upN; S.hudText = hudText; S.lacks = lacks; S.spawnWave = spawnWave; S.applyLooks = applyLooks; S.addWorkers = addWorkers; S.addBag = addBag; S.selfSufficient = selfSufficient; S.addCustomer = addCustomer; S.syncFolks = syncFolks; S.finish = finish; S.queue = queue; S.circles = circles; S.hares = hares;
   S.enter = () => {
     S.on = true; undeclutter(); save.level = 0; save.territory = 0; resize();   // 第 3 關鏡頭跟第 1 關一樣的基準（不吃第 2 關的城市／領地等級加成）
     scene.children.slice().forEach(o => { if (!(o.isLight || o === player || o.isPoints || o === sun.target)) o.visible = false; });
