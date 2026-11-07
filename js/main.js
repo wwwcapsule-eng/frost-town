@@ -206,6 +206,17 @@ function introStep(dt) {
   if (t > k.end) { k.items.forEach(o => o.g.scale.setScalar(o.s)); k.el.remove(); intro = null; }
 }
 // v1.35 第 2 → 3 關遷徙動畫（約 8 秒）：上下黑邊、字幕、房子一間間沉進雪裡、全村往北走、畫面轉白、進第 3 關（開場會先生起石爐再把營地蓋起來）
+// v1.40（作者 10/29）：每關過了可以選 3 樣帶到下一關。options：[{k, icon, name, desc}]；3 樣以內就全帶，不用選
+function chooseCarry(title, options, onDone) {
+  if (options.length <= 3) { onDone(options.map(o => o.k)); return; }
+  const el = $('carry'), body = $('carryBody'), ok = $('carryOk'), pick = new Set();
+  $('carryTitle').textContent = title; body.innerHTML = '';
+  options.forEach(o => { const b = document.createElement('button'); b.className = 'opt'; b.innerHTML = o.icon + ' ' + o.name + '<small>' + o.desc + '</small>';
+    b.onclick = () => { if (pick.has(o.k)) pick.delete(o.k); else if (pick.size < 3) pick.add(o.k); b.classList.toggle('sel', pick.has(o.k)); ok.disabled = pick.size !== 3; ok.textContent = pick.size === 3 ? '就帶這 3 樣！' : '再選 ' + (3 - pick.size) + ' 樣（' + pick.size + '/3）'; };
+    body.appendChild(b); });
+  ok.disabled = true; ok.textContent = '再選 3 樣（0/3）'; ok.onclick = () => { el.style.display = 'none'; paused = false; clock.getDelta(); onDone([...pick]); };
+  el.style.display = 'flex'; paused = true;
+}
 let cine2 = null;
 function startMigrate3() {
   const el = document.createElement('div'); el.style.cssText = 'position:fixed;inset:0;z-index:99;pointer-events:none';
@@ -219,7 +230,7 @@ function cine2Step(dt) {
   if (t > 4.5) { player.rotation.y = Math.PI; player.position.z -= 2.6 * dt; player.position.y = Math.abs(Math.sin(t * 9)) * 0.06; }
   camera.position.lerp(tmp.copy(player.position).add(camOffset).multiplyScalar(1.1), 1 - Math.exp(-dt * 2)); camera.lookAt(player.position.x, 0.8, player.position.z);
   if (t > 7) k.fade.style.opacity = Math.min(1, t - 7);
-  if (t > 8.2) { const old = save.store || {}; save.stage = 3; save.arrive = true; save.s3 = { pop: Math.max(3, Math.min(5, Math.floor(population() / 2))), store: { plank: 12 + Math.floor((old.plank || 0) * 0.2), stone: 0, coal: 10, smoked: 0 } }; writeSave(); resetting = true; try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) {} location.reload(); k.t = -1e9; }
+  if (t > 8.2) { const old = save.store || {}, c = save.carry || ['cash']; if (!c.includes('cash')) save.cash = Math.floor(save.cash * 0.2); save.stage = 3; save.arrive = true; save.s3 = { pop: Math.max(3, Math.min(5, Math.floor(population() / 2))), carry: c, bagLv: c.includes('bag') ? Math.min(2, save.bag || 0) : 0, axeLv: c.includes('axe') ? Math.min(2, save.axe || 0) : 0, store: { plank: 24 + Math.floor((old.plank || 0) * (c.includes('mat') ? 0.5 : 0.2)), stone: 0, coal: 10, smoked: 0 } }; writeSave(); resetting = true; try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) {} location.reload(); k.t = -1e9; }
 }
 const HIDE_PLAN_BTN = true;
 let inkT = 0;
@@ -477,7 +488,7 @@ document.getElementById('reset').onclick = () => { menuSeen = true; showMenu(tru
 document.getElementById('menuClose').onclick = () => showMenu(false);
 const RES_FIRST = [['🎒 揹包（左下的小圓框）', '你身上帶著的東西，每種最多帶一定數量（上面的 /數字）。沒帶的不顯示，什麼都沒帶會寫「空手」。丟進營火、放進倉庫、站到格子上才會用掉。'], ['📦 倉庫（最上面那條）', '存起來的木頭、肉、煤、石材。伐木工、搬運工會送進來；蓋東西、修門會自動從這裡拿。🪵 後面的 /數字＝下一棟建築大約要用多少木頭。'], ['🪵 木頭', '砍樹得到。蓋建築、修北門、升級都要。'], ['🍖 烤肉', '獵人打熊、烤肉攤烤出來。流民吃了才肯留下，工人也要吃。'], ['🥓 肉乾', '燻肉架做的，路過的流民會買。'], ['⚫ 煤', '比木頭耐燒 4 倍，補營火，也能賣給鐵匠鋪。'], ['🪨 石材', '採石場挖的，升級鐵匠鋪、蓋石屋用。'], ['💵 錢', '賣肉、賣煤、流民付費得到；雇人、買商隊、升級要用。'], ['👥 居民', '/後面的數字＝下次升級城市要的居民；🛏️＝還剩幾張空床，沒床流民留不住。'], ['🔥 營火', '燒完整個營地就停擺（建築凍住），丟木頭或煤補。']];
 const RES_S1 = [['🎒 揹包（左下的小圓框）', '你身上帶的東西，每種最多 4 個。沒帶的不顯示，什麼都沒帶寫「空手」。滿了就去冰窖門口，會自動存進去。'], ['📦 冰窖（蓋好才有）', '冰屋、冰磚、木頭、魚的倉庫：🧊 冰磚、🪵 木頭、🐟 魚各有上限（/數字，升級會變多）。蓋東西自動從這裡拿，火堆低於 60% 自動拿木頭補。'], ['🧊 冰磚', '站在大雪堆旁用手挖。蓋冰屋、烤魚攤、冰窖、升級都要。'], ['🪵 木頭／枯枝', '枯枝撿森林邊的，耐燒度差；木頭要先做斧頭再砍樹，耐燒、暴風雪一定要用。冰窖只存木頭，枯枝直接丟火堆。'], ['🐟 魚', '站在北邊冰洞旁自動釣；揹到藍色送魚格烤熟，流民吃了才肯留下。'], ['💵 錢', '沒床的流民吃完付的錢，完成目標的獎金。帶進第 2 關。'], ['👥 居民', '/後面是床數（每間冰屋 2 張）；🛏️＝剩幾張空床。'], ['🔥 火堆', '燒完營地會冷，丟枯枝、木頭補。暴風雪時燒得特別快。']];
-const RES_S3 = [['🎒 揹包（左下的小圓框）', '你身上帶的東西，每種混著最多 6 個。沒帶的不顯示，什麼都沒帶寫「空手」。站在倉庫門口會自動存進去，站在石爐旁會把煤、木板丟進去。'], ['📦 倉庫（最上面那條）', '倉庫存的 🪵 木板、🪨 石材、⚫ 煤、🥓 肉乾（沒存貨的不顯示）。蓋東西、升級會自動從這裡拿；石爐低於 70% 會自動補煤。倉庫蓋好、升級後存得更多（80／160／240）。'], ['🪵 木板', '去南門外的山腳樹林砍樹，或雇雪橇夫運回來。蓋採石場、煤礦、烤肉攤等加工廠，和升級都要。'], ['🪨 石材', '站在北邊岩壁前敲，或雇採石工。蓋石屋、升級都要。'], ['⚫ 煤', '站在煤礦坑口挖，或雇礦工（礦車會運出來）。比木頭耐燒，丟進石爐；升級石爐也要。'], ['🍖 生肉／🥓 肉乾', '去北邊山腳打雪兔，或打倒狼，肉揹到烤肉攤前；攤子烤熟給流民吃，吃飽有床就留下。櫃台滿了多的肉燻成 🥓 肉乾存倉庫，流民沒烤肉時也吃肉乾。'], ['💵 錢', '沒床的流民吃完付的錢、完成目標的獎金。只拿來雇人（採石工、礦工、獵人、雪橇夫）；蓋東西、升級靠材料。'], ['👥 居民', '/後面是床數（營地帳篷 6 張、每間石屋 6 張）；🛏️＝剩幾張空床。'], ['🔥 石爐', '燒完整個營地停擺，丟煤或木板補；升級後燒得更慢。'], ['🐺 狼群', '石爐沒熄、烤肉攤蓋好後，每 80 秒一群，從東西兩側衝來咬房子和人。弩砲塔和主角的斧頭能打；建築被咬壞會停工，一會兒自己修好。'], ['🏔️ 大雪崩', '自給自足後（目標列最後一步）山上雪崩 3 波，地上紅圈是落雪區，躲開；撐過後採石場和煤礦被雪埋住，可以花木板挖開。']];
+const RES_S3 = [['🎒 揹包（左下的小圓框）', '你身上帶的東西，每種混著最多 6 個。沒帶的不顯示，什麼都沒帶寫「空手」。站在帳篷旁的「營地庫存」或倉庫門口會自動存進去（生肉也能存，烤肉攤會自己拿來烤），站在石爐旁會把煤、木板丟進去。'], ['📦 倉庫（最上面那條）', '倉庫存的 🪵 木板、🪨 石材、⚫ 煤、🥓 肉乾（沒存貨的不顯示）。蓋東西、升級會自動從這裡拿；石爐低於 70% 會自動補煤。倉庫蓋好、升級後存得更多（80／160／240）。'], ['🪵 木板', '去南門外的山腳樹林砍樹，或雇雪橇夫運回來。蓋採石場、煤礦、烤肉攤等加工廠，和升級都要。'], ['🪨 石材', '站在北邊岩壁前敲，或雇採石工。蓋石屋、升級都要。'], ['⚫ 煤', '站在煤礦坑口挖，或雇礦工（礦車會運出來）。比木頭耐燒，丟進石爐；升級石爐也要。'], ['🍖 生肉／🥓 肉乾', '去北邊山腳打雪兔，或打倒狼，肉揹到烤肉攤前；攤子烤熟給流民吃，吃飽有床就留下。櫃台滿了多的肉燻成 🥓 肉乾存倉庫，流民沒烤肉時也吃肉乾。'], ['💵 錢', '沒床的流民吃完付的錢、完成目標的獎金。雇人（採石工、礦工、獵人、雪橇夫）要錢；蓋東西、升級靠材料，材料不夠時站在格子上會自動用錢補（木板 2 元、石材 3 元、煤 3 元）。'], ['👥 居民', '/後面是床數（營地帳篷 6 張、每間石屋 6 張）；🛏️＝剩幾張空床。'], ['🔥 石爐', '燒完整個營地停擺，丟煤或木板補；升級後燒得更慢。'], ['🐺 狼群', '石爐沒熄、烤肉攤蓋好後，每 80 秒一群，從東西兩側衝來咬房子和人。弩砲塔和主角的斧頭能打；建築被咬壞會停工，一會兒自己修好。'], ['🏔️ 大雪崩', '自給自足後（目標列最後一步）山上雪崩 3 波，地上紅圈是落雪區，躲開；撐過後採石場和煤礦被雪埋住，可以花木板挖開。']];
 document.getElementById('menuRes').onclick = () => { $('resBody').innerHTML = (typeof stage3 !== 'undefined' && stage3.on ? RES_S3 : typeof stage1 !== 'undefined' && stage1.on ? RES_S1 : RES_FIRST).map(([t, d]) => '<p style="margin:6px 0"><b>' + t + '</b><br>' + d + '</p>').join(''); $('resInfo').style.display = 'flex'; };
 document.getElementById('resClose').onclick = () => { $('resInfo').style.display = 'none'; };
 document.getElementById('menuCredits').onclick = () => { $('credVer').textContent = 'v' + VERSION; $('credits').style.display = 'flex'; };

@@ -55,6 +55,7 @@ jobs:
           cp index.html sw.js _site/
           cp -r js _site/
           [ -d assets ] && cp -r assets _site/ || true
+          node tools/make-sw.js sw.js _site   # 離線版：重新產生預先快取清單
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site

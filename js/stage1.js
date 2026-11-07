@@ -556,7 +556,7 @@ const stage1 = (() => {
     for (let i = 0; i < snowN; i++) { snowPos[i * 3 + 1] -= dt * 1.5; if (snowPos[i * 3 + 1] < 0) { snowPos[i * 3 + 1] = 18; snowPos[i * 3] = player.position.x + rand(-25, 25); snowPos[i * 3 + 2] = player.position.z + rand(-25, 25); } }
     snowGeo.attributes.position.needsUpdate = true;
     if (t > 7) k.fade.style.opacity = Math.min(1, t - 7);
-    if (t > 8.2) { save.stage = 2; save.arrive = true; save.res = Math.min(Math.floor(st.pop / 2), 3); writeSave(); resetting = true; try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) {} location.reload(); k.t = -1e9; }
+    if (t > 8.2) { const cy = st.carry || ['cash']; if (!cy.includes('cash')) save.cash = Math.floor(save.cash * 0.2); if (cy.includes('axe')) save.axe = Math.max(save.axe || 0, 1); if (cy.includes('wh')) save.wh = true; if (cy.includes('mat')) save.store = { plank: st.logs }; save.stage = 2; save.arrive = true; save.res = Math.min(Math.floor(st.pop / 2), 3); writeSave(); resetting = true; try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) {} location.reload(); k.t = -1e9; }
   }
   let stormEl = null;
   function setStorm(o) { if (!stormEl) { stormEl = document.createElement('div'); stormEl.style.cssText = 'position:fixed;inset:0;z-index:5;pointer-events:none;background:radial-gradient(circle,rgba(190,212,230,.35),#7d9db8);opacity:0'; document.body.appendChild(stormEl); } stormEl.style.opacity = o; }
@@ -564,7 +564,13 @@ const stage1 = (() => {
   function finish() {                                                            // 撐過崩裂 → 遷徙劇情卡 → 第 2 關（帶走錢 100%、居民折半）
     writeSave();
     story('🧊 冰湖崩裂了！', ['湖冰整片裂開，冰屋沉進了湖裡，魚群也游走了。', '長老捧起火種說：「南邊的森林有木頭，可以蓋木屋。」', '帶著火種和族人，往南遷徙吧！'], '出發！');
-    $('lvOk').addEventListener('click', startCine, { once: true });
+    $('lvOk').addEventListener('click', () => {
+      const o = [{ k: 'cash', icon: '💵', name: '全部的錢', desc: '現在 ' + save.cash + ' 元（不選只帶 2 成）' }];
+      if (st.axe) o.push({ k: 'axe', icon: '🪓', name: '斧頭', desc: '第 2 關砍樹更快' });
+      if (st.wh) o.push({ k: 'wh', icon: '📦', name: '冰窖→倉庫', desc: '第 2 關一開始就有倉庫' });
+      if (st.logs > 0) o.push({ k: 'mat', icon: '🪵', name: '冰窖的木頭', desc: st.logs + ' 根帶去當倉庫木頭' });
+      chooseCarry('選 3 樣帶去第 2 關', o, picked => { st.carry = picked; startCine(); });
+    }, { once: true });
   }
   // 最小間距檢查（給 layout-check 用）：格子、雪堆、枯枝、冰洞、冰屋、烤魚攤、火堆互相隔夠遠
   S.check = () => {
