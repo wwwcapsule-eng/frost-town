@@ -27,7 +27,7 @@ const stage3 = (() => {
   const BLD = { quarry: [-13, -13, 2.6], mine: [13, -13, 2.6], wh: [-8, 7.5, 1.9], smoke: [8, 7.5, 1.5], sled: [-8, 19, 1.6], grill: [0, 17, 1.8], tent: [6, 13.4, 1.3] };
   const HOUSES = [[11, 13.5], [11, 20], [16, 16.7], [-15, 14], [-15, 20], [16, 6], [-16, 6]];
   const TOWERS = [[-4.2, -4.8], [4.2, -4.8], [-16.5, 11], [16.5, 11]];
-  const PADP = { quarryL: [-17.3, -13], quarryR: [-8.7, -13], mineL: [8.7, -13], mineR: [17.3, -13], whF: [-4.4, 7.5], smokeF: [4.7, 7.5], stoveF: [0, 13.2],
+  const PADP = { quarryL: [-19.8, -13], quarryR: [-6.2, -13], mineL: [6.2, -13], mineR: [19.8, -13], whF: [-4.4, 7.5], smokeF: [4.7, 7.5], stoveF: [0, 13.2],
     sledN: [-8, 15.6], sledS: [-8, 22.4], grillL: [-3.5, 17], grillR: [3.5, 17], t0: [-4.2, -1.6], t1: [4.2, -1.6], t2: [-13.8, 11], t3: [13.8, 11] };
   const QUEUE = [[0, 20.2], [0, 21.6], [0, 23]];
   const STAND = { quarry: [-13, -9.9], mine: [13, -9.9] };           // 親手敲石、挖煤站的位置（建築正前方）
@@ -69,7 +69,7 @@ const stage3 = (() => {
   }
   // 北邊山腳草地的雪兔（親手或獵人打獵得肉）
   const hareMesh = () => { const g = new THREE.Group(); ell(mat(0xf4f7fa), 0.32, 0.26, 0.45, 0, 0.28, 0, g); ell(mat(0xf4f7fa), 0.2, 0.2, 0.2, 0, 0.5, 0.38, g); [-0.08, 0.08].forEach(x => ell(mat(0xe3e9ef), 0.05, 0.22, 0.05, x, 0.78, 0.36, g)); ell(mat(0x23303d), 0.04, 0.04, 0.04, 0.12, 0.55, 0.52, g); return g; };
-  for (let i = 0; i < 6; i++) { const g = hareMesh(); g.userData.noInk = true; root.add(g); const h = { g, x: -6 + i * 2.4, z: -9 - (i % 3) * 2.2, tx: 0, tz: 0, alive: true, t: Math.random() * 3 }; g.position.set(h.x, 0, h.z); h.tx = h.x; h.tz = h.z; hares.push(h); }
+  for (let i = 0; i < 6; i++) { const g = hareMesh(); g.userData.noInk = true; root.add(g); const h = { g, x: -4.5 + i * 1.8, z: -9 - (i % 3) * 2.2, tx: 0, tz: 0, alive: true, t: Math.random() * 3 }; g.position.set(h.x, 0, h.z); h.tx = h.x; h.tz = h.z; hares.push(h); }
 
   // ---- 石爐（中央火源，Lv1～3）----
   const stoveG = grp(FIRE[0], FIRE[1]);
@@ -87,16 +87,16 @@ const stage3 = (() => {
   const wood = mats.wood, trunk = mats.trunk;
   // 🪨 採石場：北邊山壁切開一面岩壁；升級加木階梯、起重架
   const quarryG = grp(BLD.quarry[0], BLD.quarry[1]); quarryG.visible = false;
-  ell(mat(C.rockD), 5.8, 4.4, 2.9, 0, 1.6, -2.7, quarryG); ell(mat(C.rock), 3.4, 3.4, 2.2, -3.2, 1.2, -1.9, quarryG); ell(mat(C.rock), 3.0, 3.0, 2.2, 3.4, 1.0, -2.0, quarryG); ell(mat(C.snow), 3.8, 1.1, 2.0, 0, 5.2, -2.8, quarryG);
-  bx(6.2, 3.4, 0.6, mat(0xa4aeb9), 0, 1.8, -0.5, quarryG); [0.7, 1.5, 2.3].forEach(y => bx(6.25, 0.08, 0.62, mat(C.rockD), 0, y, -0.5, quarryG));
-  [-3.2, 3.2].forEach(x => bx(0.32, 3.4, 0.32, trunk, x, 1.7, -0.2, quarryG)); bx(6.9, 0.3, 0.4, trunk, 0, 3.5, -0.2, quarryG);
+  ell(mat(C.rockD), 4.2, 4.4, 2.9, 0, 1.6, -2.7, quarryG); ell(mat(C.rock), 2.3, 3.4, 2.2, -3.0, 1.2, -1.9, quarryG); ell(mat(C.rock), 2.2, 3.0, 2.2, 3.0, 1.0, -2.0, quarryG); ell(mat(C.snow), 3.0, 1.1, 2.0, 0, 5.2, -2.8, quarryG);
+  bx(5.2, 3.4, 0.6, mat(0xa4aeb9), 0, 1.8, -0.5, quarryG); [0.7, 1.5, 2.3].forEach(y => bx(5.25, 0.08, 0.62, mat(C.rockD), 0, y, -0.5, quarryG));
+  [-2.7, 2.7].forEach(x => bx(0.32, 3.4, 0.32, trunk, x, 1.7, -0.2, quarryG)); bx(5.8, 0.3, 0.4, trunk, 0, 3.5, -0.2, quarryG);
   [[2.6, 0.2], [3.2, 0.2], [2.9, 0.55], [-2.8, 0.2], [-3.4, 0.25]].forEach(([x, z], i) => bx(0.55, 0.42, 0.5, mat(i % 2 ? C.rockL : C.stone), x, 0.22, 1.2 + z, quarryG));
   const quarryStairs = new THREE.Group(); quarryG.add(quarryStairs); [0, 1, 2].forEach(i => bx(1.8, 0.35, 0.7, wood, -1.2 + i * 0.1, 0.2 + i * 0.4, 0.3 - i * 0.55, quarryStairs));
   const quarryCrane = new THREE.Group(); quarryG.add(quarryCrane); bx(0.3, 4.4, 0.3, trunk, 2.4, 2.2, 0.4, quarryCrane); bx(3.4, 0.3, 0.3, trunk, 1.0, 4.4, 0.4, quarryCrane); bx(0.1, 1.6, 0.1, mat(0x444b55), -0.5, 3.6, 0.4, quarryCrane); bx(0.6, 0.5, 0.6, mat(C.stone), -0.5, 2.6, 0.4, quarryCrane);
   const quarryEnt = ent('採石場', BLD.quarry[0], BLD.quarry[1], BLD.quarry[2], quarryG);
   // ⛏️ 煤礦＋木軌礦車
   const mineG = grp(BLD.mine[0], BLD.mine[1]); mineG.visible = false;
-  ell(mat(0x59626d), 5.8, 4.4, 2.9, 0, 1.6, -2.7, mineG); ell(mat(0x646e79), 3.4, 3.4, 2.2, 3.2, 1.2, -1.9, mineG); ell(mat(0x646e79), 3.0, 3.0, 2.2, -3.4, 1.0, -2.0, mineG); ell(mat(C.snow), 3.8, 1.1, 2.0, 0, 5.2, -2.8, mineG);
+  ell(mat(0x59626d), 4.2, 4.4, 2.9, 0, 1.6, -2.7, mineG); ell(mat(0x646e79), 2.3, 3.4, 2.2, 3.0, 1.2, -1.9, mineG); ell(mat(0x646e79), 2.2, 3.0, 2.2, -3.0, 1.0, -2.0, mineG); ell(mat(C.snow), 3.0, 1.1, 2.0, 0, 5.2, -2.8, mineG);
   bx(2.4, 2.5, 0.5, mat(0x1b242e), 0, 1.25, -0.55, mineG); [-1.35, 1.35].forEach(x => bx(0.3, 2.7, 0.35, trunk, x, 1.35, -0.2, mineG)); bx(3.2, 0.3, 0.38, trunk, 0, 2.7, -0.2, mineG);
   [-0.55, 0.55].forEach(x => bx(0.14, 0.08, 5.0, mat(0x39414b), x, 0.06, 1.9, mineG)); for (let i = 0; i < 8; i++) bx(1.5, 0.06, 0.2, trunk, 0, 0.04, -0.2 + i * 0.68, mineG);
   const cart1 = new THREE.Group(); mineG.add(cart1); cart1.position.set(0, 0, 1.4); bx(1.3, 0.65, 0.95, wood, 0, 0.55, 0, cart1); ell(mat(0x23272d), 0.55, 0.3, 0.38, 0, 0.95, 0, cart1);
@@ -292,8 +292,8 @@ const stage3 = (() => {
   function killHare(h) { h.alive = false; h.g.visible = false; h.t = CF.hareRe; }
   function updateHares(dt) {
     for (const h of hares) {
-      if (!h.alive) { if ((h.t -= dt) <= 0) { h.alive = true; h.g.visible = true; h.x = -6 + Math.random() * 12; h.z = -9 - Math.random() * 5; h.g.position.set(h.x, 0, h.z); h.tx = h.x; h.tz = h.z; } continue; }
-      h.t -= dt; if (h.t <= 0) { h.t = 1.5 + Math.random() * 2.5; h.tx = Math.max(-6, Math.min(6, h.x + (Math.random() - 0.5) * 4)); h.tz = Math.max(-15, Math.min(-8, h.z + (Math.random() - 0.5) * 4)); }
+      if (!h.alive) { if ((h.t -= dt) <= 0) { h.alive = true; h.g.visible = true; h.x = -4.5 + Math.random() * 9; h.z = -9 - Math.random() * 5; h.g.position.set(h.x, 0, h.z); h.tx = h.x; h.tz = h.z; } continue; }
+      h.t -= dt; if (h.t <= 0) { h.t = 1.5 + Math.random() * 2.5; h.tx = Math.max(-4.5, Math.min(4.5, h.x + (Math.random() - 0.5) * 4)); h.tz = Math.max(-15, Math.min(-8, h.z + (Math.random() - 0.5) * 4)); }
       const dx = h.tx - h.x, dz = h.tz - h.z, d = Math.hypot(dx, dz); if (d > 0.1) { h.x += dx / d * 2.2 * dt; h.z += dz / d * 2.2 * dt; h.g.rotation.y = Math.atan2(dx, dz); } h.g.position.set(h.x, d > 0.1 ? Math.abs(Math.sin(performance.now() / 110)) * 0.25 : 0, h.z);
     }
   }
@@ -619,7 +619,7 @@ const stage3 = (() => {
     P.forEach(p => { if (Math.abs(p.x) < GATE_W && p.z > RC.z0 && p.z < 9) out.push('第3關格子擋北門路：' + p.n); });
     return out;
   };
-  S.spots = [[0, 12], [-8, 3.9], [8, 11], [-13, -9.9], [13, -9.9], [-17.3, -13], [17.3, -13], [-8.7, -13], [8.7, -13], [0, -9], [0, 13.2], [-3.5, 17], [3.5, 17], [-8, 15.6], [-8, 22.4], [4.7, 7.5], [-4.4, 7.5], [-4.2, -1.6], [4.2, -1.6], [-13.8, 11], [13.8, 11], [11, 13.5], [16, 6], [-15, 14], [0, 21.6]];
+  S.spots = [[0, 12], [-8, 3.9], [8, 11], [-13, -9.9], [13, -9.9], [-19.8, -13], [19.8, -13], [-6.2, -13], [6.2, -13], [0, -9], [0, 13.2], [-3.5, 17], [3.5, 17], [-8, 15.6], [-8, 22.4], [4.7, 7.5], [-4.4, 7.5], [-4.2, -1.6], [4.2, -1.6], [-13.8, 11], [13.8, 11], [11, 13.5], [16, 6], [-15, 14], [0, 21.6]];
   S.STAND = STAND; S.BLD = BLD; S.state = st; S.step = step; S.pads = pads; S.ents = ents; S.bag = bag; S.wolves = wolves; S.workers = workers; S.store = store; S.GOALS = GOALS; S.CF = CF; S.beds = beds; S.upN = upN; S.hudText = hudText; S.lacks = lacks; S.spawnWave = spawnWave; S.applyLooks = applyLooks; S.addWorkers = addWorkers; S.addBag = addBag; S.selfSufficient = selfSufficient; S.addCustomer = addCustomer; S.syncFolks = syncFolks; S.finish = finish; S.queue = queue; S.circles = circles; S.hares = hares;
   S.enter = () => {
     S.on = true; undeclutter(); save.level = 0; save.territory = 0; resize();   // 第 3 關鏡頭跟第 1 關一樣的基準（不吃第 2 關的城市／領地等級加成）
