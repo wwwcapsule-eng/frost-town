@@ -11,12 +11,15 @@ const stage3 = (() => {
     wolfHp: 12, wolfDmg: 5, kingHp: 160, kingDmg: 16, waveGap: 80, warn: 20, avaWaves: 3, avaT: 12, retry: 30, bldHp: 100,
     need: { houses: 5, pop: 30, towers: 4, ups: 8, fuel: 50, smoked: 20, stone: 60, coal: 30 },
   };
-  const st0 = { fuel: 90, pop: 5, store: { plank: 12, stone: 0, coal: 10, smoked: 0 }, raw: 0, cooked: 0, goal: 0, dis: 0, disT: 0, retryT: 0, arriveT: 6, wave: 0, waveT: 70, done: false, buried: false, tw: 2,
+  const st0 = { fuel: 90, pop: 5, bagLv: 0, axeLv: 0, store: { plank: 24, stone: 0, coal: 10, smoked: 0 }, raw: 0, cooked: 0, goal: 0, dis: 0, disT: 0, retryT: 0, arriveT: 6, wave: 0, waveT: 70, done: false, buried: false, tw: 2,
     b: { quarry: 0, mine: 0, wh: 0, grill: 0, smoke: 0, sled: 0, houses: 0 },
     up: { stove: 0, quarry: 0, mine: 0, wh: 0, grill: 0, smoke: 0, sled: 0, t0: 0, t1: 0, t2: 0, t3: 0 }, hire: { quarry: 0, mine: 0, hunter: 0, sled: 0 } };
   const s0 = save.s3 || {};
   const st = save.s3 = Object.assign({}, st0, s0, { store: Object.assign({}, st0.store, s0.store), b: Object.assign({}, st0.b, s0.b), up: Object.assign({}, st0.up, s0.up), hire: Object.assign({}, st0.hire, s0.hire) });
 
+  // v1.40（作者 10/29）：每關過了可以選 3 樣帶到下一關（錢、背包／斧頭升級、倉庫、弩砲塔、民房…）；起點的帳篷、石爐、2 座塔是基本建築，每關都有
+  if (st.carry && !st.carried) { st.carried = true; const c = st.carry; if (c.includes('house')) st.b.houses = Math.max(st.b.houses, 1); if (c.includes('tower')) st.tw = Math.max(st.tw, 3); if (c.includes('wh')) st.b.wh = 1; if (c.includes('grill')) st.b.grill = 1; }
+  const capN = () => CF.cap + 2 * (st.bagLv || 0);
   // ---- 版面（固定地點；以格為單位）：營區 36×32，圍欄 x∈[-18,18]、z∈[-6,26]；北門、南門。
   // 格子以建築為基準：兩個格子左右對稱放兩側，一個格子放正前方；蓋新建築的黃格放在建築自己的位置（驗算見 S.check）
   const RC = { x0: -18, x1: 18, z0: -6, z1: 26 }, GATE_W = 1.8;
@@ -31,7 +34,7 @@ const stage3 = (() => {
   const mat = c => M(c);
   const root = new THREE.Group();
   const bag = [], pads = [], ents = [], workers = [], wolves = [], hares = [], forest = [], queue = [], folks = [], shots = [], circles = [];
-  let walk = 0, saveT = 0, inkT = 0, shake = 0, hudTxtT = 0, smokeT = 0, tFlame = 0, axeSpin = 0, hitT = 0, mineHit = 0, rockHit = 0, chopT = 0, grillT = 0, smokeProgT = 0, feedT = 0, depT = 0, whDepT = 0, fireT2 = 0, shownGoal = '', goalFlash = 0, shownAlert = '', hpT = 0, repairT = 0, towerFxT = 0;
+  let tentDepT = 0, hintT = 0, walk = 0, saveT = 0, inkT = 0, shake = 0, hudTxtT = 0, smokeT = 0, tFlame = 0, axeSpin = 0, hitT = 0, mineHit = 0, rockHit = 0, chopT = 0, grillT = 0, smokeProgT = 0, feedT = 0, depT = 0, whDepT = 0, fireT2 = 0, shownGoal = '', goalFlash = 0, shownAlert = '', hpT = 0, repairT = 0, towerFxT = 0;
   const ell = (m, rx, ry, rz, x, y, z, p = root) => { const o = new THREE.Mesh(new THREE.SphereGeometry(1, 14, 10), m); o.scale.set(rx, ry, rz); o.position.set(x, y, z); p.add(o); return o; };
   const bx = (w, h, d, m, x, y, z, p = root) => { const o = box(w, h, d, m); o.position.set(x, y, z); p.add(o); return o; };
   let seed = 7; const rnd = () => (seed = seed * 16807 % 2147483647) / 2147483647;
@@ -153,6 +156,7 @@ const stage3 = (() => {
     kit('bHomeB', g, 0, 0, 0, Math.PI, 1, m => { kkSoft(m); fb.visible = fr.visible = false; });
     ent('石屋' + (i + 1), x, z, 1.3, g).house = i; return g; });
   const entOf = key => ents.find(e => e.key === key);
+  const tentLabel = makeLabel(320, 140); tentLabel.scale.set(3.2, 1.4, 1); tentLabel.position.set(BLD.tent[0], 3.0, BLD.tent[1]); root.add(tentLabel);
 
   // ---- 背包（揹得動的：木板、石材、煤、生肉；上限 6）與倉庫存量 ----
   const store = st.store, TYPES = { plank: '🪵', stone: '🪨', coal: '⚫', meat: '🍖', cash: '💵' };
@@ -161,7 +165,7 @@ const stage3 = (() => {
     : type === 'coal' ? new THREE.Mesh(new THREE.SphereGeometry(0.26, 8, 6), mat(0x23272d))
     : (() => { const m = new THREE.Mesh(new THREE.SphereGeometry(0.28, 8, 6), mat(0xb5453f)); m.scale.set(1.2, 0.8, 0.9); return m; })();
   const restackBag = () => bag.forEach((b, i) => { b.m.position.set(0, i * 0.3, 0); b.m.rotation.y = 0; });
-  const addBag = type => { if (bag.length >= CF.cap) return false; const m = bagMesh(type); stackRoot.add(m); bag.push({ type, m }); restackBag(); return true; };
+  const addBag = type => { if (bag.length >= capN()) return false; const m = bagMesh(type); stackRoot.add(m); bag.push({ type, m }); restackBag(); return true; };
   const takeBag = type => { const k = bag.findIndex(b => b.type === type); if (k < 0) return false; stackRoot.remove(bag[k].m); bag.splice(k, 1); restackBag(); return true; };
   const bagN = type => bag.filter(b => b.type === type).length;
   const storeCap = () => st.b.wh ? CF.storeCap[st.up.wh] : 40;
@@ -178,12 +182,13 @@ const stage3 = (() => {
     const l = makeLabel(320, 180); l.scale.set(3.2, 1.8, 1); l.position.set(def.x, 1.9, def.z); root.add(l);
     const p = Object.assign({ g, l, paid: {}, t: 0, vis: false }, def); pads.push(p); return p;
   };
+  const RATE = { plank: 2, stone: 3, coal: 3 };   // 錢補材料的匯率（作者 10/29：錢一開始也要能買建築）
   const costSum = c => Object.values(c).reduce((a, b) => a + b, 0);
   const done = (k, n) => st.b[k] = n;
   // 蓋新建築（黃格放在建築自己的位置）
   const BUYS = [
-    { id: 'quarry', k: 'quarry', pos: BLD.quarry, icon: '🪨', name: '蓋採石場', cost: { plank: 30 }, show: () => !st.b.quarry, fx: '站在岩壁前自動敲石頭' },
-    { id: 'mine', k: 'mine', pos: BLD.mine, icon: '⛏️', name: '開採煤礦', cost: { plank: 40 }, show: () => !st.b.mine && st.b.quarry, fx: '站在坑口自動挖煤，礦車會運出來' },
+    { id: 'quarry', k: 'quarry', pos: BLD.quarry, icon: '🪨', name: '蓋採石場', cost: { plank: 20 }, show: () => !st.b.quarry, fx: '站在岩壁前自動敲石頭' },
+    { id: 'mine', k: 'mine', pos: BLD.mine, icon: '⛏️', name: '開採煤礦', cost: { plank: 30 }, show: () => !st.b.mine && st.b.quarry, fx: '站在坑口自動挖煤，礦車會運出來' },
     { id: 'wh', k: 'wh', pos: BLD.wh, icon: '📦', name: '蓋石砌倉庫', cost: { plank: 20 }, show: () => !st.b.wh && st.b.houses >= 1, fx: '存量加倍、自動補石爐' },
     { id: 'grill', k: 'grill', pos: BLD.grill, icon: '🍖', name: '蓋烤肉攤', cost: { plank: 25 }, show: () => !st.b.grill && st.b.houses >= 1, fx: '肉烤熟引流民，有床就留下' },
     { id: 'smoke', k: 'smoke', pos: BLD.smoke, icon: '🥓', name: '蓋燻肉坊', cost: { plank: 30, stone: 10 }, show: () => !st.b.smoke && st.b.grill, fx: '多的肉燻成肉乾，能久放' },
@@ -371,10 +376,10 @@ const stage3 = (() => {
   // ---- 目標列（11 步，完成給 10×步數 的獎金）、自給自足條件 ----
   const N = CF.need;
   const GOALS = [
-    [() => '🪨 去北邊岩壁前敲石頭、揹木板，用 🪵30 蓋採石場', () => st.b.quarry],
+    [() => '🪨 去北邊岩壁前敲石頭、揹木板，用 🪵20 蓋採石場（缺木板可用錢補）', () => st.b.quarry],
     [() => '🏠 揹石材蓋第 1 間石屋（🪨 10），居民才住得下', () => st.b.houses >= 1],
     [() => '🍖 蓋烤肉攤（🪵 25）；去北邊山腳打雪兔，肉揹到攤子前，居民到 8（' + st.pop + '/8）', () => st.b.grill && st.pop >= 8],
-    [() => '⛏️ 蓋煤礦（🪵 40），挖煤丟進石爐，比木頭耐燒', () => st.b.mine],
+    [() => '⛏️ 蓋煤礦（🪵 30），挖煤丟進石爐，比木頭耐燒', () => st.b.mine],
     [() => '📦 蓋石砌倉庫（🪵 20）：揹包滿了站門口自動存進去', () => st.b.wh],
     [() => '🛷 蓋雪橇站（🪵 30＋🪨 15）、雇第 1 個雪橇夫去山腳運木頭', () => st.b.sled && st.hire.sled >= 1],
     [() => '🏹 雇獵人，居民到 12（' + st.pop + '/12）', () => st.hire.hunter >= 1 && st.pop >= 12],
@@ -398,10 +403,10 @@ const stage3 = (() => {
     goalFlash -= 0.25;
     setTxt('cash', save.cash); setTxt('pop', st.pop); setTxt('capP', '/' + beds()); setTxt('beds', ' 🛏️' + Math.max(0, beds() - st.pop));
     const nW = bagN('plank'), nM = bagN('meat'), nC = bagN('coal'), nS = bagN('stone');
-    setTxt('wood', nW); setTxt('meat', nM); setTxt('coal', nC); setTxt('stone', nS); ['capW', 'capM', 'capC', 'capS'].forEach(id => setTxt(id, '/' + CF.cap));
-    [['pWood', nW], ['pMeat', nM], ['pCoal', nC], ['pStone', nS]].forEach(([id, n]) => { show(id, n > 0); $(id).classList.toggle('full', bag.length >= CF.cap); }); show('pEmpty', bag.length === 0);
-    const any = store.plank + store.stone + store.coal + store.smoked + st.cooked > 0; show('pStore', any);
-    setTxt('sPlank', store.plank); setTxt('sNeed', ''); setTxt('sFood', st.cooked); setTxt('sJerky', store.smoked); setTxt('sCoal', store.coal); setTxt('sStone', store.stone);
+    setTxt('wood', nW); setTxt('meat', nM); setTxt('coal', nC); setTxt('stone', nS); ['capW', 'capM', 'capC', 'capS'].forEach(id => setTxt(id, '/' + capN()));
+    [['pWood', nW], ['pMeat', nM], ['pCoal', nC], ['pStone', nS]].forEach(([id, n]) => { show(id, n > 0); $(id).classList.toggle('full', bag.length >= capN()); }); show('pEmpty', bag.length === 0);
+    const any = store.plank + store.stone + store.coal + store.smoked + st.raw > 0; show('pStore', any);
+    setTxt('sPlank', store.plank); setTxt('sNeed', ''); setTxt('sFood', st.raw); show('sFoodW', st.raw > 0); setTxt('sJerky', store.smoked); setTxt('sCoal', store.coal); setTxt('sStone', store.stone);
     show('sJerkyW', store.smoked > 0); show('sCoalW', store.coal > 0); show('sStoneW', store.stone > 0);
     setTxt('fuel', f); setTxt('fireName', '石爐'); $('fuelBar').firstElementChild.style.width = f + '%'; $('fuelBar').classList.toggle('danger', f < 20);
     const hv = Math.ceil(Math.max(0, hero.hp)); setTxt('hp', hv); $('hpBar').firstElementChild.style.width = hv + '%'; $('hpBar').classList.toggle('danger', hv < 35);
@@ -421,10 +426,11 @@ const stage3 = (() => {
     // 格子標籤：最近的一格顯示完整（名稱、花費、說明），其他只顯示小價錢，才不會互相蓋住
     let nearest = null, nd = 6.5; for (const p of pads) if (p.vis) { const d = Math.hypot(player.position.x - p.x, player.position.z - p.z); if (d < nd) { nd = d; nearest = p; } }
     for (const p of pads) {
-      p.l.visible = p.vis; if (!p.vis) continue; const c = p.cost(); if (!c) { p.l.visible = false; continue; } const parts = Object.keys(c).map(k => TYPES[k] + ' ' + Math.min(c[k], (p.paid[k] || 0) + have(k)) + '/' + c[k]).join('　');
-      if (p === nearest) { p.l.set([p.icon + ' ' + p.name(), parts, p.fx ? p.fx() : ''], '#ffe066', [34, 40, 24]); p.l.scale.set(3.2, 1.8, 1); p.l.position.y = 1.9; }
+      p.l.visible = p.vis; if (!p.vis) continue; const c = p.cost(); if (!c) { p.l.visible = false; continue; } const parts = Object.keys(c).map(k => TYPES[k] + ' ' + Math.min(c[k], (p.paid[k] || 0) + have(k) + (RATE[k] ? Math.floor(save.cash / RATE[k]) : 0)) + '/' + c[k]).join('　');
+      if (p === nearest) { p.l.set([p.icon + ' ' + p.name(), parts, (p.fx ? p.fx() : '') + (Object.keys(c).some(k => RATE[k]) ? '（缺的用錢補）' : '')], '#ffe066', [34, 40, 24]); p.l.scale.set(3.2, 1.8, 1); p.l.position.y = 1.9; }
       else { p.l.set([Object.keys(c).map(k => TYPES[k] + c[k]).join(' ')], '#ffe066', [56]); p.l.scale.set(1.9, 1.05, 1); p.l.position.y = 0.9; }
     }
+    tentLabel.set(['🏕️ 營地庫存', '站近自動存入（含生肉）'], '#d9efff', [30, 34]); tentLabel.visible = !intro;
     fireLabel.set([st.fuel <= 0 ? '🔥 石爐熄了' : '🔥 石爐 Lv' + (st.up.stove + 1) + '　' + f + '%', '丟煤、木板加火'], st.fuel > 40 ? '#ffd34d' : '#ff8a5c', [32, 40]);
   }
 
@@ -436,26 +442,27 @@ const stage3 = (() => {
       p.vis = p.show() && !intro; p.g.visible = p.vis; if (!p.vis) { p.paid = {}; continue; }
       const c = p.cost(), tot = costSum(c); p.g.fill.scale.y = Math.max(0.0001, costSum(p.paid) / tot);
       if (dist(p.x, p.z, X, Z) > 1.5 || (p.t -= dt) > 0) continue; p.t = 0.18;
-      for (const k of Object.keys(c)) if ((p.paid[k] || 0) < c[k]) { if (takeRes(k)) { p.paid[k] = (p.paid[k] || 0) + 1; sfx.coin(); } break; }
+      for (const k of Object.keys(c)) if ((p.paid[k] || 0) < c[k]) { if (takeRes(k)) { p.paid[k] = (p.paid[k] || 0) + 1; sfx.coin(); } else if (RATE[k] && save.cash >= RATE[k]) { save.cash -= RATE[k]; p.paid[k] = (p.paid[k] || 0) + 1; sfx.coin(); } break; }
       if (Object.keys(c).every(k => (p.paid[k] || 0) >= c[k])) { p.paid = {}; p.buy(); writeSave(); }
     }
   }
   function heroActs(dt, X, Z) {
     let tgt = null, kind = null, best = 99;
     for (const w of wolves) { const d = dist(w.x, w.z, X, Z) - (w.king ? 1.0 : 0); if (d < 2.9 && d < best) { best = d; tgt = w; kind = 'wolf'; } }
-    if (!tgt && bag.length < CF.cap) {
+    if (!tgt && bag.length < capN()) {
       for (const h of hares) if (h.alive) { const d = dist(h.x, h.z, X, Z); if (d < 2.3 && d < best) { best = d; tgt = h; kind = 'hare'; } }
       for (const t of forest) if (t.alive) { const d = dist(t.x, t.z, X, Z); if (d < 2.4 && d < best) { best = d; tgt = t; kind = 'tree'; } }
       if (!tgt && st.b.quarry && !isBuried('quarry') && !brokenOf('採石場') && dist(STAND.quarry[0], STAND.quarry[1], X, Z) < 2.4) { tgt = { x: BLD.quarry[0], z: BLD.quarry[1] }; kind = 'rock'; }
       if (!tgt && st.b.mine && !isBuried('mine') && !brokenOf('煤礦') && dist(STAND.mine[0], STAND.mine[1], X, Z) < 2.4) { tgt = { x: BLD.mine[0], z: BLD.mine[1] }; kind = 'coal'; }
     }
+    if (!tgt && (hintT -= dt) <= 0) { if (!st.b.quarry && dist(STAND.quarry[0], STAND.quarry[1], X, Z) < 3.6) { hintT = 5; toast('🪨 先在黃格蓋採石場（缺木板可用錢補），才能敲石頭'); } else if (st.b.quarry && !st.b.mine && dist(STAND.mine[0], STAND.mine[1], X, Z) < 3.6) { hintT = 5; toast('⛏️ 先在黃格蓋煤礦，才能挖煤'); } }
     const act = !!tgt; axe.visible = act;
     if (act) {
       axeSpin += dt * 12; axe.position.set(X, 1.2, Z); axeArms.forEach((a, i) => { a.visible = i === 0; a.rotation.y = axeSpin; });
       swooshG.rotation.y = axeSpin - Math.PI / 2 - 2.4; swooshMat.opacity = 0.4; axeHeadMat.color.setHex((axeKK ? AXE_TINT : AXE_COLORS)[0]);
       player.rotation.y = Math.atan2(tgt.x - X, tgt.z - Z);
       if ((chopT -= dt) <= 0) {
-        chopT = 0.45; sfx.chop(); try { burstChips(tgt.x, tgt.z); } catch (e) {}
+        chopT = 0.45 - 0.08 * (st.axeLv || 0); sfx.chop(); try { burstChips(tgt.x, tgt.z); } catch (e) {}
         if (kind === 'wolf') tgt.hp -= 6;
         else if (kind === 'hare') { killHare(tgt); addBag('meat'); floatText('+🍖', tgt.x, tgt.z, '#ffb09c'); }
         else if (kind === 'tree') { tgt.hp--; tgt.shake = 0.25; if (tgt.hp <= 0) { tgt.alive = false; tgt.g.visible = false; tgt.t = CF.treeRe; let n = 0; for (let i = 0; i < CF.treeLogs; i++) if (addBag('plank')) n++; floatText('+🪵×' + n, tgt.x, tgt.z, '#ffd9a0'); } }
@@ -472,6 +479,9 @@ const stage3 = (() => {
     // 倉庫門口：揹包的木板、石材、煤自動存進去
     const wr = whG.rotation.y, wzx = BLD.wh[0] + Math.sin(wr) * 2.6, wzz = BLD.wh[1] + Math.cos(wr) * 2.6;
     if (st.b.wh && dist(X, Z, wzx, wzz) < 3.2 && (whDepT -= dt) <= 0) { const t = ['plank', 'stone', 'coal'].find(k => bagN(k) > 0 && store[k] < storeCap()); if (t) { whDepT = 0.12; takeBag(t); store[t]++; sfx.coin(); } }
+    // 帳篷旁的營地庫存：揹包的木板、石材、煤、生肉自動存進去（生肉不用等烤肉攤蓋好，蓋好後攤子自己拿來烤）
+    const tr = tentG.rotation.y;
+    if (dist(X, Z, BLD.tent[0] + Math.sin(tr) * 2.4, BLD.tent[1] + Math.cos(tr) * 2.4) < 2.8 && (tentDepT -= dt) <= 0) { const t = ['plank', 'stone', 'coal'].find(k => bagN(k) > 0 && store[k] < storeCap()); if (t) { tentDepT = 0.12; takeBag(t); store[t]++; sfx.coin(); } else if (bagN('meat') > 0 && st.raw < 60) { tentDepT = 0.12; takeBag('meat'); st.raw++; sfx.coin(); } }
     // 烤肉攤前：生肉交給攤子
     if (st.b.grill && dist(X, Z, BLD.grill[0], BLD.grill[1] + 2.6) < 3.0 && bagN('meat') > 0 && (depT -= dt) <= 0) { depT = 0.15; takeBag('meat'); st.raw++; sfx.coin(); }
     // 烤肉、燻肉

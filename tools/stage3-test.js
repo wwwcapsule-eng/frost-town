@@ -16,8 +16,12 @@ window.stage3Test = async function () {
   };
   S.hudText(); tick(2);
   ok(S.on && st.goal === 0, '第 3 關開場、目標第 1 步');
+  // 0. 作者 10/29 三點：錢可以補材料蓋建築、生肉有地方放
+  S.store.plank = 0; __game.save.cash = 100; const qp = pad('quarry'); P.position.set(qp.x, 0, qp.z); tick(14);
+  ok(st.b.quarry === 1 && __game.save.cash < 100, '沒木板、只有錢也能蓋採石場（剩 ' + __game.save.cash + ' 元）');
+  S.store.plank = 24; for (let i = 0; i < 3; i++) S.addBag('meat'); const raw0 = st.raw; P.position.set(3.9, 0, 12.2); tick(3); ok(st.raw >= raw0 + 3 && S.bag.filter(b => b.type === 'meat').length === 0, '生肉揹到帳篷旁自動存進營地庫存（' + raw0 + '→' + st.raw + '）');
   // 1. 親手採集
-  buy('quarry', '開場可蓋'); P.position.set(-12, 0, 1.6); tick(12); ok(S.bag.filter(b => b.type === 'stone').length >= 1, '站在岩壁前敲石頭，揹包有石材');
+  P.position.set(-12, 0, 1.6); tick(12); ok(S.bag.filter(b => b.type === 'stone').length >= 1, '站在岩壁前敲石頭，揹包有石材');
   S.bag.splice(0).forEach(b => b.m.parent && b.m.parent.remove(b.m));
   P.position.set(8, 0, 31); tick(10); ok(S.bag.filter(b => b.type === 'plank').length >= 1 || S.bag.length >= 1, '山腳砍樹得木板');
   S.bag.splice(0).forEach(b => b.m.parent && b.m.parent.remove(b.m));
