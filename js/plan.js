@@ -237,7 +237,7 @@ function updateStore(dt) {
     stackRoot.remove(m); restack();
     fly(m, wp, () => wh.bld.g.position.clone().add(tmp.set(0, 1.6, 0)), 0.3, () => { scene.remove(m); st[type === 'log' ? 'plank' : type]++; }); // v0.91：木頭只有一種，放進倉庫就是庫存
   }
-  const ml = mills[0], km = carried.map(m => m.userData.type).lastIndexOf('log'); // v0.91（作者：蓋倉庫後鋸木廠不能放木頭很怪）：揹木頭走到鋸木廠旁也能放，存進倉庫或多的賣錢
+  const ml = mills[0], km = lastOf('log'); // v0.91（作者：蓋倉庫後鋸木廠不能放木頭很怪）：揹木頭走到鋸木廠旁也能放，存進倉庫或多的賣錢
   if (km >= 0 && depositCd <= 0 && !ml.bld.dead && Math.hypot(player.position.x - ml.bld.x, player.position.z - ml.bld.z) < ml.bld.r + 1.4) {
     depositCd = 0.07;
     const m = carried.splice(km, 1)[0], wp = m.getWorldPosition(new THREE.Vector3());
@@ -465,8 +465,17 @@ function checkLevel() {
   const next = LEVELS[save.level + 1];
   if (!next || paused || population() < next.need || blizGate() || hordeGate()) return; // v0.99：要先撐過大暴雪；v1.01：營地要先撐過獸潮
   if (!PRO && save.level === 0 && !/check/.test(location.search)) {                     // v1.35（作者 10/28）：第 2 關到村莊就遷徙，後半的煤礦、採石場、石爐、燻肉、石屋全搬到第 3 關
+    if (save.cleared) return;                                                           // v1.47 過關後留在這一關：不再跳遷徙，要走從世界地圖按「出發」
+    if (revisit()) { save.cleared = true; writeSave(); story('🎉 村莊站穩了！', ['又過關了一次！', '想帶新的 3 樣東西去第 3 關：', '打開右上 ☰ 的 🗺️ 世界地圖，按「出發」。'], '好'); return; }
     paused = true; story('🎉 村莊站穩了！', ['熊群一波比一波多，森林快養不活大家了。', '長老捧起火種說：「北邊的岩山有石頭，熊爬不上來。」', '帶著火種和族人，往北遷徙吧！'], '出發！');
-    $('lvOk').addEventListener('click', () => {
+    $('lvOk').addEventListener('click', depart2, { once: true }); return;
+  }
+  save.level++; writeSave(); levelUnlocks(); resize();
+  story('🎉 升級為' + next.name + '！', ['新解鎖：', ...next.unlock], '太好了！');
+  sfx.unlock(); sparkle(player.position.x, player.position.z);
+}
+function depart2() {                                                                   // 第 2 關：選 3 樣 → 遷徙動畫 → 第 3 關（世界地圖的「出發」也走這裡）
+  {
       const o = [{ k: 'cash', icon: '💵', name: '全部的錢', desc: '現在 ' + save.cash + ' 元（不選只帶 2 成）' }];
       if (save.bag > 0) o.push({ k: 'bag', icon: '🎒', name: '揹包升級', desc: '第 3 關揹包 +' + 2 * Math.min(2, save.bag) });
       if (save.axe > 0) o.push({ k: 'axe', icon: '🪓', name: '斧頭升級', desc: '第 3 關砍、敲更快' });
@@ -475,11 +484,7 @@ function checkLevel() {
       if (houses.length) o.push({ k: 'house', icon: '🏠', name: '一間民房', desc: '第 3 關有 1 間石屋（多 6 張床）' });
       if (save.store && save.store.plank > 0) o.push({ k: 'mat', icon: '🪵', name: '倉庫的木頭', desc: '帶走 5 成（沒選帶 2 成）' });
       chooseCarry('選 3 樣帶去第 3 關', o, picked => { save.carry = picked; startMigrate3(); });
-    }, { once: true }); return;
   }
-  save.level++; writeSave(); levelUnlocks(); resize();
-  story('🎉 升級為' + next.name + '！', ['新解鎖：', ...next.unlock], '太好了！');
-  sfx.unlock(); sparkle(player.position.x, player.position.z);
 }
 // 卡片（升級、劇情共用）：遊戲暫停到按下按鈕
 function story(title, lines, ok) { $('lvTitle').textContent = title; $('lvList').innerHTML = lines.join('<br>'); $('lvOk').textContent = ok; $('lvup').style.display = 'flex'; paused = true; }

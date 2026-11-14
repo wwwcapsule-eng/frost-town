@@ -39,7 +39,7 @@ function updateHero(dt) {
     toast(lose.length ? why + '掉了 ' + lose.length + ' 個東西' : why);
     beep(140, 0.5, 'sawtooth', 0.07, 0.5);
   }
-  const v = Math.ceil(hero.hp); $('hp').textContent = v;
+  const v = Math.ceil(hero.hp); setTxt('hp', v);
   $('hpBar').firstElementChild.style.width = v + '%'; $('hpBar').classList.toggle('danger', v < 35);
   updateAlert();
 }
@@ -118,7 +118,7 @@ function updateBuildings(dt) {
   for (const b of buildings) {
     b.hp = Math.max(0, b.hp);
     if (b.hit > 0) { b.hit -= dt; b.g.position.x = b.x + Math.sin(b.hit * 80) * 0.08; } else b.g.position.x = b.x;
-    const k = carried.map(m => m.userData.type).lastIndexOf('log');
+    const k = lastOf('log');
     if (b.hp + (b.pend || 0) * 10 < CFG.buildHp && k >= 0 && fixCd <= 0 && Math.hypot(player.position.x - b.x, player.position.z - b.z) < b.r + 1.1) {
       fixCd = 0.12; b.pend = (b.pend || 0) + 1; // 飛在半空中的木頭也算，修滿就不再拿
       const m = carried.splice(k, 1)[0]; const wp = m.getWorldPosition(new THREE.Vector3());
@@ -162,7 +162,8 @@ function declutter() {
     const mx = 8 / innerWidth, my = 6 / innerHeight;                 // 字的四周多留一點空白，貼太近也算擠
     const r = [a.x - mx, b.y - my, b.x + mx, a.y + my], ar = (r[2] - r[0]) * (r[3] - r[1]);
     const cut = r[0] < -1 || r[2] > 1 || r[1] < -1 || r[3] > 1;     // v1.02（作者：煤礦的字沒完全顯示）：字有一部分跑出畫面、或被介面蓋住，就整個先藏起來，走近再出現
-    if (cut || [...hudRs, ...kept].some(k => Math.max(0, Math.min(r[2], k[2]) - Math.max(r[0], k[0])) * Math.max(0, Math.min(r[3], k[3]) - Math.max(r[1], k[1])) > 0.03 * Math.min(ar, (k[2] - k[0]) * (k[3] - k[1])))) { l.visible = false; dcHidden.push(l); }
+    const hit = k => Math.max(0, Math.min(r[2], k[2]) - Math.max(r[0], k[0])) * Math.max(0, Math.min(r[3], k[3]) - Math.max(r[1], k[1])) > 0.03 * Math.min(ar, (k[2] - k[0]) * (k[3] - k[1]));
+    if (cut || hudRs.some(hit) || kept.some(hit)) { l.visible = false; dcHidden.push(l); }   // v1.48：不再每個標籤都把兩個清單接成新的
     else kept.push(r);
   }
 }
@@ -230,7 +231,7 @@ function cine2Step(dt) {
   if (t > 4.5) { player.rotation.y = Math.PI; player.position.z -= 2.6 * dt; player.position.y = Math.abs(Math.sin(t * 9)) * 0.06; }
   camera.position.lerp(tmp.copy(player.position).add(camOffset).multiplyScalar(1.1), 1 - Math.exp(-dt * 2)); camera.lookAt(player.position.x, 0.8, player.position.z);
   if (t > 7) k.fade.style.opacity = Math.min(1, t - 7);
-  if (t > 8.2) { const old = save.store || {}, c = save.carry || ['cash']; if (!c.includes('cash')) save.cash = Math.floor(save.cash * 0.2); save.stage = 3; save.arrive = true; save.s3 = { pop: Math.max(3, Math.min(5, Math.floor(population() / 2))), carry: c, bagLv: c.includes('bag') ? Math.min(2, save.bag || 0) : 0, axeLv: c.includes('axe') ? Math.min(2, save.axe || 0) : 0, store: { plank: 24 + Math.floor((old.plank || 0) * (c.includes('mat') ? 0.5 : 0.2)), stone: 0, coal: 10, smoked: 0 } }; writeSave(); resetting = true; try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) {} location.reload(); k.t = -1e9; }
+  if (t > 8.2) { k.t = -1e9; migrateTo(3, () => { const old = save.store || {}, c = save.carry || ['cash']; if (!c.includes('cash')) save.cash = Math.floor(save.cash * 0.2); save.s3 = { pop: Math.max(3, Math.min(5, Math.floor(population() / 2))), carry: c, bagLv: c.includes('bag') ? Math.min(2, save.bag || 0) : 0, axeLv: c.includes('axe') ? Math.min(2, save.axe || 0) : 0, store: { plank: 24 + Math.floor((old.plank || 0) * (c.includes('mat') ? 0.5 : 0.2)), stone: 0, coal: 10, smoked: 0 } }; }); }
 }
 const HIDE_PLAN_BTN = true;
 let inkT = 0;
@@ -344,7 +345,7 @@ function step(dt) {
   for (const mill of mills) {
     const ip = mill.inPad.position, op = mill.outPad.position;
     if (mill.bld.dead) { mill.label.set([mill.name]); continue; }
-    const k = carried.map(m => m.userData.type).lastIndexOf(mill.accept); // 只收這個站要的東西
+    const k = lastOf(mill.accept); // 只收這個站要的東西
     if (k >= 0 && dropTimer <= 0 && mill.inPad.visible && Math.hypot(player.position.x - ip.x, player.position.z - ip.z) < 1.3) { // 投放格收起來（有倉庫）就不收
       dropTimer = 0.07;
       const m = carried.splice(k, 1)[0]; const wp = m.getWorldPosition(new THREE.Vector3());
@@ -400,7 +401,7 @@ function step(dt) {
       if (pay > 0) {
         u.payAcc -= pay; u.paid += pay;
         if (u.mat === 'log') for (let i = 0; i < pay; i++) {
-          const m = carried.splice(carried.map(m => m.userData.type).lastIndexOf('log'), 1)[0], wp = m.getWorldPosition(new THREE.Vector3());
+          const m = carried.splice(lastOf('log'), 1)[0], wp = m.getWorldPosition(new THREE.Vector3());
           stackRoot.remove(m); restack(); fly(m, wp, () => new THREE.Vector3(u.x, 0.1, u.z), 0.25, () => scene.remove(m), 1);
         } else {
           if (u.mat) save.store[u.mat] -= pay; else save.cash -= pay;    // 倉庫的🪵木頭、🪨石材
