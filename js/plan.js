@@ -237,7 +237,7 @@ function updateStore(dt) {
     stackRoot.remove(m); restack();
     fly(m, wp, () => wh.bld.g.position.clone().add(tmp.set(0, 1.6, 0)), 0.3, () => { scene.remove(m); st[type === 'log' ? 'plank' : type]++; }); // v0.91：木頭只有一種，放進倉庫就是庫存
   }
-  const ml = mills[0], km = carried.map(m => m.userData.type).lastIndexOf('log'); // v0.91（作者：蓋倉庫後鋸木廠不能放木頭很怪）：揹木頭走到鋸木廠旁也能放，存進倉庫或多的賣錢
+  const ml = mills[0], km = lastOf('log'); // v0.91（作者：蓋倉庫後鋸木廠不能放木頭很怪）：揹木頭走到鋸木廠旁也能放，存進倉庫或多的賣錢
   if (km >= 0 && depositCd <= 0 && !ml.bld.dead && Math.hypot(player.position.x - ml.bld.x, player.position.z - ml.bld.z) < ml.bld.r + 1.4) {
     depositCd = 0.07;
     const m = carried.splice(km, 1)[0], wp = m.getWorldPosition(new THREE.Vector3());

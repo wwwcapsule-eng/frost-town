@@ -395,7 +395,6 @@ const stage3 = (() => {
   const selfSufficient = () => lacks().length === 0;
 
   // ---- 介面：直接用第 2 關那套畫面元件（左上錢＋居民、左下揹包＋倉庫、火條＋血條、上方目標＋警示）----
-  const setTxt = (id, t) => { const e = $(id); if (e && e.textContent !== '' + t) e.textContent = t; };
   const show = (id, on) => { const e = $(id); if (e) e.style.display = on ? '' : 'none'; };
   function hudText() {
     const f = Math.round(st.fuel);

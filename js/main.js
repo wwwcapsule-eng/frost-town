@@ -39,7 +39,7 @@ function updateHero(dt) {
     toast(lose.length ? why + '掉了 ' + lose.length + ' 個東西' : why);
     beep(140, 0.5, 'sawtooth', 0.07, 0.5);
   }
-  const v = Math.ceil(hero.hp); $('hp').textContent = v;
+  const v = Math.ceil(hero.hp); setTxt('hp', v);
   $('hpBar').firstElementChild.style.width = v + '%'; $('hpBar').classList.toggle('danger', v < 35);
   updateAlert();
 }
@@ -118,7 +118,7 @@ function updateBuildings(dt) {
   for (const b of buildings) {
     b.hp = Math.max(0, b.hp);
     if (b.hit > 0) { b.hit -= dt; b.g.position.x = b.x + Math.sin(b.hit * 80) * 0.08; } else b.g.position.x = b.x;
-    const k = carried.map(m => m.userData.type).lastIndexOf('log');
+    const k = lastOf('log');
     if (b.hp + (b.pend || 0) * 10 < CFG.buildHp && k >= 0 && fixCd <= 0 && Math.hypot(player.position.x - b.x, player.position.z - b.z) < b.r + 1.1) {
       fixCd = 0.12; b.pend = (b.pend || 0) + 1; // 飛在半空中的木頭也算，修滿就不再拿
       const m = carried.splice(k, 1)[0]; const wp = m.getWorldPosition(new THREE.Vector3());
@@ -345,7 +345,7 @@ function step(dt) {
   for (const mill of mills) {
     const ip = mill.inPad.position, op = mill.outPad.position;
     if (mill.bld.dead) { mill.label.set([mill.name]); continue; }
-    const k = carried.map(m => m.userData.type).lastIndexOf(mill.accept); // 只收這個站要的東西
+    const k = lastOf(mill.accept); // 只收這個站要的東西
     if (k >= 0 && dropTimer <= 0 && mill.inPad.visible && Math.hypot(player.position.x - ip.x, player.position.z - ip.z) < 1.3) { // 投放格收起來（有倉庫）就不收
       dropTimer = 0.07;
       const m = carried.splice(k, 1)[0]; const wp = m.getWorldPosition(new THREE.Vector3());
@@ -401,7 +401,7 @@ function step(dt) {
       if (pay > 0) {
         u.payAcc -= pay; u.paid += pay;
         if (u.mat === 'log') for (let i = 0; i < pay; i++) {
-          const m = carried.splice(carried.map(m => m.userData.type).lastIndexOf('log'), 1)[0], wp = m.getWorldPosition(new THREE.Vector3());
+          const m = carried.splice(lastOf('log'), 1)[0], wp = m.getWorldPosition(new THREE.Vector3());
           stackRoot.remove(m); restack(); fly(m, wp, () => new THREE.Vector3(u.x, 0.1, u.z), 0.25, () => scene.remove(m), 1);
         } else {
           if (u.mat) save.store[u.mat] -= pay; else save.cash -= pay;    // 倉庫的🪵木頭、🪨石材
