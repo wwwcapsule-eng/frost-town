@@ -546,7 +546,7 @@ const stage3 = (() => {
     k.items.forEach(o => { const q = (t - o.at) / 0.9; if (q <= 0) return; const e = Math.min(1, q), c1 = 1.70158, back = 1 + (c1 + 1) * Math.pow(e - 1, 3) + c1 * Math.pow(e - 1, 2); o.g.scale.set(o.sx, Math.max(0.001, o.s * back), o.sx); });
     const n = k.items.filter(o => t >= o.at).length;
     k.txt.textContent = t < 1.4 ? '北邊的岩山腳，新的營地。' : n <= 1 ? '先生起石爐……' : n < k.items.length ? '搭起帳篷、弩砲塔、石牆……' : '準備好了！';
-    camera.position.lerp(tmp.copy(new THREE.Vector3(0, 0.8, 8)).add(camOffset), 1 - Math.exp(-dt * 2)); camera.lookAt(0, 0.8, 8);
+    camera.position.lerp(tmp.set(0, 0.8, 8).add(camOffset), 1 - Math.exp(-dt * 2)); camera.lookAt(0, 0.8, 8);
     if (t > k.end) { k.items.forEach(o => o.g.scale.set(o.sx, o.s, o.sx)); k.el.remove(); intro = null; }
   }
 
@@ -599,9 +599,9 @@ const stage3 = (() => {
     for (let i = chips.length - 1; i >= 0; i--) { const c = chips[i]; c.life -= dt; c.vy -= 18 * dt; c.m.position.x += c.vx * dt; c.m.position.y = Math.max(0.08, c.m.position.y + c.vy * dt); c.m.position.z += c.vz * dt; c.m.rotation.x += dt * 10; c.m.scale.setScalar(Math.max(0.01, c.life / 0.6)); if (c.life <= 0) { scene.remove(c.m); chips.splice(i, 1); } }
     if (toastT > 0) { toastT -= dt; if (toastT <= 0) $('toast').style.opacity = 0; }
     if ((inkT -= dt) <= 0) { inkT = 0.5; inkAll(scene); }
-    if ((hudTxtT -= dt) <= 0) { hudTxtT = 0.25; hudText(); }
+    if ((hudTxtT -= dt) <= 0) { hudTxtT = 0.25; hudText(); hudT = 0; }   // v1.48：介面文字有更新時才重量介面範圍（以前每格都量，手機會卡）
     if ((saveT += dt) > 2) { saveT = 0; writeSave(); }
-    hudT = 0; declutter();
+    declutter();
   }
 
   // ---- 最小間距檢查（給 layout-check 用）：規則跟第 1、2 關一樣——格子互隔 ≥3、離建築邊緣 ≥1.5（離石爐 ≥1.8）、建築互隔 ≥半徑和＋0.4；中軸線不擋、排隊位置離東西 ≥2.2 ----

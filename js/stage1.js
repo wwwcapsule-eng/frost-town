@@ -529,9 +529,9 @@ const stage1 = (() => {
     }
     if (toastT > 0) { toastT -= dt; if (toastT <= 0) $('toast').style.opacity = 0; }
     if ((inkT -= dt) <= 0) { inkT = 0.5; inkAll(scene); }
-    if ((hudTxtT -= dt) <= 0) { hudTxtT = 0.25; hudText(); }
+    if ((hudTxtT -= dt) <= 0) { hudTxtT = 0.25; hudText(); hudT = 0; }   // v1.48：介面文字有更新時才重量介面範圍（以前每格都量，手機會卡）
     if ((saveT += dt) > 2) { saveT = 0; writeSave(); }
-    hudT = 0; declutter();   // 介面範圍每格重量一次（第 1 關的介面文字會變）
+    declutter();
   }
   // 過場動畫（約 8 秒）：上下黑邊滑進來 → 湖面裂縫變寬、冰屋一間間沉進湖裡、魚群散開 → 全村人帶著火種往南走 → 畫面變白 → 進第 2 關
   let cine = null;

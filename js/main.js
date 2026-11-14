@@ -162,7 +162,8 @@ function declutter() {
     const mx = 8 / innerWidth, my = 6 / innerHeight;                 // 字的四周多留一點空白，貼太近也算擠
     const r = [a.x - mx, b.y - my, b.x + mx, a.y + my], ar = (r[2] - r[0]) * (r[3] - r[1]);
     const cut = r[0] < -1 || r[2] > 1 || r[1] < -1 || r[3] > 1;     // v1.02（作者：煤礦的字沒完全顯示）：字有一部分跑出畫面、或被介面蓋住，就整個先藏起來，走近再出現
-    if (cut || [...hudRs, ...kept].some(k => Math.max(0, Math.min(r[2], k[2]) - Math.max(r[0], k[0])) * Math.max(0, Math.min(r[3], k[3]) - Math.max(r[1], k[1])) > 0.03 * Math.min(ar, (k[2] - k[0]) * (k[3] - k[1])))) { l.visible = false; dcHidden.push(l); }
+    const hit = k => Math.max(0, Math.min(r[2], k[2]) - Math.max(r[0], k[0])) * Math.max(0, Math.min(r[3], k[3]) - Math.max(r[1], k[1])) > 0.03 * Math.min(ar, (k[2] - k[0]) * (k[3] - k[1]));
+    if (cut || hudRs.some(hit) || kept.some(hit)) { l.visible = false; dcHidden.push(l); }   // v1.48：不再每個標籤都把兩個清單接成新的
     else kept.push(r);
   }
 }
