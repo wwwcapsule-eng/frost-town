@@ -1,5 +1,5 @@
 'use strict';
-const VERSION = '1.46';
+const VERSION = '1.47';
 
 // ===== 數值（之後平衡都改這裡） =====
 const CFG = {
@@ -119,7 +119,27 @@ if (save.territory == null) save.territory = save.furnace ? (save.east ? 2 : 1) 
 if (save.buys == null) save.buys = (save.bag || 0) + (save.axe || 0) + (save.tower ? 1 : 0) + (save.tower2 ? 1 : 0) + (save.workers || 0) + (save.east ? 1 : 0) + (save.mill2 ? 1 : 0);
 let resetting = false; // 重新開始時不要再把舊進度寫回去
 function writeSave() { if (resetting) return; try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) {} }
-function wipeAndReload() { resetting = true; try { localStorage.removeItem(SAVE_KEY); } catch (e) {} location.reload(); }
+// ===== 世界地圖（v1.47，作者 11/14：開放前三關切換）=====
+// 現在玩的那一關存在 SAVE_KEY；其他關的進度放在 world：now[n]＝上次離開第 n 關時的樣子（地圖按「繼續」讀它）、entry[n]＝剛到第 n 關時的樣子（「重玩」讀它）
+// 規則：回前面的關卡玩不會動到後面的關；只有再遷徙一次（migrateTo），下一關才會用新帶的 3 樣東西重新開始
+const MAP_KEY = 'frost-town-map', LAST_STAGE = 3;
+const world = { max: 1, now: {}, entry: {} };
+try { Object.assign(world, JSON.parse(localStorage.getItem(MAP_KEY) || '{}')); } catch (e) {}
+world.max = Math.max(world.max, save.stage);                    // 舊存檔、存檔碼：玩到哪一關，前面的就都開放
+const copy = o => JSON.parse(JSON.stringify(o));
+const STAGE_START = { 1: { stage: 1 }, 2: { stage: 2, arrive: true, res: 3 }, 3: { stage: 3, arrive: true } }; // 沒有 entry（這一版之前就過關的人）時用的開場
+const revisit = () => world.max > save.stage;                   // 正在玩以前過的關
+function writeWorld() { try { localStorage.setItem(MAP_KEY, JSON.stringify(world)); } catch (e) {} }
+function loadSave(data) { resetting = true; try { localStorage.setItem(SAVE_KEY, JSON.stringify(data)); sessionStorage.setItem('frost-town-skip-map', '1'); } catch (e) {} location.reload(); }
+function migrateTo(n, change) {                                 // 遷徙：change() 把要帶走的東西改進 save
+  world.now[save.stage] = Object.assign(copy(save), { cleared: true });
+  change(); save.stage = n; save.arrive = true; delete save.cleared;
+  world.entry[n] = copy(save); delete world.now[n]; world.max = Math.max(world.max, n);
+  writeWorld(); loadSave(save);
+}
+function replayStage(n) { if (n !== save.stage) world.now[save.stage] = copy(save); delete world.now[n]; writeWorld(); loadSave(world.entry[n] || STAGE_START[n]); }
+function continueStage(n) { if (!world.now[n]) return; world.now[save.stage] = copy(save); const d = world.now[n]; delete world.now[n]; writeWorld(); loadSave(d); }
+function wipeAndReload() { replayStage(save.stage); }
 document.getElementById('retry').onclick = wipeAndReload;
 // 存檔碼（企劃 9.4）：手機瀏覽器可能清掉存檔，玩家可以把進度抄成一段文字、換手機或清掉後貼回來
 document.getElementById('saveCode').onclick = () => {
@@ -131,10 +151,10 @@ document.getElementById('saveCode').onclick = () => {
   let data;
   try { data = JSON.parse(decodeURIComponent(escape(atob(got.trim())))); } catch (e) {}
   if (!data || typeof data !== 'object' || Array.isArray(data) || typeof data.cash !== 'number') { alert('存檔碼看不懂，請確認有完整貼上。'); return; }
-  resetting = true; try { localStorage.setItem(SAVE_KEY, JSON.stringify(data)); } catch (e) {} location.reload();
+  loadSave(data);
 };
 document.getElementById('menuReset').onclick = () => {
-  if (confirm('確定要清除這一關的進度、重新開始嗎？')) { resetting = true; try { localStorage.removeItem(SAVE_KEY); } catch (e) {} location.reload(); }
+  if (confirm('確定要清除這一關的進度、重新開始嗎？')) replayStage(save.stage);
 };
 
 
