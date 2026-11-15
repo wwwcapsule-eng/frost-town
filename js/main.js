@@ -230,7 +230,7 @@ function cine2Step(dt) {
   if (t > 4.5) { player.rotation.y = Math.PI; player.position.z -= 2.6 * dt; player.position.y = Math.abs(Math.sin(t * 9)) * 0.06; }
   camera.position.lerp(tmp.copy(player.position).add(camOffset).multiplyScalar(1.1), 1 - Math.exp(-dt * 2)); camera.lookAt(player.position.x, 0.8, player.position.z);
   if (t > 7) k.fade.style.opacity = Math.min(1, t - 7);
-  if (t > 8.2) { const old = save.store || {}, c = save.carry || ['cash']; if (!c.includes('cash')) save.cash = Math.floor(save.cash * 0.2); save.stage = 3; save.arrive = true; save.s3 = { pop: Math.max(3, Math.min(5, Math.floor(population() / 2))), carry: c, bagLv: c.includes('bag') ? Math.min(2, save.bag || 0) : 0, axeLv: c.includes('axe') ? Math.min(2, save.axe || 0) : 0, store: { plank: 24 + Math.floor((old.plank || 0) * (c.includes('mat') ? 0.5 : 0.2)), stone: 0, coal: 10, smoked: 0 } }; writeSave(); resetting = true; try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) {} location.reload(); k.t = -1e9; }
+  if (t > 8.2) { k.t = -1e9; migrateTo(3, () => { const old = save.store || {}, c = save.carry || ['cash']; if (!c.includes('cash')) save.cash = Math.floor(save.cash * 0.2); save.s3 = { pop: Math.max(3, Math.min(5, Math.floor(population() / 2))), carry: c, bagLv: c.includes('bag') ? Math.min(2, save.bag || 0) : 0, axeLv: c.includes('axe') ? Math.min(2, save.axe || 0) : 0, store: { plank: 24 + Math.floor((old.plank || 0) * (c.includes('mat') ? 0.5 : 0.2)), stone: 0, coal: 10, smoked: 0 } }; }); }
 }
 const HIDE_PLAN_BTN = true;
 let inkT = 0;
