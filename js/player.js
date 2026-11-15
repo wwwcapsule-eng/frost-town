@@ -106,7 +106,8 @@ function burstChips(x, z, bear) {
 const carried = []; // 背上的木頭 mesh
 const logGeo = new THREE.BoxGeometry(0.9, 0.22, 0.32);
 function capacity() { return CFG.capacity[save.bag]; } // 木頭、肉各自的上限
-function countOf(type) { return carried.filter(m => m.userData.type === type).length + flies.filter(f => f.toBack === type).length; }
+function countOf(type) { let n = 0; for (const m of carried) if (m.userData.type === type) n++; for (const f of flies) if (f.toBack === type) n++; return n; } // v1.49：用數的，不每格建新陣列
+function lastOf(type) { for (let i = carried.length - 1; i >= 0; i--) if (carried[i].userData.type === type) return i; return -1; } // 背上最上面那個 type 在第幾個（沒有＝-1）
 function stackHeight() { return carried.length + flies.filter(f => f.toBack).length; }
 function restack() { carried.forEach((m, i) => { m.position.set(0, i * 0.24, 0); m.rotation.set(0, 0, 0); }); }
 
@@ -124,6 +125,7 @@ function toBack(kind, x, y, z, delay) {                           // 一塊東�
 
 // ===== HUD =====
 const $ = id => document.getElementById(id);
+const setTxt = (id, t) => { const e = $(id); if (e && e.textContent !== '' + t) e.textContent = t; }; // v1.49：字沒變就不重寫（三關共用）
 let shownCash = -1, shownWood = -1;
 // 人口（v0.76，作者 10/18）：人口＝真的留下來的居民 save.res；流民吃到烤肉、而且有空床才會留下；工人都從居民裡雇
 // v0.79（作者）：每 5 位居民一餐吃 1 份烤肉，也才能雇 1 個工人 → 等於一個工人背後要 1 份肉
@@ -137,14 +139,15 @@ const mealSize = () => Math.ceil(save.res / CFG.perMeat);         // 一餐吃�
 const needHand = () => employed() < jobSlots() ? null : '👥 居民 ' + save.res + '/' + (employed() + 1) * CFG.perMeat; // 雇人的付款格：每 5 位居民雇 1 人，顯示還差多少
 function hud() {
   const lv = LEVELS[save.level], next = LEVELS[save.level + 1];
-  $('pop').textContent = population(); $('capP').textContent = next ? '/' + next.need : ''; $('beds').textContent = ' 🛏️' + Math.max(0, beds() - save.res);
-  $('ver').textContent = lv.icon + ' ' + lv.name; $('menuVer').textContent = '寒霜小鎮 v' + VERSION;
+  setTxt('pop', population()); setTxt('capP', next ? '/' + next.need : ''); setTxt('beds', ' 🛏️' + Math.max(0, beds() - save.res));
+  setTxt('ver', lv.icon + ' ' + lv.name); setTxt('menuVer', '寒霜小鎮 v' + VERSION);
   if (shownCash !== save.cash) { $('cash').textContent = save.cash; bump('pCash'); shownCash = save.cash; }
-  const nMeat = countOf('meat') - flies.filter(f => f.toBack === 'meat').length, nCoal = carried.filter(m => m.userData.type === 'coal').length, nStone = carried.filter(m => m.userData.type === 'stone').length, nLog = carried.length - nMeat - nCoal - nStone;
+  let nMeat = 0, nCoal = 0, nStone = 0; for (const m of carried) { const t = m.userData.type; if (t === 'meat') nMeat++; else if (t === 'coal') nCoal++; else if (t === 'stone') nStone++; }
+  const nLog = carried.length - nMeat - nCoal - nStone;
   const key = [carried.length, nMeat, nCoal, nStone].join();
   if (shownWood !== key) { $('wood').textContent = nLog; $('meat').textContent = nMeat; $('coal').textContent = nCoal; $('stone').textContent = nStone; shownWood = key; }
-  if (save.wh) { const st = save.store; $('sPlank').textContent = st.plank; $('sNeed').textContent = '/' + plankNeed(); $('sFood').textContent = st.food; $('sCoal').textContent = st.coal; $('sCoalW').style.display = save.mine && st.coal > 0 ? '' : 'none'; $('sJerky').textContent = st.jerky; $('sJerkyW').style.display = save.smoke && st.jerky > 0 ? '' : 'none'; $('sStone').textContent = st.stone; $('sStoneW').style.display = save.quarry && st.stone > 0 ? '' : 'none'; $('pStore').classList.toggle('danger', wh.hungry); }
-  $('capW').textContent = '/' + capacity(); $('capM').textContent = '/' + capacity(); $('capC').textContent = '/' + capacity(); $('capS').textContent = '/' + capacity();
+  if (save.wh) { const st = save.store; setTxt('sPlank', st.plank); setTxt('sNeed', '/' + plankNeed()); setTxt('sFood', st.food); setTxt('sCoal', st.coal); $('sCoalW').style.display = save.mine && st.coal > 0 ? '' : 'none'; setTxt('sJerky', st.jerky); $('sJerkyW').style.display = save.smoke && st.jerky > 0 ? '' : 'none'; setTxt('sStone', st.stone); $('sStoneW').style.display = save.quarry && st.stone > 0 ? '' : 'none'; $('pStore').classList.toggle('danger', wh.hungry); }
+  for (const id of ['capW', 'capM', 'capC', 'capS']) setTxt(id, '/' + capacity());
   { const show = { pWood: nLog, pMeat: nMeat, pCoal: save.mine ? nCoal : 0, pStone: save.quarry ? nStone : 0 };   // v1.29（作者：下面的資源會擋到、有些重複）：揹包裡沒有的東西不顯示，什麼都沒揹就顯示「空手」
     for (const id in show) $(id).style.display = show[id] > 0 ? '' : 'none'; $('pEmpty').style.display = carried.length ? 'none' : ''; }
   $('pStone').classList.toggle('full', countOf('stone') >= capacity());

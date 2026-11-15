@@ -251,7 +251,7 @@ function updateGate(dt) {
   $("vignette").style.opacity = raiding ? 1 : 0;
   // 站在修門格上，背上的木頭一根根拿去修
   repairCd -= dt;
-  const k = carried.map(m => m.userData.type).lastIndexOf('log');
+  const k = lastOf('log');
   if (gate.hp < CFG.gateHp && k >= 0 && repairCd <= 0 && Math.hypot(player.position.x - repairPad.position.x, player.position.z - repairPad.position.z) < 1.3) {
     repairCd = 0.12;
     const m = carried.splice(k, 1)[0]; const wp = m.getWorldPosition(new THREE.Vector3());
@@ -639,7 +639,7 @@ function updateFurnace(dt) {
   f.fuel = Math.max(0, f.fuel - CFG.fuelBurn * CFG.stoveBurn ** save.stove * (coldWave.on > 0 ? CFG.coldBurn : 1) * dt); save.fuel = Math.round(f.fuel * 10) / 10;
   // 揹木頭站到火爐旁，一根根丟進去
   feedCd -= dt;
-  const types = carried.map(m => m.userData.type), kc = types.lastIndexOf('coal'), k = kc >= 0 || save.stove ? kc : types.lastIndexOf('log'); // 有煤先丟煤；v0.84（作者）：石爐只燒煤
+  const kc = lastOf('coal'), k = kc >= 0 || save.stove ? kc : lastOf('log'); // 有煤先丟煤；v0.84（作者）：石爐只燒煤
   const per = kc >= 0 ? CFG.fuelPerCoal : CFG.fuelPerLog;
   if (k >= 0 && feedCd <= 0 && f.fuel + f.pend < CFG.fuelMax && Math.hypot(player.position.x - FX, player.position.z - FZ) < 1.5) {
     feedCd = 0.12; f.pend += per; // pend：還在半空中、等一下會加進去的柴量
@@ -666,7 +666,7 @@ function updateFurnace(dt) {
   furnaceLabel.visible = pct < 50 || Math.hypot(player.position.x - FX, player.position.z - FZ) < 5;
   furnaceLabel.set([fireName() + ' Lv' + fireLv() + ' ' + pct + '%', pct < 50 ? (save.stove ? '⚫ 石爐只燒煤，揹煤來加' : save.mine ? '🪵⚫ 揹木頭或煤來加' : '🪵 揹木頭來加柴') : '🔥 暖氣範圍'], pct > 50 ? '#ffd34d' : pct > 20 ? '#ffa040' : '#ff6a5a');
   updateFireLook(dt, pct);
-  $('fuel').textContent = pct; $('fireName').textContent = fireName(); $('fuelBar').firstElementChild.style.width = pct + '%'; $('fuelBar').classList.toggle('danger', pct < 20);
+  setTxt('fuel', pct); setTxt('fireName', fireName()); $('fuelBar').firstElementChild.style.width = pct + '%'; $('fuelBar').classList.toggle('danger', pct < 20);
 }
 
 // ===== 煤礦坑（作者 10/18：礦要有礦坑的樣子，不是地上冒出一堆）：西邊的岩山、木框坑口，一直都在；

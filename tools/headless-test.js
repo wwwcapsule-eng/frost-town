@@ -68,5 +68,6 @@ const pre = /^\/\/ SAVE (.*)$/m.exec(test);
 if (pre) store['frost-town-save-v1'] = pre[1];
 const html = fs.readFileSync(path.join(dir, 'index.html'), 'utf8');
 const files = [...html.matchAll(/<script src="(js\/[^"]+)"/g)].map(m => m[1]).filter(f => !f.startsWith("js/lib/")); // three.js 用上面的假版本
-let all = files.map(f => fs.readFileSync(path.join(dir, f), 'utf8')).join('\n;\n'); // 同一個 script 範圍（let/const 彼此看得到，跟瀏覽器一樣）
-vm.runInContext(all + '\n;\n' + test, ctx, { filename: 'game+test' });
+// v1.49：一個檔一個 script，跟瀏覽器一樣（let/const 還是彼此看得到）；以前全部接成一個檔，main.js 用 typeof stage1 會當掉
+for (const f of files) vm.runInContext(fs.readFileSync(path.join(dir, f), 'utf8'), ctx, { filename: f });
+vm.runInContext(test, ctx, { filename: 'test' });

@@ -260,7 +260,6 @@ const stage1 = (() => {
     [() => '🔥 火堆保持 ' + CFG1.need.fuel + '% 以上（現在 ' + Math.round(st.fuel) + '%），暴風雪就會來襲！', () => false],
   ];
   let shownGoal = '', goalFlash = 0, shownAlert = '', whFeedT = 0, whFishT = 0, whDepT = 0;
-  const setTxt = (id, t) => { const e = $(id); if (e.textContent !== '' + t) e.textContent = t; };
   function hudText() {
     const f = Math.round(st.fuel), nb = bag.filter(b => b.type === 'brick').length, nf = bag.filter(b => b.type === 'fish').length, nl = bag.length - nb - nf;
     while (st.goal < GOALS.length - 1 && GOALS[st.goal][1]()) { const reward = 10 * (st.goal + 1); st.goal++; save.cash += reward; goalFlash = 1.5; toast('🎯 目標完成！獎金 +' + reward + ' 元'); sfx.coin(); }
@@ -529,9 +528,9 @@ const stage1 = (() => {
     }
     if (toastT > 0) { toastT -= dt; if (toastT <= 0) $('toast').style.opacity = 0; }
     if ((inkT -= dt) <= 0) { inkT = 0.5; inkAll(scene); }
-    if ((hudTxtT -= dt) <= 0) { hudTxtT = 0.25; hudText(); }
+    if ((hudTxtT -= dt) <= 0) { hudTxtT = 0.25; hudText(); hudT = 0; }   // v1.48：介面文字有更新時才重量介面範圍（以前每格都量，手機會卡）
     if ((saveT += dt) > 2) { saveT = 0; writeSave(); }
-    hudT = 0; declutter();   // 介面範圍每格重量一次（第 1 關的介面文字會變）
+    declutter();
   }
   // 過場動畫（約 8 秒）：上下黑邊滑進來 → 湖面裂縫變寬、冰屋一間間沉進湖裡、魚群散開 → 全村人帶著火種往南走 → 畫面變白 → 進第 2 關
   let cine = null;
