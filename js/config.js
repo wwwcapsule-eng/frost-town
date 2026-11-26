@@ -1,5 +1,5 @@
 'use strict';
-const VERSION = '1.51';
+const VERSION = '1.52';
 
 // ===== 數值（之後平衡都改這裡） =====
 const CFG = {
@@ -122,12 +122,12 @@ function writeSave() { if (resetting) return; try { localStorage.setItem(SAVE_KE
 // ===== 世界地圖（v1.47，作者 11/14：開放前三關切換）=====
 // 現在玩的那一關存在 SAVE_KEY；其他關的進度放在 world：now[n]＝上次離開第 n 關時的樣子（地圖按「繼續」讀它）、entry[n]＝剛到第 n 關時的樣子（「重玩」讀它）
 // 規則：回前面的關卡玩不會動到後面的關；只有再遷徙一次（migrateTo），下一關才會用新帶的 3 樣東西重新開始
-const MAP_KEY = 'frost-town-map', LAST_STAGE = 4;
+const MAP_KEY = 'frost-town-map', LAST_STAGE = 5;
 const world = { max: 1, now: {}, entry: {} };
 try { Object.assign(world, JSON.parse(localStorage.getItem(MAP_KEY) || '{}')); } catch (e) {}
 world.max = Math.max(world.max, save.stage);                    // 舊存檔、存檔碼：玩到哪一關，前面的就都開放
 const copy = o => JSON.parse(JSON.stringify(o));
-const STAGE_START = { 1: { stage: 1 }, 2: { stage: 2, arrive: true, res: 3 }, 3: { stage: 3, arrive: true }, 4: { stage: 4, arrive: true } }; // 沒有 entry（這一版之前就過關的人）時用的開場
+const STAGE_START = { 1: { stage: 1 }, 2: { stage: 2, arrive: true, res: 3 }, 3: { stage: 3, arrive: true }, 4: { stage: 4, arrive: true }, 5: { stage: 5, arrive: true } }; // 沒有 entry（這一版之前就過關的人）時用的開場
 const revisit = () => world.max > save.stage;                   // 正在玩以前過的關
 function writeWorld() { try { localStorage.setItem(MAP_KEY, JSON.stringify(world)); } catch (e) {} }
 function loadSave(data) { resetting = true; try { localStorage.setItem(SAVE_KEY, JSON.stringify(data)); sessionStorage.setItem('frost-town-skip-map', '1'); } catch (e) {} location.reload(); }
