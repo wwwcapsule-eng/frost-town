@@ -466,9 +466,8 @@ function checkLevel() {
   if (!next || paused || population() < next.need || blizGate() || hordeGate()) return; // v0.99：要先撐過大暴雪；v1.01：營地要先撐過獸潮
   if (!PRO && save.level === 0 && !/check/.test(location.search)) {                     // v1.35（作者 10/28）：第 2 關到村莊就遷徙，後半的煤礦、採石場、石爐、燻肉、石屋全搬到第 3 關
     if (save.cleared) return;                                                           // v1.47 過關後留在這一關：不再跳遷徙，要走從世界地圖按「出發」
-    if (revisit()) { save.cleared = true; writeSave(); story('🎉 村莊站穩了！', ['又過關了一次！', '想帶新的 3 樣東西去第 3 關：', '打開右上 ☰ 的 🗺️ 世界地圖，按「出發」。'], '好'); return; }
-    paused = true; story('🎉 村莊站穩了！', ['熊群一波比一波多，森林快養不活大家了。', '長老捧起火種說：「北邊的岩山有石頭，熊爬不上來。」', '帶著火種和族人，往北遷徙吧！'], '出發！');
-    $('lvOk').addEventListener('click', depart2, { once: true }); return;
+    save.cleared = true; writeSave();                                                   // 過關：之後世界地圖也有「出發」；選「留下」就不再跳這張卡
+    story('🎉 村莊站穩了！', ['熊群一波比一波多，森林快養不活大家了。', '長老捧起火種說：「北邊的岩山有石頭，熊爬不上來。」', ...(revisit() ? ['⚠️ 前往第 3 關會讓第 3 關重新開始。'] : []), '要留在這裡繼續蓋，還是帶著火種往北遷徙？'], '留在這裡繼續玩', { label: '🧳 前往第 3 關（選 3 樣帶走）', fn: depart2 }); return;
   }
   save.level++; writeSave(); levelUnlocks(); resize();
   story('🎉 升級為' + next.name + '！', ['新解鎖：', ...next.unlock], '太好了！');
@@ -487,7 +486,8 @@ function depart2() {                                                            
   }
 }
 // 卡片（升級、劇情共用）：遊戲暫停到按下按鈕
-function story(title, lines, ok) { $('lvTitle').textContent = title; $('lvList').innerHTML = lines.join('<br>'); $('lvOk').textContent = ok; $('lvup').style.display = 'flex'; paused = true; }
+// go＝{label, fn}：有的話多一顆「前往下一關」按鈕（過關選單：留下繼續玩 or 帶 3 樣東西去下一關）
+function story(title, lines, ok, go) { $('lvTitle').textContent = title; $('lvList').innerHTML = lines.join('<br>'); $('lvOk').textContent = ok; const b = $('lvGo'); b.style.display = go ? '' : 'none'; if (go) { b.textContent = go.label; b.onclick = () => { $('lvup').style.display = 'none'; paused = false; clock.getDelta(); go.fn(); }; } $('lvup').style.display = 'flex'; paused = true; }
 document.getElementById('lvOk').onclick = () => { $('lvup').style.display = 'none'; paused = false; clock.getDelta(); };
 // 圍欄裡外要走門：先走到最近的門口，穿過門再走向目標
 function routeTo(w, x, z, dt) {

@@ -419,7 +419,7 @@ const stage3 = (() => {
     else if (st.fuel <= 0) at = '🔥 石爐熄了！丟煤或木板進去';
     else if (wolves.length) { at = '🐺 狼群來了（' + wolves.length + '）！弩砲塔和斧頭會打牠們'; cls = 'warn'; }
     else if (!st.done && st.b.grill && st.dis === 0 && st.waveT <= 10) { at = '🐺 狼群 ' + Math.ceil(st.waveT) + ' 秒後從東西兩側來'; cls = 'warn'; }
-    else if (st.done) at = '🚧 第 4 關製作中——先把礦坑挖開、把城鎮蓋大吧';
+    else if (st.done) at = '🧳 過關了！☰ 世界地圖可以出發去第 4 關，也能留在這裡把礦坑挖開繼續玩';
     else if (st.goal >= GOALS.length - 1 && !selfSufficient()) { at = '📋 還缺：' + lacks().join('、'); cls = 'warn'; }
     const key = at + cls; if (key !== shownAlert) { shownAlert = key; $('alert').textContent = at; $('alert').className = cls; $('alert').style.display = at ? 'block' : 'none'; }
     // 格子標籤：最近的一格顯示完整（名稱、花費、說明），其他只顯示小價錢，才不會互相蓋住
@@ -526,8 +526,30 @@ const stage3 = (() => {
     if (dist(player.position.x, player.position.z, x, z) < 3.4) { hurtHero(18); const lose = bag.splice(Math.ceil(bag.length / 2)); lose.forEach(b => stackRoot.remove(b.m)); restackBag(); if (lose.length) toast('🏔️ 被雪砸到，掉了 ' + lose.length + ' 個東西'); }
   }
   function finish() {
-    st.dis = 0; st.done = true; writeSave();
-    story('🏔️ 大雪崩！', ['山上的積雪整片滑下來，採石場和煤礦坑都被埋住了。', '長老望著南邊說：「山腳下的河谷有黏土，可以燒磚。」', '下一站（第 4 關）還在準備，先把礦坑挖開、把石屋蓋滿，等路通了再出發。'], '繼續');
+    st.dis = 0; st.done = true; save.cleared = true; writeSave();
+    story('🏔️ 大雪崩！', ['山上的積雪整片滑下來，採石場和煤礦坑都被埋住了。', '長老望著南邊說：「山腳下的河谷有黏土，可以燒磚。」', ...(revisit() ? ['⚠️ 前往第 4 關會讓第 4 關重新開始。'] : []), '要留在這裡把礦坑挖開、繼續蓋，還是往南遷徙去河谷？'], '留在這裡繼續玩', { label: '🧳 前往第 4 關（選 3 樣帶走）', fn: depart });
+  }
+  // 過關選單的「前往第 4 關」：選 3 樣帶走 → 白畫面字幕 → 存成第 4 關開場（migrateTo 會先把這一關留在世界地圖裡，之後可以回來繼續）
+  function depart() {
+    const o = [{ k: 'cash', icon: '💵', name: '全部的錢', desc: '現在 ' + save.cash + ' 元（不選只帶 2 成）' }];
+    if (st.bagLv > 0) o.push({ k: 'bag', icon: '🎒', name: '揹包升級', desc: '第 4 關揹包 +' + 3 * Math.min(2, st.bagLv) });
+    if (st.axeLv > 0) o.push({ k: 'axe', icon: '🪓', name: '斧頭升級', desc: '第 4 關砍、敲更快' });
+    if (st.b.wh) o.push({ k: 'wh', icon: '📦', name: '倉庫', desc: '第 4 關一開始就有磚砌倉庫' });
+    if (st.b.grill) o.push({ k: 'grill', icon: '🍖', name: '烤肉攤', desc: '第 4 關一開始就有烤肉攤' });
+    if (st.tw >= 3) o.push({ k: 'tower', icon: '🏹', name: '弩砲塔', desc: '第 4 關多一座塔（共 3 座）' });
+    if (st.b.houses > 0) o.push({ k: 'house', icon: '🏠', name: '一間民房', desc: '第 4 關有 1 間磚屋（多 6 張床）' });
+    if (store.plank > 0) o.push({ k: 'mat', icon: '🪵', name: '倉庫的木板', desc: '帶走 5 成（沒選帶 2 成）' });
+    chooseCarry('選 3 樣帶去第 4 關', o, c => {
+      paused = true;
+      const el = document.createElement('div'); el.style.cssText = 'position:fixed;inset:0;z-index:99;background:#fff;opacity:0;transition:opacity 1.4s;display:flex;align-items:center;justify-content:center;color:#25415e;font:700 19px sans-serif;text-align:center;padding:0 24px;line-height:1.8';
+      document.body.appendChild(el); requestAnimationFrame(() => { el.style.opacity = 1; });
+      const lines = ['雪崩埋住了礦坑，岩山養不活大家了……', '長老捧著火種：「往南，河谷有黏土，可以燒磚。」', '全村收拾行囊，離開岩山。'];
+      lines.forEach((t, i) => setTimeout(() => { el.textContent = t; }, 700 + i * 2000));
+      setTimeout(() => migrateTo(4, () => {
+        if (!c.includes('cash')) save.cash = Math.floor(save.cash * 0.2);
+        save.s4 = { pop: Math.max(3, Math.min(5, Math.floor(st.pop / 2))), carry: c, bagLv: c.includes('bag') ? Math.min(2, st.bagLv || 0) : 0, axeLv: c.includes('axe') ? Math.min(2, st.axeLv || 0) : 0, store: { plank: 30 + Math.floor(store.plank * (c.includes('mat') ? 0.5 : 0.2)), stone: 0, coal: 12, smoked: 0 } };
+      }), 700 + lines.length * 2000 + 500);
+    });
   }
 
   // ---- 開場動畫（跟第 2 關開場同一套）：白畫面淡入、上下黑邊，先生起石爐、再把營地一樣樣蓋起來 ----
@@ -619,7 +641,7 @@ const stage3 = (() => {
     return out;
   };
   S.spots = [[0, 12], [-8, 3.9], [8, 11], [-13, -9.9], [13, -9.9], [-19.8, -13], [19.8, -13], [-6.2, -13], [6.2, -13], [0, -9], [0, 13.2], [-3.5, 17], [3.5, 17], [-8, 15.6], [-8, 22.4], [4.7, 7.5], [-4.4, 7.5], [-4.2, -1.6], [4.2, -1.6], [-13.8, 11], [13.8, 11], [11, 13.5], [16, 6], [-15, 14], [0, 21.6]];
-  S.STAND = STAND; S.BLD = BLD; S.state = st; S.step = step; S.pads = pads; S.ents = ents; S.bag = bag; S.wolves = wolves; S.workers = workers; S.store = store; S.GOALS = GOALS; S.CF = CF; S.beds = beds; S.upN = upN; S.hudText = hudText; S.lacks = lacks; S.spawnWave = spawnWave; S.applyLooks = applyLooks; S.addWorkers = addWorkers; S.addBag = addBag; S.selfSufficient = selfSufficient; S.addCustomer = addCustomer; S.syncFolks = syncFolks; S.finish = finish; S.queue = queue; S.circles = circles; S.hares = hares;
+  S.STAND = STAND; S.BLD = BLD; S.state = st; S.step = step; S.pads = pads; S.ents = ents; S.bag = bag; S.wolves = wolves; S.workers = workers; S.store = store; S.GOALS = GOALS; S.CF = CF; S.beds = beds; S.upN = upN; S.hudText = hudText; S.lacks = lacks; S.spawnWave = spawnWave; S.applyLooks = applyLooks; S.addWorkers = addWorkers; S.addBag = addBag; S.selfSufficient = selfSufficient; S.addCustomer = addCustomer; S.syncFolks = syncFolks; S.finish = finish; S.depart = depart; S.queue = queue; S.circles = circles; S.hares = hares;
   S.enter = () => {
     S.on = true; undeclutter(); save.level = 0; save.territory = 0; resize();   // 第 3 關鏡頭跟第 1 關一樣的基準（不吃第 2 關的城市／領地等級加成）
     scene.children.slice().forEach(o => { if (!(o.isLight || o === player || o.isPoints || o === sun.target)) o.visible = false; });

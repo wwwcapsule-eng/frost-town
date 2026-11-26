@@ -567,10 +567,8 @@ const stage1 = (() => {
   function setStorm(o) { if (!stormEl) { stormEl = document.createElement('div'); stormEl.style.cssText = 'position:fixed;inset:0;z-index:5;pointer-events:none;background:radial-gradient(circle,rgba(190,212,230,.35),#7d9db8);opacity:0'; document.body.appendChild(stormEl); } stormEl.style.opacity = o; }
   let paceT = 0;
   function finish() {                                                            // 撐過崩裂 → 遷徙劇情卡 → 第 2 關（帶走錢 100%、居民折半）
-    if (revisit()) { save.cleared = true; writeSave(); story('🧊 冰湖崩裂了！', ['又撐過了一次！', '想帶新的 3 樣東西去第 2 關：', '打開右上 ☰ 的 🗺️ 世界地圖，按「出發」。'], '好'); return; } // v1.47 回來重玩：不自動遷徙，免得蓋掉後面關卡的進度
-    writeSave();
-    story('🧊 冰湖崩裂了！', ['湖冰整片裂開，冰屋沉進了湖裡，魚群也游走了。', '長老捧起火種說：「南邊的森林有木頭，可以蓋木屋。」', '帶著火種和族人，往南遷徙吧！'], '出發！');
-    $('lvOk').addEventListener('click', depart, { once: true });
+    save.cleared = true; writeSave();                                            // 過關選單：留下繼續玩，或帶 3 樣東西去第 2 關（回前面的關重玩時，後面的關進度不會被自動蓋掉）
+    story('🧊 冰湖崩裂了！', ['湖冰整片裂開，冰屋沉進了湖裡，魚群也游走了。', '長老捧起火種說：「南邊的森林有木頭，可以蓋木屋。」', ...(revisit() ? ['⚠️ 前往第 2 關會讓第 2 關重新開始。'] : []), '要留在這裡繼續玩，還是往南遷徙？'], '留在這裡繼續玩', { label: '🧳 前往第 2 關（選 3 樣帶走）', fn: depart });
   }
   function depart() {                                                            // 選 3 樣 → 遷徙動畫 → 第 2 關（世界地圖的「出發」也走這裡）
     {
