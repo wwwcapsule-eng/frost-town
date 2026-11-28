@@ -21,6 +21,8 @@
     { name: '第4關齊全（全部蓋滿、升級過）', stage: 4, s4: { pop: 36, fuel: 80, goal: 11, store: { plank: 120, stone: 90, coal: 60, smoked: 30 }, tw: 4, b: { quarry: 1, mine: 1, wh: 1, grill: 1, smoke: 1, sled: 1, houses: 7 }, up: { stove: 1, quarry: 1, mine: 1, wh: 1, grill: 1, smoke: 1, sled: 1, t0: 1, t1: 1, t2: 0, t3: 0 }, hire: { quarry: 1, mine: 1, hunter: 1, sled: 1 }, cooked: 4 } },
     { name: '第5關開場（只有石爐）', stage: 5, s5: {} },
     { name: '第5關齊全（全部蓋滿、升級過、麥熟了、2 個稻草人）', stage: 5, s5: { pop: 46, fuel: 80, goal: 11, store: { plank: 120, stone: 110, coal: 60, smoked: 30 }, tw: 4, scare: 2, crop: 1, left: 28, b: { quarry: 1, mine: 1, wh: 1, grill: 1, smoke: 1, sled: 1, houses: 7 }, up: { stove: 1, quarry: 1, mine: 1, wh: 1, grill: 1, smoke: 1, sled: 1, t0: 1, t1: 1, t2: 0, t3: 0 }, hire: { quarry: 1, mine: 1, hunter: 1, sled: 1 }, cooked: 4 } },
+    { name: '第6關開場（只有石爐）', stage: 6, s6: {} },
+    { name: '第6關齊全（全部蓋滿、升級過、蔬菜熟了、2 條熱水管）', stage: 6, s6: { pop: 46, fuel: 80, goal: 11, store: { plank: 120, stone: 130, coal: 70, smoked: 36 }, tw: 4, scare: 2, crop: 1, left: 28, b: { quarry: 1, mine: 1, wh: 1, grill: 1, smoke: 1, sled: 1, houses: 7 }, up: { stove: 1, quarry: 1, mine: 1, wh: 1, grill: 1, smoke: 1, sled: 1, t0: 1, t1: 1, t2: 0, t3: 0 }, hire: { quarry: 1, mine: 1, hunter: 1, sled: 1 }, cooked: 4 } },
   ];
   const inkCache = new Map();
   function ink(sp) {                                   // 標籤圖上真的有字的範圍（0～1）
@@ -107,7 +109,7 @@
   }
   function all() {
     const g = __game, found = new Set(), p0 = g.player.position.clone();
-    const s1 = [g.stage1, g.stage3, g.stage4, g.stage5].find(s => s && s.on) || null;   // 第 1 關、第 3 關是自己的世界：只檢查那一關自己的東西
+    const s1 = [g.stage1, g.stage3, g.stage4, g.stage5, g.stage6].find(s => s && s.on) || null;   // 第 1 關、第 3 關是自己的世界：只檢查那一關自己的東西
     const spots = s1 ? s1.spots : [[0, 2], ...g.unlocks.filter(u => !u.done && u.pad.parent).map(u => [u.x, u.z]), ...g.buildings.filter(b => !b.dead).map(b => [b.x, b.z + b.r + 1.2])];
     for (const [x, z] of spots) {                      // 主角站到每個付款格、每棟建築門口看一次
       g.player.position.set(x, 0, z);

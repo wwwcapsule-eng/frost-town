@@ -50,7 +50,7 @@ window.stage5Test = async function () {
   S.spawnWave(4, false); tick(50); ok(S.wolves.length === 0, '4 隻狼 50 秒內被打倒（剩 ' + S.wolves.length + '）');
   ok(S.ents.every(e => isFinite(e.hp)) && isFinite(st.fuel) && isFinite(__game.player.position.x) && isFinite(st.crop), '數值沒有 NaN');
   // 5. 囤貨、居民湊滿 → 潰堤 → 被埋 → 挖開
-  S.store.stone = 130; S.store.coal = 60; S.store.smoked = 30; S.store.plank = 200; st.pop = 50; st.fuel = 90; st.retryT = 0; st.waveT = 9999; tick(1);
+  S.store.stone = 130; S.store.coal = 60; S.store.smoked = 30; S.store.plank = 200; st.pop = 48; st.fuel = 90; st.retryT = 0; st.waveT = 9999; tick(1);
   S.hudText(); tick(1); S.hudText();
   ok(st.goal >= S.GOALS.length - 1, '目標列走到最後一步（第 ' + (st.goal + 1) + '/' + S.GOALS.length + ' 步）');
   ok(S.selfSufficient(), '自給自足條件達成（還缺：' + S.lacks().join('、') + '）');
